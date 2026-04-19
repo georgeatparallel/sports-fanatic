@@ -1,0 +1,70 @@
+<SportsFanaticWeb.SEOComponents.breadcrumbs items={[
+  %{label: "Home", href: "/"},
+  %{label: "Game Day"},
+  %{label: Calendar.strftime(@date, "%B %d, %Y")},
+  %{label: "#{@magazine.away_team.name} vs #{@magazine.home_team.name}"}
+]} />
+
+<%= if assigns[:json_ld] do %>
+  <SportsFanaticWeb.SEOComponents.json_ld data={@json_ld} />
+<% end %>
+
+<article class="max-w-4xl mx-auto px-4 py-8">
+  <header class="bg-gradient-to-r from-slate-800 to-blue-900 text-white rounded-xl p-8 mb-8">
+    <p class="text-blue-300 text-sm font-medium uppercase tracking-wider mb-2">Game Day Magazine</p>
+    <h1 class="text-3xl font-bold mb-2"><%= @magazine.headline %></h1>
+    <%= if @magazine.subheadline do %>
+      <p class="text-blue-200 text-lg"><%= @magazine.subheadline %></p>
+    <% end %>
+    <div class="flex items-center gap-6 mt-4 text-sm text-blue-200">
+      <span><%= Calendar.strftime(@date, "%B %d, %Y") %></span>
+    </div>
+  </header>
+
+  <div class="grid grid-cols-2 gap-6 mb-8">
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 text-center">
+      <p class="text-sm text-gray-500 mb-1">Away</p>
+      <h2 class="text-xl font-bold text-gray-900">
+        <a href={"/mlb/teams/#{@magazine.away_team.slug}"} class="hover:text-blue-600"><%= @magazine.away_team.name %></a>
+      </h2>
+      <p class="text-gray-600 mt-1"><%= get_in(@magazine.away_pitcher, ["name"]) || "TBD" %></p>
+    </div>
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 text-center">
+      <p class="text-sm text-gray-500 mb-1">Home</p>
+      <h2 class="text-xl font-bold text-gray-900">
+        <a href={"/mlb/teams/#{@magazine.home_team.slug}"} class="hover:text-blue-600"><%= @magazine.home_team.name %></a>
+      </h2>
+      <p class="text-gray-600 mt-1"><%= get_in(@magazine.home_pitcher, ["name"]) || "TBD" %></p>
+    </div>
+  </div>
+
+  <section class="mb-8">
+    <h2 class="text-xl font-semibold text-gray-900 mb-3">Matchup Preview</h2>
+    <p class="text-gray-700 leading-relaxed"><%= String.slice(@magazine.matchup_analysis || "", 0, 500) %></p>
+  </section>
+
+  <%= if @magazine.key_storylines && length(@magazine.key_storylines) > 0 do %>
+    <section class="mb-8">
+      <h2 class="text-xl font-semibold text-gray-900 mb-3">Key Storylines</h2>
+      <ul class="space-y-2">
+        <%= for storyline <- Enum.take(@magazine.key_storylines, 3) do %>
+          <li class="flex items-start gap-2 text-gray-700">
+            <span class="text-blue-500 mt-1">&#x2022;</span>
+            <span><%= storyline %></span>
+          </li>
+        <% end %>
+      </ul>
+    </section>
+  <% end %>
+
+  <div class="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-8 border border-blue-200 text-center">
+    <h3 class="text-xl font-bold text-gray-900 mb-2">Full Game Day Magazine</h3>
+    <p class="text-gray-600 mb-4">
+      Get complete matchup analysis, per-batter hit/HR probabilities, weather impact,
+      historical data, and AI-powered predictions.
+    </p>
+    <a href="/subscribe" class="inline-block bg-blue-600 text-white font-semibold px-8 py-3 rounded-lg hover:bg-blue-700 transition">
+      Subscribe for Full Access
+    </a>
+  </div>
+</article>

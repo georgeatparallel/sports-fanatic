@@ -1,0 +1,122 @@
+<SportsFanaticWeb.SEOComponents.breadcrumbs items={[
+  %{label: "Home", href: "/"},
+  %{label: "Players", href: "/mlb/players"},
+  %{label: @team.name, href: "/mlb/teams/#{@team.slug}"},
+  %{label: @player.full_name}
+]} />
+
+<%= if assigns[:json_ld] do %>
+  <SportsFanaticWeb.SEOComponents.json_ld data={@json_ld} />
+<% end %>
+
+<article class="max-w-6xl mx-auto px-4 py-8">
+  <header class="flex items-start gap-6 mb-8">
+    <%= if @player.headshot_url do %>
+      <img src={@player.headshot_url} alt={@player.full_name} class="w-24 h-24 rounded-full object-cover shadow-lg" />
+    <% else %>
+      <div class="w-24 h-24 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-2xl font-bold shadow-lg">
+        <%= String.first(@player.first_name || "") %><%= String.first(@player.last_name || "") %>
+      </div>
+    <% end %>
+    <div>
+      <h1 class="text-3xl font-bold text-gray-900"><%= @player.full_name %></h1>
+      <p class="text-lg text-gray-600">
+        <a href={"/mlb/teams/#{@team.slug}"} class="text-blue-600 hover:text-blue-800"><%= @team.name %></a>
+        <span class="mx-2">|</span>
+        <span><%= @player.position %></span>
+        <%= if @player.jersey_number do %>
+          <span class="mx-2">|</span>
+          <span>#<%= @player.jersey_number %></span>
+        <% end %>
+      </p>
+      <div class="flex gap-4 text-sm text-gray-500 mt-2">
+        <%= if @player.bats do %><span>Bats: <%= @player.bats %></span><% end %>
+        <%= if @player.throws do %><span>Throws: <%= @player.throws %></span><% end %>
+        <%= if @player.height do %><span><%= @player.height %></span><% end %>
+        <%= if @player.weight do %><span><%= @player.weight %> lbs</span><% end %>
+      </div>
+    </div>
+  </header>
+
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+    <div class="lg:col-span-2">
+      <%= if @player.bio do %>
+        <section class="mb-8">
+          <h2 class="text-xl font-semibold text-gray-900 mb-3">About</h2>
+          <p class="text-gray-700 leading-relaxed"><%= @player.bio %></p>
+        </section>
+      <% end %>
+
+      <%= if @scouting do %>
+        <section class="mb-8">
+          <h2 class="text-xl font-semibold text-gray-900 mb-3">Scouting Report Preview</h2>
+          <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <div class="flex items-center gap-3 mb-3">
+              <span class="text-2xl font-bold text-blue-600"><%= @scouting.overall_grade %></span>
+              <span class="text-sm text-gray-500">Overall Grade</span>
+            </div>
+            <p class="text-gray-700"><%= @scouting.summary %></p>
+            <a href={"/mlb/scouting/#{@team.slug}/#{@player.slug}"} class="inline-block mt-4 text-blue-600 hover:text-blue-800 font-medium">
+              View full scouting report &rarr;
+            </a>
+          </div>
+        </section>
+      <% end %>
+
+      <%= if @news && length(@news) > 0 do %>
+        <section>
+          <h2 class="text-xl font-semibold text-gray-900 mb-3">Recent News</h2>
+          <div class="space-y-3">
+            <%= for item <- @news do %>
+              <a href={"/mlb/news/#{Date.to_iso8601(item.published_date)}/#{item.slug}"} class="block bg-white rounded-lg shadow-sm border border-gray-100 p-4 hover:border-blue-300 transition">
+                <h3 class="font-medium text-gray-900"><%= item.title %></h3>
+                <p class="text-sm text-gray-500 mt-1"><%= Calendar.strftime(item.published_date, "%b %d, %Y") %></p>
+              </a>
+            <% end %>
+          </div>
+        </section>
+      <% end %>
+    </div>
+
+    <aside>
+      <%= if @hit_pick || @hr_pick do %>
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+          <h3 class="font-semibold text-gray-900 mb-4">Today's Predictions</h3>
+          <%= if @hit_pick do %>
+            <div class="mb-4">
+              <p class="text-sm text-gray-500">Hit Prediction</p>
+              <div class="flex items-center gap-2">
+                <span class={"text-lg font-bold #{if @hit_pick.prediction == "Hit", do: "text-green-600", else: "text-red-600"}"}><%= @hit_pick.prediction %></span>
+                <span class="text-sm text-gray-500"><%= Float.round(@hit_pick.confidence * 100, 1) %>%</span>
+              </div>
+              <p class="text-xs text-gray-400">vs <%= @hit_pick.vs_team %></p>
+            </div>
+          <% end %>
+          <%= if @hr_pick do %>
+            <div>
+              <p class="text-sm text-gray-500">HR Probability</p>
+              <div class="flex items-center gap-2">
+                <span class="text-lg font-bold text-purple-600"><%= Float.round(@hr_pick.hr_probability * 100, 1) %>%</span>
+                <span class={"px-2 py-0.5 text-xs rounded-full font-medium #{case @hr_pick.confidence_tier do
+                  "A" -> "bg-green-100 text-green-800"
+                  "B" -> "bg-yellow-100 text-yellow-800"
+                  _ -> "bg-gray-100 text-gray-800"
+                end}"}><%= @hr_pick.confidence_tier %> tier</span>
+              </div>
+              <p class="text-xs text-gray-400">vs <%= @hr_pick.vs_team %></p>
+            </div>
+          <% end %>
+        </div>
+      <% end %>
+
+      <div class="bg-gray-50 rounded-lg p-6">
+        <h3 class="font-semibold text-gray-900 mb-3">Quick Links</h3>
+        <ul class="space-y-2 text-sm">
+          <li><a href={"/mlb/scouting/#{@team.slug}/#{@player.slug}"} class="text-blue-600 hover:text-blue-800">Scouting Report</a></li>
+          <li><a href={"/mlb/teams/#{@team.slug}"} class="text-blue-600 hover:text-blue-800"><%= @team.name %> Team Page</a></li>
+          <li><a href={"/mlb/lineups/#{Date.to_iso8601(Date.utc_today())}"} class="text-blue-600 hover:text-blue-800">Today's Lineups</a></li>
+        </ul>
+      </div>
+    </aside>
+  </div>
+</article>

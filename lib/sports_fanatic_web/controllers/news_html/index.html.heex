@@ -1,0 +1,32 @@
+<SportsFanaticWeb.SEOComponents.breadcrumbs items={[
+  %{label: "Home", href: "/"},
+  %{label: "News"},
+  %{label: Calendar.strftime(@date, "%B %d, %Y")}
+]} />
+
+<section class="max-w-4xl mx-auto px-4 py-8">
+  <h1 class="text-3xl font-bold text-gray-900 mb-6">MLB News - <%= Calendar.strftime(@date, "%B %d, %Y") %></h1>
+
+  <%= if Enum.empty?(@news) do %>
+    <p class="text-gray-500">No news for this date.</p>
+  <% else %>
+    <div class="space-y-4">
+      <%= for item <- @news do %>
+        <article class="bg-white rounded-lg shadow-sm border border-gray-100 p-5">
+          <a href={"/mlb/news/#{@date_str}/#{item.slug}"} class="hover:text-blue-600">
+            <h2 class="text-lg font-semibold text-gray-900"><%= item.title %></h2>
+          </a>
+          <%= if item.summary do %>
+            <p class="text-gray-600 mt-2"><%= String.slice(item.summary, 0, 250) %></p>
+          <% end %>
+          <div class="flex gap-3 mt-3 text-sm text-gray-400">
+            <%= if item.category do %>
+              <span class="px-2 py-0.5 bg-gray-100 rounded text-gray-600"><%= item.category %></span>
+            <% end %>
+            <span><%= item.source %></span>
+          </div>
+        </article>
+      <% end %>
+    </div>
+  <% end %>
+</section>

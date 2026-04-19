@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en" class="[scrollbar-gutter:stable]">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="csrf-token" content={get_csrf_token()} />
+    <%= if assigns[:meta_description] do %>
+      <meta name="description" content={@meta_description} />
+    <% end %>
+    <%= if assigns[:canonical_url] do %>
+      <link rel="canonical" href={@canonical_url} />
+    <% end %>
+    <%= if assigns[:og_title] do %>
+      <meta property="og:title" content={@og_title} />
+      <meta property="og:type" content={assigns[:og_type] || "website"} />
+      <meta property="og:description" content={assigns[:og_description] || @meta_description} />
+      <meta property="og:url" content={assigns[:canonical_url]} />
+      <meta property="og:site_name" content="Sports Fanatic" />
+    <% end %>
+    <%= if assigns[:twitter_card] do %>
+      <meta name="twitter:card" content={@twitter_card} />
+      <meta name="twitter:title" content={assigns[:og_title]} />
+      <meta name="twitter:description" content={assigns[:og_description] || assigns[:meta_description]} />
+    <% end %>
+    <.live_title suffix=" | Sports Fanatic">
+      <%= assigns[:page_title] || "Sports Fanatic" %>
+    </.live_title>
+    <%= if assigns[:json_ld] do %>
+      <script type="application/ld+json">
+        <%= raw(@json_ld) %>
+      </script>
+    <% end %>
+    <link phx-track-static rel="stylesheet" href={~p"/assets/app.css"} />
+    <script defer phx-track-static type="text/javascript" src={~p"/assets/app.js"}>
+    </script>
+  </head>
+  <body class="bg-gray-50 antialiased min-h-screen flex flex-col">
+    <header class="bg-white border-b border-gray-200">
+      <nav class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="flex justify-between h-16 items-center">
+          <div class="flex items-center gap-8">
+            <a href="/" class="text-xl font-bold text-blue-600">Sports Fanatic</a>
+            <div class="hidden sm:flex gap-6">
+              <a href="/mlb/teams" class="text-gray-600 hover:text-gray-900 text-sm font-medium">Teams</a>
+              <a href="/mlb/players" class="text-gray-600 hover:text-gray-900 text-sm font-medium">Players</a>
+              <a href={"/mlb/lineups/#{Date.to_iso8601(Date.utc_today())}"} class="text-gray-600 hover:text-gray-900 text-sm font-medium">Lineups</a>
+              <a href={"/mlb/news/#{Date.to_iso8601(Date.utc_today())}"} class="text-gray-600 hover:text-gray-900 text-sm font-medium">News</a>
+              <a href="/mlb/players" class="text-gray-600 hover:text-gray-900 text-sm font-medium">Scouting</a>
+              <a href={"/mlb/lineups/#{Date.to_iso8601(Date.utc_today())}"} class="text-gray-600 hover:text-gray-900 text-sm font-medium">Game Day</a>
+            </div>
+          </div>
+          <div class="flex items-center gap-4">
+            <%= if assigns[:current_user] do %>
+              <a href="/premium/dashboard" class="text-sm text-blue-600 font-medium">Dashboard</a>
+              <a href="/logout" class="text-sm text-gray-500 hover:text-gray-700" data-method="delete">Sign Out</a>
+            <% else %>
+              <a href="/auth/login" class="text-sm text-gray-600 hover:text-gray-900">Sign In</a>
+              <a href="/subscribe" class="bg-blue-600 text-white text-sm px-4 py-2 rounded-lg hover:bg-blue-700">Subscribe</a>
+            <% end %>
+          </div>
+        </div>
+      </nav>
+    </header>
+
+    <main class="flex-1">
+      <%= @inner_content %>
+    </main>
+
+    <footer class="bg-gray-900 text-gray-400 py-12 mt-auto">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-8">
+          <div>
+            <h3 class="text-white font-semibold mb-3">Teams</h3>
+            <a href="/mlb/teams" class="block text-sm hover:text-white">All Teams</a>
+          </div>
+          <div>
+            <h3 class="text-white font-semibold mb-3">Players</h3>
+            <a href="/mlb/players" class="block text-sm hover:text-white">All Players</a>
+          </div>
+          <div>
+            <h3 class="text-white font-semibold mb-3">Content</h3>
+            <a href={"/mlb/news/#{Date.to_iso8601(Date.utc_today())}"} class="block text-sm hover:text-white">News</a>
+            <a href="/mlb/players" class="block text-sm hover:text-white">Scouting</a>
+            <a href={"/mlb/lineups/#{Date.to_iso8601(Date.utc_today())}"} class="block text-sm hover:text-white">Game Day</a>
+          </div>
+          <div>
+            <h3 class="text-white font-semibold mb-3">Premium</h3>
+            <a href="/subscribe" class="block text-sm hover:text-white">Subscribe</a>
+          </div>
+        </div>
+        <div class="border-t border-gray-800 mt-8 pt-8 text-center text-sm">
+          Sports Fanatic &copy; <%= DateTime.utc_now().year %>. All rights reserved.
+        </div>
+      </div>
+    </footer>
+  </body>
+</html>
