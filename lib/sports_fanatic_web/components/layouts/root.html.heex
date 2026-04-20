@@ -15,19 +15,19 @@
       <meta property="og:type" content={assigns[:og_type] || "website"} />
       <meta property="og:description" content={assigns[:og_description] || @meta_description} />
       <meta property="og:url" content={assigns[:canonical_url]} />
-      <meta property="og:site_name" content="Sports Fanatic" />
+      <meta property="og:site_name" content="Sports Fan Agent" />
     <% end %>
     <%= if assigns[:twitter_card] do %>
       <meta name="twitter:card" content={@twitter_card} />
       <meta name="twitter:title" content={assigns[:og_title]} />
       <meta name="twitter:description" content={assigns[:og_description] || assigns[:meta_description]} />
     <% end %>
-    <.live_title suffix=" | Sports Fanatic">
-      <%= assigns[:page_title] || "Sports Fanatic" %>
+    <.live_title suffix=" | Sports Fan Agent">
+      <%= assigns[:page_title] || "Sports Fan Agent" %>
     </.live_title>
     <%= if assigns[:json_ld] do %>
       <script type="application/ld+json">
-        <%= raw(@json_ld) %>
+        <%= raw(if is_binary(@json_ld), do: @json_ld, else: Jason.encode!(@json_ld)) %>
       </script>
     <% end %>
     <link phx-track-static rel="stylesheet" href={~p"/assets/app.css"} />
@@ -35,29 +35,50 @@
     </script>
   </head>
   <body class="bg-gray-50 antialiased min-h-screen flex flex-col">
-    <header class="bg-white border-b border-gray-200">
+    <header class="bg-white border-b border-gray-200 sticky top-0 z-50">
       <nav class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div class="flex justify-between h-16 items-center">
-          <div class="flex items-center gap-8">
-            <a href="/" class="text-xl font-bold text-blue-600">Sports Fanatic</a>
-            <div class="hidden sm:flex gap-6">
-              <a href="/mlb/teams" class="text-gray-600 hover:text-gray-900 text-sm font-medium">Teams</a>
-              <a href="/mlb/players" class="text-gray-600 hover:text-gray-900 text-sm font-medium">Players</a>
-              <a href={"/mlb/lineups/#{Date.to_iso8601(Date.utc_today())}"} class="text-gray-600 hover:text-gray-900 text-sm font-medium">Lineups</a>
-              <a href={"/mlb/news/#{Date.to_iso8601(Date.utc_today())}"} class="text-gray-600 hover:text-gray-900 text-sm font-medium">News</a>
-              <a href="/mlb/players" class="text-gray-600 hover:text-gray-900 text-sm font-medium">Scouting</a>
-              <a href={"/mlb/lineups/#{Date.to_iso8601(Date.utc_today())}"} class="text-gray-600 hover:text-gray-900 text-sm font-medium">Game Day</a>
+        <div class="flex justify-between h-14 items-center">
+          <div class="flex items-center gap-2">
+            <a href="/" class="flex items-center gap-2 shrink-0">
+              <span class="text-2xl">&#9918;</span>
+              <span class="text-lg font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">Sports Fan Agent</span>
+            </a>
+            <div class="hidden md:flex items-center gap-1 ml-6">
+              <a href="/mlb/teams" class="text-gray-600 hover:text-gray-900 hover:bg-gray-100 text-sm font-medium px-3 py-2 rounded-lg transition">Teams</a>
+              <a href="/mlb/players" class="text-gray-600 hover:text-gray-900 hover:bg-gray-100 text-sm font-medium px-3 py-2 rounded-lg transition">Players</a>
+              <a href={"/mlb/lineups/#{Date.to_iso8601(Date.utc_today())}"} class="text-gray-600 hover:text-gray-900 hover:bg-gray-100 text-sm font-medium px-3 py-2 rounded-lg transition">Lineups</a>
+              <a href={"/mlb/news/#{Date.to_iso8601(Date.utc_today())}"} class="text-gray-600 hover:text-gray-900 hover:bg-gray-100 text-sm font-medium px-3 py-2 rounded-lg transition">News</a>
+              <a href="/mlb/players" class="text-gray-600 hover:text-gray-900 hover:bg-gray-100 text-sm font-medium px-3 py-2 rounded-lg transition">Scouting</a>
+              <a href={"/mlb/lineups/#{Date.to_iso8601(Date.utc_today())}"} class="text-gray-600 hover:text-gray-900 hover:bg-gray-100 text-sm font-medium px-3 py-2 rounded-lg transition">Game Day</a>
             </div>
           </div>
-          <div class="flex items-center gap-4">
+          <div class="flex items-center gap-3">
             <%= if assigns[:current_user] do %>
-              <a href="/premium/dashboard" class="text-sm text-blue-600 font-medium">Dashboard</a>
+              <a href="/premium/dashboard" class="text-sm text-blue-600 font-medium hover:text-blue-700">Dashboard</a>
               <a href="/logout" class="text-sm text-gray-500 hover:text-gray-700" data-method="delete">Sign Out</a>
             <% else %>
-              <a href="/auth/login" class="text-sm text-gray-600 hover:text-gray-900">Sign In</a>
-              <a href="/subscribe" class="bg-blue-600 text-white text-sm px-4 py-2 rounded-lg hover:bg-blue-700">Subscribe</a>
+              <a href="/auth/login" class="hidden sm:inline-block text-sm text-gray-600 hover:text-gray-900 font-medium">Sign In</a>
+              <a href="/subscribe" class="bg-blue-600 text-white text-sm px-4 py-2 rounded-lg hover:bg-blue-700 font-medium transition shadow-sm">Subscribe</a>
             <% end %>
+            <!-- Mobile menu button -->
+            <button type="button" onclick="document.getElementById('mobile-menu').classList.toggle('hidden')" class="md:hidden inline-flex items-center justify-center p-2 rounded-lg text-gray-500 hover:text-gray-900 hover:bg-gray-100">
+              <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+              </svg>
+            </button>
           </div>
+        </div>
+        <!-- Mobile menu -->
+        <div id="mobile-menu" class="hidden md:hidden border-t border-gray-100 py-3 space-y-1">
+          <a href="/mlb/teams" class="block text-gray-600 hover:text-gray-900 hover:bg-gray-50 text-sm font-medium px-3 py-2 rounded-lg">Teams</a>
+          <a href="/mlb/players" class="block text-gray-600 hover:text-gray-900 hover:bg-gray-50 text-sm font-medium px-3 py-2 rounded-lg">Players</a>
+          <a href={"/mlb/lineups/#{Date.to_iso8601(Date.utc_today())}"} class="block text-gray-600 hover:text-gray-900 hover:bg-gray-50 text-sm font-medium px-3 py-2 rounded-lg">Lineups</a>
+          <a href={"/mlb/news/#{Date.to_iso8601(Date.utc_today())}"} class="block text-gray-600 hover:text-gray-900 hover:bg-gray-50 text-sm font-medium px-3 py-2 rounded-lg">News</a>
+          <a href="/mlb/players" class="block text-gray-600 hover:text-gray-900 hover:bg-gray-50 text-sm font-medium px-3 py-2 rounded-lg">Scouting</a>
+          <a href={"/mlb/lineups/#{Date.to_iso8601(Date.utc_today())}"} class="block text-gray-600 hover:text-gray-900 hover:bg-gray-50 text-sm font-medium px-3 py-2 rounded-lg">Game Day</a>
+          <%= unless assigns[:current_user] do %>
+            <a href="/auth/login" class="block text-gray-600 hover:text-gray-900 hover:bg-gray-50 text-sm font-medium px-3 py-2 rounded-lg sm:hidden">Sign In</a>
+          <% end %>
         </div>
       </nav>
     </header>
@@ -66,30 +87,30 @@
       <%= @inner_content %>
     </main>
 
-    <footer class="bg-gray-900 text-gray-400 py-12 mt-auto">
-      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-8">
+    <footer class="bg-gray-900 text-gray-400 mt-auto">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-8">
           <div>
-            <h3 class="text-white font-semibold mb-3">Teams</h3>
-            <a href="/mlb/teams" class="block text-sm hover:text-white">All Teams</a>
+            <h3 class="text-white font-semibold text-sm uppercase tracking-wider mb-3">Teams</h3>
+            <a href="/mlb/teams" class="block text-sm hover:text-white transition">All Teams</a>
           </div>
           <div>
-            <h3 class="text-white font-semibold mb-3">Players</h3>
-            <a href="/mlb/players" class="block text-sm hover:text-white">All Players</a>
+            <h3 class="text-white font-semibold text-sm uppercase tracking-wider mb-3">Players</h3>
+            <a href="/mlb/players" class="block text-sm hover:text-white transition">All Players</a>
           </div>
           <div>
-            <h3 class="text-white font-semibold mb-3">Content</h3>
-            <a href={"/mlb/news/#{Date.to_iso8601(Date.utc_today())}"} class="block text-sm hover:text-white">News</a>
-            <a href="/mlb/players" class="block text-sm hover:text-white">Scouting</a>
-            <a href={"/mlb/lineups/#{Date.to_iso8601(Date.utc_today())}"} class="block text-sm hover:text-white">Game Day</a>
+            <h3 class="text-white font-semibold text-sm uppercase tracking-wider mb-3">Content</h3>
+            <a href={"/mlb/news/#{Date.to_iso8601(Date.utc_today())}"} class="block text-sm hover:text-white transition mb-1">News</a>
+            <a href="/mlb/players" class="block text-sm hover:text-white transition mb-1">Scouting</a>
+            <a href={"/mlb/lineups/#{Date.to_iso8601(Date.utc_today())}"} class="block text-sm hover:text-white transition">Game Day</a>
           </div>
           <div>
-            <h3 class="text-white font-semibold mb-3">Premium</h3>
-            <a href="/subscribe" class="block text-sm hover:text-white">Subscribe</a>
+            <h3 class="text-white font-semibold text-sm uppercase tracking-wider mb-3">Premium</h3>
+            <a href="/subscribe" class="block text-sm hover:text-white transition">Subscribe</a>
           </div>
         </div>
-        <div class="border-t border-gray-800 mt-8 pt-8 text-center text-sm">
-          Sports Fanatic &copy; <%= DateTime.utc_now().year %>. All rights reserved.
+        <div class="border-t border-gray-800 mt-8 pt-6 text-center text-sm">
+          Sports Fan Agent &copy; <%= DateTime.utc_now().year %>. All rights reserved.
         </div>
       </div>
     </footer>

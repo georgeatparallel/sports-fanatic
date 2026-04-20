@@ -25,7 +25,7 @@ defmodule SportsFanaticWeb.PlayerController do
     total = Repo.aggregate(from(p in Player, where: p.status == "active"), :count)
 
     conn
-    |> assign(:page_title, "MLB Players - Stats & Analysis | Sports Fanatic")
+    |> assign(:page_title, "MLB Players - Stats & Analysis | Sports Fan Agent")
     |> assign(:meta_description, "Browse all MLB players with stats, scouting reports, and analysis. Find your favorite player.")
     |> render(:index,
       players: players,
@@ -98,7 +98,7 @@ defmodule SportsFanaticWeb.PlayerController do
     }
 
     conn
-    |> assign(:page_title, "#{player.full_name} - #{team.name} | Stats, Scouting & Analysis | Sports Fanatic")
+    |> assign(:page_title, "#{player.full_name} - #{team.name} | Stats, Scouting & Analysis | Sports Fan Agent")
     |> assign(:meta_description, String.slice("#{player.full_name} of the #{team.name}. View stats, AI scouting report, hit predictions, and analysis.", 0, 160))
     |> assign(:canonical, canonical)
     |> assign(:json_ld, json_ld)

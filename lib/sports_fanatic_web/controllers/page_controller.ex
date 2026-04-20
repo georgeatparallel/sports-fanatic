@@ -6,6 +6,12 @@ defmodule SportsFanaticWeb.PageController do
   alias SportsFanatic.Mlb.{ScheduledGame, Team}
   alias SportsFanatic.Content.NewsItem
 
+  def health(conn, _params) do
+    conn
+    |> put_status(200)
+    |> json(%{status: "ok"})
+  end
+
   def home(conn, _params) do
     today = Date.utc_today()
 
@@ -27,7 +33,7 @@ defmodule SportsFanaticWeb.PageController do
     teams = Repo.all(from t in Team, where: not is_nil(t.slug), order_by: t.name)
 
     conn
-    |> assign(:page_title, "Sports Fanatic - MLB Stats, Scouting Reports & Game Day Analysis")
+    |> assign(:page_title, "Sports Fan Agent - MLB Stats, Scouting Reports & Game Day Analysis")
     |> assign(:meta_description, "Your source for MLB player stats, AI-powered scouting reports, Game Day Magazines, and daily lineup analysis.")
     |> render(:home,
       games: games,

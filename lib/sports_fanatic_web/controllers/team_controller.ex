@@ -14,7 +14,7 @@ defmodule SportsFanaticWeb.TeamController do
       |> Repo.all()
 
     conn
-    |> assign(:page_title, "MLB Teams | Sports Fanatic")
+    |> assign(:page_title, "MLB Teams | Sports Fan Agent")
     |> assign(:meta_description, "All 30 MLB teams with rosters, schedules, and team statistics.")
     |> render(:index, teams: teams)
   end
@@ -54,7 +54,7 @@ defmodule SportsFanaticWeb.TeamController do
     }
 
     conn
-    |> assign(:page_title, "#{team.name} - Roster, Schedule & Stats | Sports Fanatic")
+    |> assign(:page_title, "#{team.name} - Roster, Schedule & Stats | Sports Fan Agent")
     |> assign(:meta_description, "#{team.name} roster, upcoming schedule, team stats, and player analysis.")
     |> assign(:canonical, canonical)
     |> assign(:json_ld, json_ld)

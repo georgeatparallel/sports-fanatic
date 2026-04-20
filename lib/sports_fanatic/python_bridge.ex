@@ -33,7 +33,15 @@ defmodule SportsFanatic.PythonBridge do
   end
 
   def fetch_schedule(date) do
-    post("/schedule", %{date: date})
+    post("/schedule/fetch", %{date: date})
+  end
+
+  def fetch_mlb_teams do
+    post("/schedule/teams", %{})
+  end
+
+  def fetch_roster(team_id) do
+    post("/schedule/roster", %{team_id: team_id})
   end
 
   def run_simulation(players, n_simulations \\ 10_000) do
@@ -51,26 +59,33 @@ defmodule SportsFanatic.PythonBridge do
   end
 
   defp post(path, body) do
-    case CircuitBreaker.check() do
-      :open ->
-        {:error, :circuit_open}
+    cb_available = Process.whereis(SportsFanatic.PythonBridge.CircuitBreaker) != nil
 
-      _ ->
-        base_url = base_url()
+    if cb_available do
+      case CircuitBreaker.check() do
+        :open -> {:error, :circuit_open}
+        _ -> do_post(path, body, true)
+      end
+    else
+      do_post(path, body, false)
+    end
+  end
 
-        case Req.post("#{base_url}#{path}", json: body, receive_timeout: @timeout) do
-          {:ok, %{status: 200, body: resp_body}} ->
-            CircuitBreaker.record_success()
-            {:ok, resp_body}
+  defp do_post(path, body, use_cb) do
+    base_url = base_url()
 
-          {:ok, %{status: status, body: resp_body}} ->
-            CircuitBreaker.record_failure()
-            {:error, {status, resp_body}}
+    case Req.post("#{base_url}#{path}", json: body, receive_timeout: @timeout) do
+      {:ok, %{status: 200, body: resp_body}} ->
+        if use_cb, do: CircuitBreaker.record_success()
+        {:ok, resp_body}
 
-          {:error, reason} ->
-            CircuitBreaker.record_failure()
-            {:error, reason}
-        end
+      {:ok, %{status: status, body: resp_body}} ->
+        if use_cb, do: CircuitBreaker.record_failure()
+        {:error, {status, resp_body}}
+
+      {:error, reason} ->
+        if use_cb, do: CircuitBreaker.record_failure()
+        {:error, reason}
     end
   end
 

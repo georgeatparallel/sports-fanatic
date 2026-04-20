@@ -26,7 +26,7 @@ defmodule SportsFanaticWeb.ScoutingController do
     canonical = "https://sportsfanatic.com/mlb/scouting/#{team_slug}/#{player_slug}"
 
     conn
-    |> assign(:page_title, "#{player.full_name} Scouting Report | Sports Fanatic")
+    |> assign(:page_title, "#{player.full_name} Scouting Report | Sports Fan Agent")
     |> assign(:meta_description, "AI-powered scouting report for #{player.full_name} of the #{team.name}. Grade, strengths, weaknesses, and prediction analysis.")
     |> assign(:canonical, canonical)
     |> render(:show,

@@ -28,7 +28,7 @@ defmodule SportsFanaticWeb.GameDayController do
     }
 
     conn
-    |> assign(:page_title, "#{magazine.headline} | Game Day Magazine | Sports Fanatic")
+    |> assign(:page_title, "#{magazine.headline} | Game Day Magazine | Sports Fan Agent")
     |> assign(:meta_description, String.slice("#{magazine.away_team.name} vs #{magazine.home_team.name} - Game preview, lineups, pitchers, and matchup analysis.", 0, 160))
     |> assign(:canonical, canonical)
     |> assign(:json_ld, json_ld)

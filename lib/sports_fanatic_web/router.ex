@@ -30,6 +30,13 @@ defmodule SportsFanaticWeb.Router do
     plug SportsFanaticWeb.Plugs.VerifyStripeWebhook
   end
 
+  # --- Health Check (no pipeline, minimal) ---
+  scope "/", SportsFanaticWeb do
+    pipe_through :api
+
+    get "/health", PageController, :health
+  end
+
   # --- Public SEO Routes (Phoenix Controllers) ---
   scope "/", SportsFanaticWeb do
     pipe_through :browser

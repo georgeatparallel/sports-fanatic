@@ -21,7 +21,7 @@ defmodule SportsFanaticWeb.SEOComponents do
     <meta property="og:description" content={@description} />
     <meta property="og:url" content={@canonical} />
     <meta property="og:type" content={@og_type} />
-    <meta property="og:site_name" content="Sports Fanatic" />
+    <meta property="og:site_name" content="Sports Fan Agent" />
     <%= if @og_image do %>
       <meta property="og:image" content={@og_image} />
     <% end %>

@@ -18,7 +18,7 @@ defmodule SportsFanaticWeb.NewsController do
     canonical = "https://sportsfanatic.com/mlb/news/#{date_str}"
 
     conn
-    |> assign(:page_title, "MLB News for #{format_date(date)} | Sports Fanatic")
+    |> assign(:page_title, "MLB News for #{format_date(date)} | Sports Fan Agent")
     |> assign(:meta_description, "Latest MLB news and player updates for #{format_date(date)}.")
     |> assign(:canonical, canonical)
     |> render(:index,
@@ -46,13 +46,13 @@ defmodule SportsFanaticWeb.NewsController do
       "datePublished" => Date.to_iso8601(news_item.published_date),
       "publisher" => %{
         "@type" => "Organization",
-        "name" => "Sports Fanatic"
+        "name" => "Sports Fan Agent"
       },
       "url" => canonical
     }
 
     conn
-    |> assign(:page_title, "#{news_item.title} | Sports Fanatic")
+    |> assign(:page_title, "#{news_item.title} | Sports Fan Agent")
     |> assign(:meta_description, String.slice(news_item.summary || news_item.body, 0, 160))
     |> assign(:canonical, canonical)
     |> assign(:json_ld, json_ld)

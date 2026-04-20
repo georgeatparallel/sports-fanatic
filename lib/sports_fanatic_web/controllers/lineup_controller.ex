@@ -25,7 +25,7 @@ defmodule SportsFanaticWeb.LineupController do
     canonical = "https://sportsfanatic.com/mlb/lineups/#{date_str}"
 
     conn
-    |> assign(:page_title, "MLB Lineups for #{format_date(date)} | Sports Fanatic")
+    |> assign(:page_title, "MLB Lineups for #{format_date(date)} | Sports Fan Agent")
     |> assign(:meta_description, "Confirmed MLB lineups for #{format_date(date)}. Starting lineups, batting orders, and probable pitchers for all games.")
     |> assign(:canonical, canonical)
     |> render(:show,

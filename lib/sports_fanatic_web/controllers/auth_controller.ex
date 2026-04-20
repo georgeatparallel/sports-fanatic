@@ -5,7 +5,7 @@ defmodule SportsFanaticWeb.AuthController do
 
   def register_form(conn, _params) do
     conn
-    |> assign(:page_title, "Create Account | Sports Fanatic")
+    |> assign(:page_title, "Create Account | Sports Fan Agent")
     |> render(:register)
   end
 
@@ -24,7 +24,7 @@ defmodule SportsFanaticWeb.AuthController do
 
       {:error, changeset} ->
         conn
-        |> assign(:page_title, "Create Account | Sports Fanatic")
+        |> assign(:page_title, "Create Account | Sports Fan Agent")
         |> assign(:changeset, changeset)
         |> put_flash(:error, "Could not create account. Please check the errors below.")
         |> render(:register)
@@ -46,7 +46,7 @@ defmodule SportsFanaticWeb.AuthController do
       end
 
     conn
-    |> assign(:page_title, "Sign In | Sports Fanatic")
+    |> assign(:page_title, "Sign In | Sports Fan Agent")
     |> render(:login)
   end
 
@@ -65,7 +65,7 @@ defmodule SportsFanaticWeb.AuthController do
 
       {:error, _reason} ->
         conn
-        |> assign(:page_title, "Sign In | Sports Fanatic")
+        |> assign(:page_title, "Sign In | Sports Fan Agent")
         |> put_flash(:error, "Invalid email or password.")
         |> render(:login)
     end

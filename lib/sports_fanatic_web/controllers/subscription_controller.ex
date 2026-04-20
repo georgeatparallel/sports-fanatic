@@ -5,7 +5,7 @@ defmodule SportsFanaticWeb.SubscriptionController do
 
   def pricing(conn, _params) do
     conn
-    |> assign(:page_title, "Subscribe to Sports Fanatic Premium")
+    |> assign(:page_title, "Subscribe to Sports Fan Agent Premium")
     |> assign(:meta_description, "Get full scouting reports, Game Day Magazines, and real-time predictions. Start your 7-day free trial.")
     |> render(:pricing)
   end
@@ -32,13 +32,13 @@ defmodule SportsFanaticWeb.SubscriptionController do
 
   def success(conn, _params) do
     conn
-    |> assign(:page_title, "Welcome to Premium! | Sports Fanatic")
+    |> assign(:page_title, "Welcome to Premium! | Sports Fan Agent")
     |> render(:success)
   end
 
   def cancel(conn, _params) do
     conn
-    |> assign(:page_title, "Checkout Cancelled | Sports Fanatic")
+    |> assign(:page_title, "Checkout Cancelled | Sports Fan Agent")
     |> render(:cancel)
   end
 end

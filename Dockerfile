@@ -17,7 +17,7 @@ RUN mix local.hex --force && \
     mix deps.get --only prod && \
     mix deps.compile
 
-COPY config/config.exs config/prod.exs config/
+COPY config/config.exs config/prod.exs config/runtime.exs config/
 COPY lib lib
 COPY priv priv
 COPY assets assets
@@ -31,7 +31,8 @@ RUN mix assets.deploy && \
 FROM debian:bookworm-slim AS runtime
 
 ENV LANG=C.UTF-8 \
-    MIX_ENV=prod
+    MIX_ENV=prod \
+    PHX_SERVER=true
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libstdc++6 \
@@ -46,12 +47,13 @@ RUN adduser --disabled-password --gecos '' appuser
 
 WORKDIR /app
 COPY --from=build --chown=appuser:appuser /app/_build/prod/rel/sports_fanatic ./
+COPY --chown=appuser:appuser entrypoint.sh ./
 
 USER appuser
 
 EXPOSE 4000
 
-HEALTHCHECK --interval=30s --timeout=5s --start-period=10s \
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s \
     CMD curl -f http://localhost:4000/health || exit 1
 
-CMD ["bin/sports_fanatic", "start"]
+CMD ["./entrypoint.sh"]
