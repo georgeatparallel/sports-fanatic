@@ -1,0 +1,27 @@
+# Ruff configuration for the Python bridge service
+target-version = "py311"
+line-length = 100
+
+[lint]
+select = [
+  "E",   # pycodestyle errors
+  "W",   # pycodestyle warnings
+  "F",   # pyflakes
+  "I",   # isort
+  "B",   # flake8-bugbear
+  "C4",  # flake8-comprehensions
+  "UP",  # pyupgrade
+  "S",   # flake8-bandit (security)
+  "N",   # pep8-naming
+]
+ignore = [
+  "S101", # Use of assert (fine in tests)
+  "S311", # Standard pseudo-random generators (fine for simulation)
+]
+
+[lint.per-file-ignores]
+"tests/**" = ["S", "B"]   # Relax security + bugbear in tests
+
+[format]
+quote-style = "double"
+indent-style = "space"

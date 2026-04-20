@@ -1,0 +1,45 @@
+"""FastAPI Python Bridge for Sports Fanatic.
+
+Provides ML prediction endpoints and AI content generation.
+"""
+
+import logging
+
+from fastapi import FastAPI
+
+from src.api.predict import router as predict_router
+from src.api.scouting import router as scouting_router
+from src.api.gameday import router as gameday_router
+from src.simulation.engine import router as simulation_router
+from src.config import settings
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+app = FastAPI(
+    title="Sports Fanatic Python Bridge",
+    version="1.0.0",
+    docs_url="/docs" if settings.debug else None,
+)
+
+app.include_router(predict_router, prefix="/predict", tags=["predictions"])
+app.include_router(scouting_router, prefix="/scouting", tags=["scouting"])
+app.include_router(gameday_router, prefix="/gameday", tags=["gameday"])
+app.include_router(simulation_router, prefix="/simulation", tags=["simulation"])
+
+
+@app.get("/health")
+async def health():
+    """Health check endpoint."""
+    return {"status": "ok", "models_loaded": True}
+
+
+if __name__ == "__main__":
+    import uvicorn
+
+    uvicorn.run(
+        "src.main:app",
+        host=settings.host,
+        port=settings.port,
+        reload=settings.debug,
+    )

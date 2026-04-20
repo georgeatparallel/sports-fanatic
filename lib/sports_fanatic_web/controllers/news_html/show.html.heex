@@ -1,0 +1,32 @@
+<SportsFanaticWeb.SEOComponents.breadcrumbs items={[
+  %{label: "Home", href: "/"},
+  %{label: "News", href: "/mlb/news/#{@date_str}"},
+  %{label: String.slice(@news_item.title, 0, 40)}
+]} />
+
+<%= if assigns[:json_ld] do %>
+  <SportsFanaticWeb.SEOComponents.json_ld data={@json_ld} />
+<% end %>
+
+<article class="max-w-4xl mx-auto px-4 py-8">
+  <header class="mb-6">
+    <h1 class="text-3xl font-bold text-gray-900 mb-2"><%= @news_item.title %></h1>
+    <div class="flex gap-3 text-sm text-gray-500">
+      <time datetime={Date.to_iso8601(@news_item.published_date)}><%= Calendar.strftime(@news_item.published_date, "%B %d, %Y") %></time>
+      <span>Source: <%= @news_item.source %></span>
+      <%= if @news_item.category do %>
+        <span class="px-2 py-0.5 bg-gray-100 rounded"><%= @news_item.category %></span>
+      <% end %>
+    </div>
+  </header>
+
+  <div class="prose max-w-none text-gray-700 leading-relaxed">
+    <%= for paragraph <- String.split(@news_item.body || "", "\n", trim: true) do %>
+      <p><%= paragraph %></p>
+    <% end %>
+  </div>
+
+  <footer class="mt-8 pt-6 border-t border-gray-200">
+    <a href={"/mlb/news/#{@date_str}"} class="text-blue-600 hover:text-blue-800">&larr; Back to news for <%= Calendar.strftime(@date, "%B %d, %Y") %></a>
+  </footer>
+</article>

@@ -1,0 +1,83 @@
+services:
+  web:
+    build: .
+    ports:
+      - "4000:4000"
+    environment:
+      - DATABASE_URL=ecto://postgres:postgres@db:5432/sports_fanatic
+      - VALKEY_URL=redis://cache:6379
+      - PYTHON_BRIDGE_URL=http://python-bridge:8000
+      - SECRET_KEY_BASE=${SECRET_KEY_BASE}
+      - PHX_HOST=${PHX_HOST:-localhost}
+      - PORT=4000
+      - FANTASY_NERDS_API_KEY=${FANTASY_NERDS_API_KEY}
+      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
+      - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET}
+      - STRIPE_PRICE_MONTHLY=${STRIPE_PRICE_MONTHLY}
+      - STRIPE_PRICE_YEARLY=${STRIPE_PRICE_YEARLY}
+    depends_on:
+      db:
+        condition: service_healthy
+      cache:
+        condition: service_healthy
+      python-bridge:
+        condition: service_started
+    restart: unless-stopped
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=sports_fanatic
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./priv/repo/init.sql:/docker-entrypoint-initdb.d/01_init.sql
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  cache:
+    image: valkey/valkey:8-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - valkeydata:/data
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  python-bridge:
+    build: ./python_bridge
+    expose:
+      - "8000"
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/sports_fanatic
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - EXA_API_KEY=${EXA_API_KEY}
+      - HOST=0.0.0.0
+      - PORT=8000
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  stripe-cli:
+    image: stripe/stripe-cli:latest
+    command: listen --forward-to http://web:4000/webhooks/stripe --api-key ${STRIPE_SECRET_KEY}
+    depends_on:
+      - web
+    profiles:
+      - dev
+
+volumes:
+  pgdata:
+  valkeydata:

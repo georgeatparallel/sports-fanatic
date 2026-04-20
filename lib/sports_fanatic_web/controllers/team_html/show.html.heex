@@ -1,0 +1,64 @@
+<SportsFanaticWeb.SEOComponents.breadcrumbs items={[
+  %{label: "Home", href: "/"},
+  %{label: "Teams", href: "/mlb/teams"},
+  %{label: @team.name}
+]} />
+
+<%= if assigns[:json_ld] do %>
+  <SportsFanaticWeb.SEOComponents.json_ld data={@json_ld} />
+<% end %>
+
+<article class="max-w-6xl mx-auto px-4 py-8">
+  <header class="mb-8">
+    <h1 class="text-3xl font-bold text-gray-900"><%= @team.name %></h1>
+    <p class="text-lg text-gray-600"><%= @team.city %> | <%= @team.league %> - <%= @team.division %></p>
+  </header>
+
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+    <div class="lg:col-span-2">
+      <section class="mb-8">
+        <h2 class="text-xl font-semibold text-gray-900 mb-4">Active Roster</h2>
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+          <table class="w-full text-sm">
+            <thead class="bg-gray-50">
+              <tr>
+                <th class="px-4 py-2 text-left text-gray-600">#</th>
+                <th class="px-4 py-2 text-left text-gray-600">Name</th>
+                <th class="px-4 py-2 text-left text-gray-600">Pos</th>
+                <th class="px-4 py-2 text-left text-gray-600">B/T</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
+              <%= for player <- @players do %>
+                <tr class="hover:bg-gray-50">
+                  <td class="px-4 py-2 text-gray-500"><%= player.jersey_number %></td>
+                  <td class="px-4 py-2">
+                    <a href={"/mlb/players/#{@team.slug}/#{player.slug}"} class="text-blue-600 hover:text-blue-800 font-medium">
+                      <%= player.full_name %>
+                    </a>
+                  </td>
+                  <td class="px-4 py-2 text-gray-600"><%= player.position %></td>
+                  <td class="px-4 py-2 text-gray-600"><%= player.bats %>/<%= player.throws %></td>
+                </tr>
+              <% end %>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+
+    <aside>
+      <section class="mb-6">
+        <h3 class="font-semibold text-gray-900 mb-3">Upcoming Games</h3>
+        <div class="space-y-2">
+          <%= for game <- @upcoming_games do %>
+            <div class="bg-white rounded-lg shadow-sm border border-gray-100 p-3 text-sm">
+              <p class="font-medium"><%= game.away_name %> @ <%= game.home_name %></p>
+              <p class="text-gray-500"><%= Calendar.strftime(game.game_date, "%b %d") %></p>
+            </div>
+          <% end %>
+        </div>
+      </section>
+    </aside>
+  </div>
+</article>

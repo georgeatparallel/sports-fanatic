@@ -1,0 +1,36 @@
+defmodule SportsFanatic.Content.NewsItem do
+  use Ecto.Schema
+  import Ecto.Changeset
+
+  @primary_key {:id, :binary_id, autogenerate: true}
+  @schema_prefix "content"
+
+  schema "news_items" do
+    field :source, :string
+    field :external_id, :string
+    field :slug, :string
+    field :title, :string
+    field :body, :string
+    field :summary, :string
+    field :published_date, :date
+    field :published_at, :utc_datetime
+    field :player_ids, {:array, :binary_id}
+    field :team_ids, {:array, :binary_id}
+    field :category, :string
+    field :is_premium, :boolean, default: false
+    field :image_url, :string
+
+    timestamps(type: :utc_datetime, updated_at: false)
+  end
+
+  def changeset(news_item, attrs) do
+    news_item
+    |> cast(attrs, [
+      :source, :external_id, :slug, :title, :body, :summary,
+      :published_date, :published_at, :player_ids, :team_ids,
+      :category, :is_premium, :image_url
+    ])
+    |> validate_required([:source, :slug, :title, :body, :published_date])
+    |> unique_constraint([:source, :external_id])
+  end
+end
