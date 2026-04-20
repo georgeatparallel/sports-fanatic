@@ -26,10 +26,20 @@ defmodule SportsFanatic.Mlb.Game do
   def changeset(game, attrs) do
     game
     |> cast(attrs, [
-      :game_id, :game_datetime, :game_date, :status,
-      :away_mlb_id, :home_mlb_id, :away_name, :home_name,
-      :away_score, :home_score, :away_starter_mlb_id, :home_starter_mlb_id,
-      :venue_id, :venue_name
+      :game_id,
+      :game_datetime,
+      :game_date,
+      :status,
+      :away_mlb_id,
+      :home_mlb_id,
+      :away_name,
+      :home_name,
+      :away_score,
+      :home_score,
+      :away_starter_mlb_id,
+      :home_starter_mlb_id,
+      :venue_id,
+      :venue_name
     ])
     |> validate_required([:game_id])
     |> unique_constraint(:game_id)

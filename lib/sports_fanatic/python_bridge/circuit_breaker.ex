@@ -69,7 +69,13 @@ defmodule SportsFanatic.PythonBridge.CircuitBreaker do
     new_failures = failures + 1
 
     if new_failures >= @failure_threshold do
-      {:noreply, %{state | state: :open, failures: new_failures, opened_at: System.monotonic_time(:millisecond)}}
+      {:noreply,
+       %{
+         state
+         | state: :open,
+           failures: new_failures,
+           opened_at: System.monotonic_time(:millisecond)
+       }}
     else
       {:noreply, %{state | failures: new_failures}}
     end

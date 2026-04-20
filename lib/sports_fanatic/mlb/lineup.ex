@@ -17,7 +17,14 @@ defmodule SportsFanatic.Mlb.Lineup do
 
   def changeset(lineup, attrs) do
     lineup
-    |> cast(attrs, [:game_date, :player_nerds_id, :team_code, :batting_order, :position, :confirmed])
+    |> cast(attrs, [
+      :game_date,
+      :player_nerds_id,
+      :team_code,
+      :batting_order,
+      :position,
+      :confirmed
+    ])
     |> validate_required([:game_date, :player_nerds_id])
     |> unique_constraint([:game_date, :player_nerds_id])
   end

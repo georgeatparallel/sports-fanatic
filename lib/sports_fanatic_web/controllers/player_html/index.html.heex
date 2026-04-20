@@ -5,14 +5,24 @@
 
 <section class="max-w-6xl mx-auto px-4 py-8">
   <h1 class="text-3xl font-bold text-gray-900 mb-6">MLB Players</h1>
-  <p class="text-gray-600 mb-8">Browse all MLB players with stats, scouting reports, and analysis.</p>
+  <p class="text-gray-600 mb-8">
+    Browse all MLB players with stats, scouting reports, and analysis.
+  </p>
 
   <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
     <%= for %{player: player, team: team} <- @players do %>
-      <a href={"/mlb/players/#{team.slug}/#{player.slug}"} class="bg-white rounded-lg shadow-sm p-4 border border-gray-100 hover:border-blue-300 hover:shadow-md transition">
+      <a
+        href={"/mlb/players/#{team.slug}/#{player.slug}"}
+        class="bg-white rounded-lg shadow-sm p-4 border border-gray-100 hover:border-blue-300 hover:shadow-md transition"
+      >
         <div class="flex items-center gap-3">
           <%= if player.headshot_url do %>
-            <img src={player.headshot_url} alt={player.full_name} class="w-12 h-12 rounded-full object-cover" loading="lazy" />
+            <img
+              src={player.headshot_url}
+              alt={player.full_name}
+              class="w-12 h-12 rounded-full object-cover"
+              loading="lazy"
+            />
           <% else %>
             <div class="w-12 h-12 rounded-full bg-gray-200 flex items-center justify-center text-gray-500 font-bold">
               <%= String.first(player.first_name || "") %><%= String.first(player.last_name || "") %>
@@ -29,11 +39,23 @@
 
   <nav class="mt-8 flex justify-center gap-2" aria-label="Pagination">
     <%= if @page > 1 do %>
-      <a href={"/mlb/players?page=#{@page - 1}"} class="px-4 py-2 bg-white border border-gray-300 rounded hover:bg-gray-50">Previous</a>
+      <a
+        href={"/mlb/players?page=#{@page - 1}"}
+        class="px-4 py-2 bg-white border border-gray-300 rounded hover:bg-gray-50"
+      >
+        Previous
+      </a>
     <% end %>
-    <span class="px-4 py-2 text-gray-600">Page <%= @page %> of <%= ceil(@total / @per_page) %></span>
+    <span class="px-4 py-2 text-gray-600">
+      Page <%= @page %> of <%= ceil(@total / @per_page) %>
+    </span>
     <%= if @page * @per_page < @total do %>
-      <a href={"/mlb/players?page=#{@page + 1}"} class="px-4 py-2 bg-white border border-gray-300 rounded hover:bg-gray-50">Next</a>
+      <a
+        href={"/mlb/players?page=#{@page + 1}"}
+        class="px-4 py-2 bg-white border border-gray-300 rounded hover:bg-gray-50"
+      >
+        Next
+      </a>
     <% end %>
   </nav>
 </section>

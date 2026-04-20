@@ -31,15 +31,21 @@ defmodule SportsFanaticWeb.ArchiveGameDayLive do
 
       <div class="space-y-3">
         <%= for mag <- @magazines do %>
-          <.link navigate={"/premium/game-day/#{Date.to_iso8601(mag.game_date)}/#{mag.slug}"}
-            class="block bg-white rounded-lg shadow-sm border border-gray-100 p-4 hover:border-blue-300 transition">
+          <.link
+            navigate={"/premium/game-day/#{Date.to_iso8601(mag.game_date)}/#{mag.slug}"}
+            class="block bg-white rounded-lg shadow-sm border border-gray-100 p-4 hover:border-blue-300 transition"
+          >
             <div class="flex justify-between items-center">
               <div>
                 <span class="font-semibold text-gray-900"><%= mag.headline %></span>
               </div>
-              <span class="text-sm text-gray-400"><%= Calendar.strftime(mag.game_date, "%b %d, %Y") %></span>
+              <span class="text-sm text-gray-400">
+                <%= Calendar.strftime(mag.game_date, "%b %d, %Y") %>
+              </span>
             </div>
-            <p class="text-sm text-gray-500 mt-1"><%= mag.away_team.name %> vs <%= mag.home_team.name %></p>
+            <p class="text-sm text-gray-500 mt-1">
+              <%= mag.away_team.name %> vs <%= mag.home_team.name %>
+            </p>
           </.link>
         <% end %>
       </div>

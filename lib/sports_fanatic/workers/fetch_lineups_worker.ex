@@ -29,7 +29,8 @@ defmodule SportsFanatic.Workers.FetchLineupsWorker do
             confirmed: true
           })
           |> Repo.insert(
-            on_conflict: {:replace, [:team_code, :batting_order, :position, :confirmed, :updated_at]},
+            on_conflict:
+              {:replace, [:team_code, :batting_order, :position, :confirmed, :updated_at]},
             conflict_target: [:game_date, :player_nerds_id]
           )
         end)

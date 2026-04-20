@@ -10,18 +10,27 @@
 <% end %>
 
 <article class="max-w-6xl mx-auto px-4 py-8">
-  <header class="flex items-start gap-6 mb-8">
+  <%!-- Hero Header --%>
+  <header class="flex flex-col sm:flex-row items-start gap-6 mb-8">
     <%= if @player.headshot_url do %>
-      <img src={@player.headshot_url} alt={@player.full_name} class="w-24 h-24 rounded-full object-cover shadow-lg" />
+      <img
+        src={@player.headshot_url}
+        alt={@player.full_name}
+        class="w-24 h-24 rounded-full object-cover shadow-lg"
+      />
     <% else %>
       <div class="w-24 h-24 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-2xl font-bold shadow-lg">
         <%= String.first(@player.first_name || "") %><%= String.first(@player.last_name || "") %>
       </div>
     <% end %>
     <div>
-      <h1 class="text-3xl font-bold text-gray-900"><%= @player.full_name %></h1>
-      <p class="text-lg text-gray-600">
-        <a href={"/mlb/teams/#{@team.slug}"} class="text-blue-600 hover:text-blue-800"><%= @team.name %></a>
+      <h1 class="text-3xl font-bold text-gray-900">
+        <%= if @daily_content, do: @daily_content.headline, else: @player.full_name %>
+      </h1>
+      <p class="text-lg text-gray-600 mt-1">
+        <a href={"/mlb/teams/#{@team.slug}"} class="text-blue-600 hover:text-blue-800">
+          <%= @team.name %>
+        </a>
         <span class="mx-2">|</span>
         <span><%= @player.position %></span>
         <%= if @player.jersey_number do %>
@@ -29,94 +38,455 @@
           <span>#<%= @player.jersey_number %></span>
         <% end %>
       </p>
-      <div class="flex gap-4 text-sm text-gray-500 mt-2">
-        <%= if @player.bats do %><span>Bats: <%= @player.bats %></span><% end %>
-        <%= if @player.throws do %><span>Throws: <%= @player.throws %></span><% end %>
-        <%= if @player.height do %><span><%= @player.height %></span><% end %>
-        <%= if @player.weight do %><span><%= @player.weight %> lbs</span><% end %>
+      <div class="flex flex-wrap gap-4 text-sm text-gray-500 mt-2">
+        <%= if @player.bats do %>
+          <span>Bats: <%= @player.bats %></span>
+        <% end %>
+        <%= if @player.throws do %>
+          <span>Throws: <%= @player.throws %></span>
+        <% end %>
+        <%= if @player.height do %>
+          <span><%= @player.height %></span>
+        <% end %>
+        <%= if @player.weight do %>
+          <span><%= @player.weight %> lbs</span>
+        <% end %>
       </div>
     </div>
   </header>
 
-  <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-    <div class="lg:col-span-2">
-      <%= if @player.bio do %>
-        <section class="mb-8">
-          <h2 class="text-xl font-semibold text-gray-900 mb-3">About</h2>
-          <p class="text-gray-700 leading-relaxed"><%= @player.bio %></p>
+  <%= if @daily_content do %>
+    <%!-- Rich daily content layout --%>
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div class="lg:col-span-2 space-y-8">
+        <%!-- TL;DR Box --%>
+        <section class="bg-blue-50 border-l-4 border-blue-500 rounded-r-lg p-5">
+          <h2 class="text-sm font-semibold text-blue-800 uppercase tracking-wide mb-1">TL;DR</h2>
+          <p class="text-gray-800 font-medium"><%= @daily_content.tldr %></p>
         </section>
-      <% end %>
 
-      <%= if @scouting do %>
-        <section class="mb-8">
-          <h2 class="text-xl font-semibold text-gray-900 mb-3">Scouting Report Preview</h2>
-          <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <div class="flex items-center gap-3 mb-3">
-              <span class="text-2xl font-bold text-blue-600"><%= @scouting.overall_grade %></span>
-              <span class="text-sm text-gray-500">Overall Grade</span>
-            </div>
-            <p class="text-gray-700"><%= @scouting.summary %></p>
-            <a href={"/mlb/scouting/#{@team.slug}/#{@player.slug}"} class="inline-block mt-4 text-blue-600 hover:text-blue-800 font-medium">
-              View full scouting report &rarr;
-            </a>
-          </div>
-        </section>
-      <% end %>
-
-      <%= if @news && length(@news) > 0 do %>
+        <%!-- Lead Paragraph --%>
         <section>
-          <h2 class="text-xl font-semibold text-gray-900 mb-3">Recent News</h2>
-          <div class="space-y-3">
-            <%= for item <- @news do %>
-              <a href={"/mlb/news/#{Date.to_iso8601(item.published_date)}/#{item.slug}"} class="block bg-white rounded-lg shadow-sm border border-gray-100 p-4 hover:border-blue-300 transition">
-                <h3 class="font-medium text-gray-900"><%= item.title %></h3>
-                <p class="text-sm text-gray-500 mt-1"><%= Calendar.strftime(item.published_date, "%b %d, %Y") %></p>
+          <p class="text-lg text-gray-700 leading-relaxed">
+            <%= @daily_content.lead_paragraph %>
+          </p>
+        </section>
+
+        <%!-- Matchup Analysis --%>
+        <%= if @daily_content.matchup_analysis do %>
+          <section>
+            <h2 class="text-xl font-semibold text-gray-900 mb-3">Today's Matchup Analysis</h2>
+
+            <%= if @daily_content.opposing_pitcher do %>
+              <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-4">
+                <h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-2">
+                  Opposing Pitcher
+                </h3>
+                <div class="flex flex-wrap gap-4 text-sm">
+                  <span class="font-medium text-gray-900">
+                    <%= @daily_content.opposing_pitcher["name"] ||
+                      @daily_content.opposing_pitcher[:name] %>
+                  </span>
+                  <%= if @daily_content.opposing_pitcher["hand"] || @daily_content.opposing_pitcher[:hand] do %>
+                    <span class="text-gray-600">
+                      Throws: <%= @daily_content.opposing_pitcher["hand"] ||
+                        @daily_content.opposing_pitcher[:hand] %>
+                    </span>
+                  <% end %>
+                  <%= if @daily_content.opposing_pitcher["era"] || @daily_content.opposing_pitcher[:era] do %>
+                    <span class="text-gray-600">
+                      ERA: <%= @daily_content.opposing_pitcher["era"] ||
+                        @daily_content.opposing_pitcher[:era] %>
+                    </span>
+                  <% end %>
+                  <%= if @daily_content.opposing_pitcher["whip"] || @daily_content.opposing_pitcher[:whip] do %>
+                    <span class="text-gray-600">
+                      WHIP: <%= @daily_content.opposing_pitcher["whip"] ||
+                        @daily_content.opposing_pitcher[:whip] %>
+                    </span>
+                  <% end %>
+                </div>
+              </div>
+            <% end %>
+
+            <%= if @daily_content.park_factors do %>
+              <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-4">
+                <h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-2">
+                  Park Factors
+                </h3>
+                <div class="flex flex-wrap gap-4 text-sm">
+                  <span class="font-medium text-gray-900">
+                    <%= @daily_content.park_factors["venue"] ||
+                      @daily_content.park_factors[:venue] %>
+                  </span>
+                  <%= if @daily_content.park_factors["hr_factor"] || @daily_content.park_factors[:hr_factor] do %>
+                    <span class="text-gray-600">
+                      HR Factor: <%= @daily_content.park_factors["hr_factor"] ||
+                        @daily_content.park_factors[:hr_factor] %>
+                    </span>
+                  <% end %>
+                  <%= if @daily_content.park_factors["hit_factor"] || @daily_content.park_factors[:hit_factor] do %>
+                    <span class="text-gray-600">
+                      Hit Factor: <%= @daily_content.park_factors["hit_factor"] ||
+                        @daily_content.park_factors[:hit_factor] %>
+                    </span>
+                  <% end %>
+                </div>
+              </div>
+            <% end %>
+
+            <div class="prose prose-gray max-w-none">
+              <p class="text-gray-700 leading-relaxed whitespace-pre-line">
+                <%= @daily_content.matchup_analysis %>
+              </p>
+            </div>
+          </section>
+        <% end %>
+
+        <%!-- Recent Form & Trends --%>
+        <%= if @daily_content.recent_form do %>
+          <section>
+            <h2 class="text-xl font-semibold text-gray-900 mb-3">Recent Form</h2>
+            <p class="text-gray-700 leading-relaxed whitespace-pre-line mb-4">
+              <%= @daily_content.recent_form %>
+            </p>
+
+            <%= if @daily_content.trends && length(@daily_content.trends) > 0 do %>
+              <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <%= for trend <- @daily_content.trends do %>
+                  <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4 text-center">
+                    <p class="text-xs font-semibold text-gray-500 uppercase">
+                      <%= trend["period"] %>
+                    </p>
+                    <p class="text-2xl font-bold text-gray-900 mt-1"><%= trend["avg"] %></p>
+                    <p class="text-sm text-gray-600">OPS: <%= trend["ops"] %></p>
+                    <%= if trend["note"] do %>
+                      <p class="text-xs text-gray-500 mt-1"><%= trend["note"] %></p>
+                    <% end %>
+                  </div>
+                <% end %>
+              </div>
+            <% end %>
+          </section>
+        <% end %>
+
+        <%!-- Projections --%>
+        <%= if @daily_content.projections && map_size(@daily_content.projections) > 0 do %>
+          <section>
+            <h2 class="text-xl font-semibold text-gray-900 mb-3">Today's Projections</h2>
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+              <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
+                <%= if @daily_content.projections["hit_probability"] do %>
+                  <div>
+                    <p class="text-xs font-semibold text-gray-500 uppercase">Hit Prob</p>
+                    <p class="text-2xl font-bold text-green-600">
+                      <%= Float.round(@daily_content.projections["hit_probability"] * 100, 1) %>%
+                    </p>
+                  </div>
+                <% end %>
+                <%= if @daily_content.projections["hr_probability"] do %>
+                  <div>
+                    <p class="text-xs font-semibold text-gray-500 uppercase">HR Prob</p>
+                    <p class="text-2xl font-bold text-purple-600">
+                      <%= Float.round(@daily_content.projections["hr_probability"] * 100, 1) %>%
+                    </p>
+                  </div>
+                <% end %>
+                <%= if @daily_content.projections["confidence"] do %>
+                  <div>
+                    <p class="text-xs font-semibold text-gray-500 uppercase">Confidence</p>
+                    <p class="text-2xl font-bold text-gray-900 capitalize">
+                      <%= @daily_content.projections["confidence"] %>
+                    </p>
+                  </div>
+                <% end %>
+              </div>
+              <%= if @daily_content.projections["model_factors"] && length(@daily_content.projections["model_factors"]) > 0 do %>
+                <div class="mt-4 pt-4 border-t border-gray-100">
+                  <p class="text-xs font-semibold text-gray-500 uppercase mb-2">Key Factors</p>
+                  <div class="flex flex-wrap gap-2">
+                    <%= for factor <- @daily_content.projections["model_factors"] do %>
+                      <span class="px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded-full">
+                        <%= factor %>
+                      </span>
+                    <% end %>
+                  </div>
+                </div>
+              <% end %>
+            </div>
+          </section>
+        <% end %>
+
+        <%!-- Scouting Report Preview --%>
+        <%= if @scouting do %>
+          <section>
+            <h2 class="text-xl font-semibold text-gray-900 mb-3">Scouting Report Preview</h2>
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+              <div class="flex items-center gap-3 mb-3">
+                <span class="text-2xl font-bold text-blue-600">
+                  <%= @scouting.overall_grade %>
+                </span>
+                <span class="text-sm text-gray-500">Overall Grade</span>
+              </div>
+              <p class="text-gray-700"><%= @scouting.summary %></p>
+              <a
+                href={"/mlb/scouting/#{@team.slug}/#{@player.slug}"}
+                class="inline-block mt-4 text-blue-600 hover:text-blue-800 font-medium"
+              >
+                View full scouting report &rarr;
               </a>
+            </div>
+          </section>
+        <% end %>
+
+        <%!-- FAQ Section with schema.org FAQPage microdata --%>
+        <%= if @daily_content.faq_items && length(@daily_content.faq_items) > 0 do %>
+          <section itemscope itemtype="https://schema.org/FAQPage">
+            <h2 class="text-xl font-semibold text-gray-900 mb-3">Frequently Asked Questions</h2>
+            <div class="space-y-4">
+              <%= for faq <- @daily_content.faq_items do %>
+                <div
+                  class="bg-white rounded-lg shadow-sm border border-gray-200 p-5"
+                  itemscope
+                  itemprop="mainEntity"
+                  itemtype="https://schema.org/Question"
+                >
+                  <h3 class="font-semibold text-gray-900 mb-2" itemprop="name">
+                    <%= faq["question"] %>
+                  </h3>
+                  <div itemscope itemprop="acceptedAnswer" itemtype="https://schema.org/Answer">
+                    <p class="text-gray-700" itemprop="text"><%= faq["answer"] %></p>
+                  </div>
+                </div>
+              <% end %>
+            </div>
+          </section>
+        <% end %>
+
+        <%!-- Recent News --%>
+        <%= if @news && length(@news) > 0 do %>
+          <section>
+            <h2 class="text-xl font-semibold text-gray-900 mb-3">Recent News</h2>
+            <div class="space-y-3">
+              <%= for item <- @news do %>
+                <a
+                  href={"/mlb/news/#{Date.to_iso8601(item.published_date)}/#{item.slug}"}
+                  class="block bg-white rounded-lg shadow-sm border border-gray-100 p-4 hover:border-blue-300 transition"
+                >
+                  <h3 class="font-medium text-gray-900"><%= item.title %></h3>
+                  <p class="text-sm text-gray-500 mt-1">
+                    <%= Calendar.strftime(item.published_date, "%b %d, %Y") %>
+                  </p>
+                </a>
+              <% end %>
+            </div>
+          </section>
+        <% end %>
+      </div>
+
+      <%!-- Sidebar --%>
+      <aside class="space-y-6">
+        <%!-- Predictions --%>
+        <%= if @hit_pick || @hr_pick do %>
+          <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <h3 class="font-semibold text-gray-900 mb-4">Today's Predictions</h3>
+            <%= if @hit_pick do %>
+              <div class="mb-4">
+                <p class="text-sm text-gray-500">Hit Prediction</p>
+                <div class="flex items-center gap-2">
+                  <span class={"text-lg font-bold #{if @hit_pick.prediction == "Hit", do: "text-green-600", else: "text-red-600"}"}>
+                    <%= @hit_pick.prediction %>
+                  </span>
+                  <span class="text-sm text-gray-500">
+                    <%= Float.round(@hit_pick.confidence * 100, 1) %>%
+                  </span>
+                </div>
+                <p class="text-xs text-gray-400">vs <%= @hit_pick.vs_team %></p>
+              </div>
+            <% end %>
+            <%= if @hr_pick do %>
+              <div>
+                <p class="text-sm text-gray-500">HR Probability</p>
+                <div class="flex items-center gap-2">
+                  <span class="text-lg font-bold text-purple-600">
+                    <%= Float.round(@hr_pick.hr_probability * 100, 1) %>%
+                  </span>
+                  <span class={"px-2 py-0.5 text-xs rounded-full font-medium #{case @hr_pick.confidence_tier do
+                    "A" -> "bg-green-100 text-green-800"
+                    "B" -> "bg-yellow-100 text-yellow-800"
+                    _ -> "bg-gray-100 text-gray-800"
+                  end}"}>
+                    <%= @hr_pick.confidence_tier %> tier
+                  </span>
+                </div>
+                <p class="text-xs text-gray-400">vs <%= @hr_pick.vs_team %></p>
+              </div>
             <% end %>
           </div>
-        </section>
-      <% end %>
-    </div>
+        <% end %>
 
-    <aside>
-      <%= if @hit_pick || @hr_pick do %>
-        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
-          <h3 class="font-semibold text-gray-900 mb-4">Today's Predictions</h3>
-          <%= if @hit_pick do %>
-            <div class="mb-4">
-              <p class="text-sm text-gray-500">Hit Prediction</p>
-              <div class="flex items-center gap-2">
-                <span class={"text-lg font-bold #{if @hit_pick.prediction == "Hit", do: "text-green-600", else: "text-red-600"}"}><%= @hit_pick.prediction %></span>
-                <span class="text-sm text-gray-500"><%= Float.round(@hit_pick.confidence * 100, 1) %>%</span>
-              </div>
-              <p class="text-xs text-gray-400">vs <%= @hit_pick.vs_team %></p>
-            </div>
-          <% end %>
-          <%= if @hr_pick do %>
-            <div>
-              <p class="text-sm text-gray-500">HR Probability</p>
-              <div class="flex items-center gap-2">
-                <span class="text-lg font-bold text-purple-600"><%= Float.round(@hr_pick.hr_probability * 100, 1) %>%</span>
-                <span class={"px-2 py-0.5 text-xs rounded-full font-medium #{case @hr_pick.confidence_tier do
-                  "A" -> "bg-green-100 text-green-800"
-                  "B" -> "bg-yellow-100 text-yellow-800"
-                  _ -> "bg-gray-100 text-gray-800"
-                end}"}><%= @hr_pick.confidence_tier %> tier</span>
-              </div>
-              <p class="text-xs text-gray-400">vs <%= @hr_pick.vs_team %></p>
-            </div>
-          <% end %>
+        <%!-- Quick Links --%>
+        <div class="bg-gray-50 rounded-lg p-6">
+          <h3 class="font-semibold text-gray-900 mb-3">Quick Links</h3>
+          <ul class="space-y-2 text-sm">
+            <li>
+              <a
+                href={"/mlb/scouting/#{@team.slug}/#{@player.slug}"}
+                class="text-blue-600 hover:text-blue-800"
+              >
+                Scouting Report
+              </a>
+            </li>
+            <li>
+              <a href={"/mlb/teams/#{@team.slug}"} class="text-blue-600 hover:text-blue-800">
+                <%= @team.name %> Team Page
+              </a>
+            </li>
+            <li>
+              <a
+                href={"/mlb/lineups/#{Date.to_iso8601(Date.utc_today())}"}
+                class="text-blue-600 hover:text-blue-800"
+              >
+                Today's Lineups
+              </a>
+            </li>
+          </ul>
         </div>
-      <% end %>
 
-      <div class="bg-gray-50 rounded-lg p-6">
-        <h3 class="font-semibold text-gray-900 mb-3">Quick Links</h3>
-        <ul class="space-y-2 text-sm">
-          <li><a href={"/mlb/scouting/#{@team.slug}/#{@player.slug}"} class="text-blue-600 hover:text-blue-800">Scouting Report</a></li>
-          <li><a href={"/mlb/teams/#{@team.slug}"} class="text-blue-600 hover:text-blue-800"><%= @team.name %> Team Page</a></li>
-          <li><a href={"/mlb/lineups/#{Date.to_iso8601(Date.utc_today())}"} class="text-blue-600 hover:text-blue-800">Today's Lineups</a></li>
-        </ul>
+        <%!-- Subscribe CTA --%>
+        <SportsFanaticWeb.SEOComponents.subscribe_cta />
+      </aside>
+    </div>
+  <% else %>
+    <%!-- Fallback: no daily content --%>
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div class="lg:col-span-2">
+        <%= if @player.bio do %>
+          <section class="mb-8">
+            <h2 class="text-xl font-semibold text-gray-900 mb-3">About</h2>
+            <p class="text-gray-700 leading-relaxed"><%= @player.bio %></p>
+          </section>
+        <% end %>
+
+        <section class="mb-8 bg-gray-50 rounded-lg p-6 text-center">
+          <p class="text-gray-600">
+            Daily analysis coming soon. Check back for AI-generated matchup analysis, projections, and insights.
+          </p>
+          <a
+            href={"/mlb/lineups/#{Date.to_iso8601(Date.utc_today())}"}
+            class="inline-block mt-3 text-blue-600 hover:text-blue-800 font-medium"
+          >
+            View today's lineups &rarr;
+          </a>
+        </section>
+
+        <%= if @scouting do %>
+          <section class="mb-8">
+            <h2 class="text-xl font-semibold text-gray-900 mb-3">Scouting Report Preview</h2>
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+              <div class="flex items-center gap-3 mb-3">
+                <span class="text-2xl font-bold text-blue-600">
+                  <%= @scouting.overall_grade %>
+                </span>
+                <span class="text-sm text-gray-500">Overall Grade</span>
+              </div>
+              <p class="text-gray-700"><%= @scouting.summary %></p>
+              <a
+                href={"/mlb/scouting/#{@team.slug}/#{@player.slug}"}
+                class="inline-block mt-4 text-blue-600 hover:text-blue-800 font-medium"
+              >
+                View full scouting report &rarr;
+              </a>
+            </div>
+          </section>
+        <% end %>
+
+        <%= if @news && length(@news) > 0 do %>
+          <section>
+            <h2 class="text-xl font-semibold text-gray-900 mb-3">Recent News</h2>
+            <div class="space-y-3">
+              <%= for item <- @news do %>
+                <a
+                  href={"/mlb/news/#{Date.to_iso8601(item.published_date)}/#{item.slug}"}
+                  class="block bg-white rounded-lg shadow-sm border border-gray-100 p-4 hover:border-blue-300 transition"
+                >
+                  <h3 class="font-medium text-gray-900"><%= item.title %></h3>
+                  <p class="text-sm text-gray-500 mt-1">
+                    <%= Calendar.strftime(item.published_date, "%b %d, %Y") %>
+                  </p>
+                </a>
+              <% end %>
+            </div>
+          </section>
+        <% end %>
       </div>
-    </aside>
-  </div>
+
+      <aside>
+        <%= if @hit_pick || @hr_pick do %>
+          <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+            <h3 class="font-semibold text-gray-900 mb-4">Today's Predictions</h3>
+            <%= if @hit_pick do %>
+              <div class="mb-4">
+                <p class="text-sm text-gray-500">Hit Prediction</p>
+                <div class="flex items-center gap-2">
+                  <span class={"text-lg font-bold #{if @hit_pick.prediction == "Hit", do: "text-green-600", else: "text-red-600"}"}>
+                    <%= @hit_pick.prediction %>
+                  </span>
+                  <span class="text-sm text-gray-500">
+                    <%= Float.round(@hit_pick.confidence * 100, 1) %>%
+                  </span>
+                </div>
+                <p class="text-xs text-gray-400">vs <%= @hit_pick.vs_team %></p>
+              </div>
+            <% end %>
+            <%= if @hr_pick do %>
+              <div>
+                <p class="text-sm text-gray-500">HR Probability</p>
+                <div class="flex items-center gap-2">
+                  <span class="text-lg font-bold text-purple-600">
+                    <%= Float.round(@hr_pick.hr_probability * 100, 1) %>%
+                  </span>
+                  <span class={"px-2 py-0.5 text-xs rounded-full font-medium #{case @hr_pick.confidence_tier do
+                    "A" -> "bg-green-100 text-green-800"
+                    "B" -> "bg-yellow-100 text-yellow-800"
+                    _ -> "bg-gray-100 text-gray-800"
+                  end}"}>
+                    <%= @hr_pick.confidence_tier %> tier
+                  </span>
+                </div>
+                <p class="text-xs text-gray-400">vs <%= @hr_pick.vs_team %></p>
+              </div>
+            <% end %>
+          </div>
+        <% end %>
+
+        <div class="bg-gray-50 rounded-lg p-6">
+          <h3 class="font-semibold text-gray-900 mb-3">Quick Links</h3>
+          <ul class="space-y-2 text-sm">
+            <li>
+              <a
+                href={"/mlb/scouting/#{@team.slug}/#{@player.slug}"}
+                class="text-blue-600 hover:text-blue-800"
+              >
+                Scouting Report
+              </a>
+            </li>
+            <li>
+              <a href={"/mlb/teams/#{@team.slug}"} class="text-blue-600 hover:text-blue-800">
+                <%= @team.name %> Team Page
+              </a>
+            </li>
+            <li>
+              <a
+                href={"/mlb/lineups/#{Date.to_iso8601(Date.utc_today())}"}
+                class="text-blue-600 hover:text-blue-800"
+              >
+                Today's Lineups
+              </a>
+            </li>
+          </ul>
+        </div>
+      </aside>
+    </div>
+  <% end %>
 </article>

@@ -103,6 +103,15 @@ defmodule SportsFanaticWeb.Router do
     post "/stripe", StripeWebhookController, :handle
   end
 
+  # --- Admin Routes ---
+  # TODO: Add admin auth before production
+  scope "/admin", SportsFanaticWeb do
+    pipe_through :browser
+
+    live "/", AdminDashboardLive
+    live "/jobs", AdminJobsLive
+  end
+
   # --- Premium LiveView Routes (subscription-gated) ---
   scope "/premium", SportsFanaticWeb do
     pipe_through [:browser, :require_subscription]

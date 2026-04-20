@@ -71,6 +71,7 @@ defmodule SportsFanatic.Billing do
 
       # Update user tier with expiry so has_active_subscription? works immediately
       period_end = DateTime.utc_now() |> DateTime.add(@trial_days * 24 * 3600, :second)
+
       Accounts.update_user_subscription(user, %{
         subscription_tier: "trial",
         subscription_expires_at: period_end
@@ -91,6 +92,7 @@ defmodule SportsFanatic.Billing do
       |> Repo.update()
 
       user = Accounts.get_user!(sub.user_id)
+
       Accounts.update_user_subscription(user, %{
         subscription_tier: sub.plan,
         subscription_expires_at: period_end
@@ -125,6 +127,7 @@ defmodule SportsFanatic.Billing do
 
       user = Accounts.get_user!(sub.user_id)
       tier = if status == "trialing", do: "trial", else: sub.plan
+
       Accounts.update_user_subscription(user, %{
         subscription_tier: if(status in ["active", "trialing"], do: tier, else: "free"),
         subscription_expires_at: period_end
@@ -143,7 +146,11 @@ defmodule SportsFanatic.Billing do
       |> Repo.update()
 
       user = Accounts.get_user!(sub.user_id)
-      Accounts.update_user_subscription(user, %{subscription_tier: "free", subscription_expires_at: nil})
+
+      Accounts.update_user_subscription(user, %{
+        subscription_tier: "free",
+        subscription_expires_at: nil
+      })
     end
 
     {:ok, :processed}
@@ -157,7 +164,9 @@ defmodule SportsFanatic.Billing do
     if user.stripe_customer_id do
       user.stripe_customer_id
     else
-      {:ok, customer} = Stripe.Customer.create(%{email: user.email, metadata: %{user_id: user.id}})
+      {:ok, customer} =
+        Stripe.Customer.create(%{email: user.email, metadata: %{user_id: user.id}})
+
       Accounts.update_user_subscription(user, %{stripe_customer_id: customer.id})
       customer.id
     end
@@ -175,8 +184,10 @@ defmodule SportsFanatic.Billing do
   end
 
   defp unix_to_datetime(nil), do: nil
+
   defp unix_to_datetime(unix) when is_integer(unix) do
     DateTime.from_unix!(unix)
   end
+
   defp unix_to_datetime(_), do: nil
 end

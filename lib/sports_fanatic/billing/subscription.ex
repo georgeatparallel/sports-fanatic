@@ -24,11 +24,25 @@ defmodule SportsFanatic.Billing.Subscription do
   def changeset(sub, attrs) do
     sub
     |> cast(attrs, [
-      :user_id, :stripe_subscription_id, :stripe_price_id, :plan,
-      :status, :current_period_start, :current_period_end,
-      :trial_end, :canceled_at
+      :user_id,
+      :stripe_subscription_id,
+      :stripe_price_id,
+      :plan,
+      :status,
+      :current_period_start,
+      :current_period_end,
+      :trial_end,
+      :canceled_at
     ])
-    |> validate_required([:user_id, :stripe_subscription_id, :stripe_price_id, :plan, :status, :current_period_start, :current_period_end])
+    |> validate_required([
+      :user_id,
+      :stripe_subscription_id,
+      :stripe_price_id,
+      :plan,
+      :status,
+      :current_period_start,
+      :current_period_end
+    ])
     |> unique_constraint(:stripe_subscription_id)
   end
 end

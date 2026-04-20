@@ -60,22 +60,38 @@ config :logger, :console,
 config :phoenix, :json_library, Jason
 
 # Oban configuration
+# Oban configuration
+# All cron times are UTC. Baseball season uses EDT (UTC-4).
 config :sports_fanatic, Oban,
   repo: SportsFanatic.Repo,
   plugins: [
     {Oban.Plugins.Pruner, max_age: 60 * 60 * 24 * 7},
     {Oban.Plugins.Cron,
      crontab: [
-       {"0 6 * * *", SportsFanatic.Workers.FetchScheduleWorker},
-       {"*/30 8-20 * * *", SportsFanatic.Workers.FetchLineupsWorker},
-       {"0 */2 * * *", SportsFanatic.Workers.FetchNewsWorker},
-       {"0 7 * * *", SportsFanatic.Workers.GenerateScoutingWorker},
-       {"0 9 * * *", SportsFanatic.Workers.GenerateGameDayWorker},
+       # News: every 5 minutes
+       {"*/5 * * * *", SportsFanatic.Workers.FetchNewsWorker},
+       # Schedule: daily 7:00 AM ET = 11:00 UTC
+       {"0 11 * * *", SportsFanatic.Workers.FetchScheduleWorker},
+       # Lineups: daily 8:00 AM ET = 12:00 UTC
+       {"0 12 * * *", SportsFanatic.Workers.FetchLineupsWorker},
+       # Player SEO content: daily 8:30 AM ET = 12:30 UTC (after lineups)
+       {"30 12 * * *", SportsFanatic.Workers.GeneratePlayerSeoWorker},
+       # Predictions: every 30 min during game hours (noon-midnight ET = 16:00-04:00 UTC)
+       {"*/30 16-23 * * *", SportsFanatic.Workers.GeneratePredictionsWorker},
+       {"*/30 0-3 * * *", SportsFanatic.Workers.GeneratePredictionsWorker},
+       # Scouting reports: daily 9:00 AM ET = 13:00 UTC
+       {"0 13 * * *", SportsFanatic.Workers.GenerateScoutingWorker},
+       # Game day magazines: daily 9:30 AM ET = 13:30 UTC
+       {"30 13 * * *", SportsFanatic.Workers.GenerateGameDayWorker},
+       # Sitemap: every 6 hours
        {"0 */6 * * *", SportsFanatic.Workers.GenerateSitemapWorker},
-       {"0 3 * * *", SportsFanatic.Workers.CleanupWorker}
+       # Cache warm: every 15 minutes
+       {"*/15 * * * *", SportsFanatic.Workers.WarmCacheWorker},
+       # Cleanup: daily 4:00 AM ET = 8:00 UTC
+       {"0 8 * * *", SportsFanatic.Workers.CleanupWorker}
      ]}
   ],
-  queues: [data_fetch: 5, content_generation: 3, cache: 2, system: 1]
+  queues: [default: 5, data_fetch: 5, content_generation: 3, cache: 2, system: 1]
 
 # Stripe configuration
 config :stripity_stripe,

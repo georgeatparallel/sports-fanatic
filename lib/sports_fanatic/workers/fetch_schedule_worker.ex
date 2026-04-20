@@ -50,6 +50,7 @@ defmodule SportsFanatic.Workers.FetchScheduleWorker do
   end
 
   defp parse_datetime(nil), do: nil
+
   defp parse_datetime(str) do
     case DateTime.from_iso8601(str) do
       {:ok, dt, _} -> dt

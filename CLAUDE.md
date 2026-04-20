@@ -50,12 +50,14 @@ Browser → Phoenix Router
            ├── /mlb/* → SEO Controllers → (Valkey cache hit) → HTML response
            │                            → (cache miss) → PostgreSQL → render → cache → HTML
            ├── /premium/* → LiveView (subscription-gated, WebSocket)
+           ├── /admin/* → AdminDashboardLive / AdminJobsLive (no auth — dev only)
            └── /webhooks/stripe → StripeWebhookController
 
 Oban workers (background)
   FetchSchedule / FetchLineups / FetchNews → PostgreSQL
   GeneratePredictions → Python Bridge (FastAPI :8000)
   GenerateScouting / GenerateGameDay → Python Bridge → Claude API → PostgreSQL
+  GeneratePlayerSeo → Python Bridge → Claude API → PostgreSQL (player_daily_content)
   WarmCache → Valkey
   GenerateSitemap → PostgreSQL
 
@@ -75,21 +77,22 @@ lib/sports_fanatic/
   billing/            Subscription schema
   billing.ex          Stripe webhook handlers (checkout, invoice, subscription events)
   cache.ex            Valkey wrapper — get/set/delete/invalidate_pattern + TTL constants
-  content/            ScoutingReport, GameDayMagazine, NewsItem, Sitemap schemas
+  content/            ScoutingReport, GameDayMagazine, NewsItem, Sitemap, PlayerDailyContent schemas
   external_apis/      FantasyNerds HTTP client
   mlb/                Sport, Team, Player, Venue, Game, ScheduledGame, Lineup, Pick, HrPick
   python_bridge.ex    HTTP client for Python bridge with circuit breaker integration
   python_bridge/      CircuitBreaker GenServer + HealthCheck GenServer
-  workers/            9 Oban workers (fetch_lineups, fetch_schedule, fetch_news,
-                       generate_predictions, generate_scouting, generate_game_day,
-                       warm_cache, generate_sitemap, cleanup)
+  workers/            10 Oban workers (fetch_lineups, fetch_schedule, fetch_news,
+                       generate_predictions, generate_scouting, generate_player_seo,
+                       generate_game_day, warm_cache, generate_sitemap, cleanup)
 
 lib/sports_fanatic_web/
   components/         seo_components.ex — json_ld/2, breadcrumbs/1, subscribe_cta/1
   controllers/        Page, Player, Team, Lineup, News, Scouting, GameDay, Sitemap,
                        Auth, Subscription, StripeWebhook controllers + HTML modules
   live/               DashboardLive, ScoutingLive, GameDayLive, GameDayIndexLive,
-                       ArchiveScoutingLive, ArchiveGameDayLive
+                       ArchiveScoutingLive, ArchiveGameDayLive,
+                       AdminDashboardLive, AdminJobsLive
   plugs/              FetchCurrentUser, RequireAuthenticated, SubscriptionGate,
                        VerifyStripeWebhook, CacheRawBody
   router.ex           Route definitions — see Routing section below
@@ -98,6 +101,7 @@ python_bridge/src/
   api/predict.py      POST /predict/hit, /predict/hr
   api/scouting.py     POST /scouting/search (Exa), /scouting/generate (Claude)
   api/gameday.py      POST /gameday/generate (Claude)
+  api/seo.py          POST /seo/generate-player-daily (Claude, structured SEO output)
   simulation/engine.py  Monte Carlo engine, NumPy-vectorized, 10k trials
   config.py           Settings from environment variables
   main.py             FastAPI app, routers registered, /health endpoint
@@ -137,7 +141,12 @@ python_bridge/src/
 /premium/game-day/:date         GameDayIndexLive
 /premium/archive/scouting       ArchiveScoutingLive
 /premium/archive/game-day       ArchiveGameDayLive
+
+/admin                          AdminDashboardLive   (DB stats, Oban overview, worker triggers)
+/admin/jobs                     AdminJobsLive        (paginated job history, filters, manual retry)
 ```
+
+**Admin auth note**: The `/admin` routes have no authentication. They are gated only by network access. Do not expose to the public internet without adding auth. See ADR-001 in `.on-loop/agent-notes/architect.md`.
 
 **Sitemap route note**: The router uses `/sitemaps/:type` (not `/sitemap-:type.xml`) because Phoenix does not support hyphens before dynamic segments.
 
@@ -168,7 +177,7 @@ Six PostgreSQL schemas. Migrations are in `priv/repo/migrations/`, init SQL in `
 |--------|--------|-------------|
 | `public` | sports, teams, players, venues | Core MLB entities |
 | `mlb` | games, scheduled_games, lineups, player_boxscores, player_season_stats, picks, hr_picks, game_weather, park_hr_factors | Game data and predictions |
-| `content` | scouting_reports, game_day_magazines, news_items, sitemaps | AI-generated content |
+| `content` | scouting_reports, game_day_magazines, news_items, sitemaps, player_daily_content | AI-generated content |
 | `accounts` | users, subscriptions, sessions | Auth and billing |
 | `system` | pipeline_runs, pipeline_steps, cache_invalidations | Operations |
 | `scouting` | (from sports-fan-agent, retained) | |
@@ -210,18 +219,71 @@ Use `SportsFanatic.Cache.get/1`, `put/3`, `delete/1`, `invalidate_pattern/1`.
 
 In production, the `python-bridge` service should not expose port 8000 to the host. The `docker-compose.yml` currently exposes it — remove the `ports` entry for production (SEC-007).
 
+### Endpoints
+
+| Method | Path | Called by | Description |
+|--------|------|-----------|-------------|
+| POST | `/predict/hit` | GeneratePredictionsWorker | Hit probability prediction |
+| POST | `/predict/hr` | GeneratePredictionsWorker | Home run probability prediction |
+| POST | `/scouting/search` | GenerateScoutingWorker | Exa AI search for scouting data |
+| POST | `/scouting/generate` | GenerateScoutingWorker | Claude scouting report generation |
+| POST | `/gameday/generate` | GenerateGameDayWorker | Claude Game Day Magazine generation |
+| POST | `/seo/generate-player-daily` | GeneratePlayerSeoWorker | Claude structured SEO content for player pages |
+| GET | `/health` | HealthCheck GenServer | Health probe (every 30s) |
+
+---
+
+## Admin Panel
+
+The admin panel lives at `/admin` and `/admin/jobs`. It is built with Phoenix LiveView using a dedicated inner layout (`lib/sports_fanatic_web/components/layouts/admin.html.heex`).
+
+**Routes:**
+
+| Path | LiveView | Description |
+|------|----------|-------------|
+| `/admin` | `AdminDashboardLive` | Aggregate DB counts, Oban queue stats, one-click worker triggers |
+| `/admin/jobs` | `AdminJobsLive` | Paginated Oban job history (last 100), filter by worker/state, manual retry |
+
+**AdminDashboardLive features:**
+- DB counts: teams, players, news items, lineups, scouting reports, game day magazines, player daily content
+- Oban stats grouped by worker and state (pending, executing, completed/failed in last 24h)
+- "Trigger" button for each worker — inserts a new job immediately
+- Auto-refreshes every 10 seconds via LiveView timer
+
+**AdminJobsLive features:**
+- Filterable by worker name and job state
+- Shows: worker, state, attempt count, inserted_at, attempted_at, errors (truncated; click to expand)
+- Manual retry button re-inserts a new job with the same args
+
+**Authentication**: None. The `/admin` scope uses only the `:browser` pipeline. This is intentional for development only. A `# TODO: Add admin auth before production` comment is in `router.ex`. Do not expose to the public internet without gating behind authentication.
+
 ---
 
 ## Oban Workers
 
-All workers live in `lib/sports_fanatic/workers/`. They use `use Oban.Worker, queue: :default, max_attempts: 3`.
+All workers live in `lib/sports_fanatic/workers/`. Cron schedules are defined in `config/config.exs` under `Oban.crontab`. All times are UTC. Baseball season runs on EDT (UTC-4), so UTC times are listed as ET for clarity.
 
-Cron schedules are defined in `config/config.exs` under `Oban.crontab`. Times are UTC (convert from ET accordingly).
+| Worker | Cron (UTC) | ET equivalent | Queue |
+|--------|------------|---------------|-------|
+| FetchNewsWorker | `*/5 * * * *` | Every 5 min | data_fetch |
+| FetchScheduleWorker | `0 11 * * *` | 7:00 AM ET | data_fetch |
+| FetchLineupsWorker | `0 12 * * *` | 8:00 AM ET | data_fetch |
+| GeneratePlayerSeoWorker | `30 12 * * *` | 8:30 AM ET | content_generation |
+| GenerateScoutingWorker | `0 13 * * *` | 9:00 AM ET | content_generation |
+| GenerateGameDayWorker | `30 13 * * *` | 9:30 AM ET | content_generation |
+| GeneratePredictionsWorker | `*/30 16-23 * * *` + `*/30 0-3 * * *` | Every 30 min, noon–midnight ET | content_generation |
+| GenerateSitemapWorker | `0 */6 * * *` | Every 6 hours | system |
+| WarmCacheWorker | `*/15 * * * *` | Every 15 min | cache |
+| CleanupWorker | `0 8 * * *` | 4:00 AM ET | system |
+
+Queues and concurrency: `default: 5, data_fetch: 5, content_generation: 3, cache: 2, system: 1`.
 
 To manually enqueue a worker in IEx:
 ```elixir
 %{} |> SportsFanatic.Workers.FetchLineupsWorker.new() |> Oban.insert()
 ```
+
+Workers can also be triggered from the admin panel at `/admin`.
 
 ---
 

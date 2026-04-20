@@ -32,6 +32,10 @@ defmodule SportsFanatic.PythonBridge do
     post("/gameday/generate", game_data)
   end
 
+  def generate_player_seo(player_data) do
+    post("/seo/generate-player-daily", player_data)
+  end
+
   def fetch_schedule(date) do
     post("/schedule/fetch", %{date: date})
   end

@@ -13,6 +13,10 @@ defmodule SportsFanatic.MixProject do
     ]
   end
 
+  def cli do
+    [preferred_envs: ["test.unit": :test]]
+  end
+
   # Configuration for the OTP application.
   #
   # Type `mix help compile.app` for more information.
@@ -80,7 +84,9 @@ defmodule SportsFanatic.MixProject do
       "ecto.reset": ["ecto.drop", "ecto.setup"],
       test: ["ecto.create --quiet", "ecto.migrate --quiet", "test"],
       # Run only unit tests that do not require a database connection
-      "test.unit": ["test test/sports_fanatic/mlb test/sports_fanatic/accounts/user_test.exs test/sports_fanatic/cache_test.exs test/sports_fanatic/python_bridge"],
+      "test.unit": [
+        "test test/sports_fanatic/mlb test/sports_fanatic/accounts/user_test.exs test/sports_fanatic/cache_test.exs test/sports_fanatic/python_bridge test/sports_fanatic/content test/sports_fanatic/workers/generate_player_seo_worker_test.exs test/sports_fanatic/oban_config_test.exs test/sports_fanatic/python_bridge_seo_test.exs"
+      ],
       "assets.setup": ["tailwind.install --if-missing", "esbuild.install --if-missing"],
       "assets.build": ["tailwind default", "esbuild default"],
       "assets.deploy": ["tailwind default --minify", "esbuild default --minify", "phx.digest"]

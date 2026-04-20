@@ -26,9 +26,19 @@ defmodule SportsFanatic.Content.NewsItem do
   def changeset(news_item, attrs) do
     news_item
     |> cast(attrs, [
-      :source, :external_id, :slug, :title, :body, :summary,
-      :published_date, :published_at, :player_ids, :team_ids,
-      :category, :is_premium, :image_url
+      :source,
+      :external_id,
+      :slug,
+      :title,
+      :body,
+      :summary,
+      :published_date,
+      :published_at,
+      :player_ids,
+      :team_ids,
+      :category,
+      :is_premium,
+      :image_url
     ])
     |> validate_required([:source, :slug, :title, :body, :published_date])
     |> unique_constraint([:source, :external_id])
