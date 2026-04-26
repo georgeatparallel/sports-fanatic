@@ -1,8 +1,8 @@
 defmodule SportsFanaticWeb.Plugs.AuthTest do
   use SportsFanaticWeb.ConnCase, async: true
 
-  alias SportsFanaticWeb.Plugs.{FetchCurrentUser, RequireAuthenticated, SubscriptionGate}
   alias SportsFanatic.Accounts
+  alias SportsFanaticWeb.Plugs.{FetchCurrentUser, RequireAuthenticated, SubscriptionGate}
 
   # --- Helpers ---
 
@@ -127,7 +127,7 @@ defmodule SportsFanaticWeb.Plugs.AuthTest do
     end
 
     test "passes through for user with trial subscription" do
-      conn = Phoenix.ConnTest.build_conn()
+      trial_conn = Phoenix.ConnTest.build_conn()
 
       user = %SportsFanatic.Accounts.User{
         id: Ecto.UUID.generate(),
@@ -135,14 +135,14 @@ defmodule SportsFanaticWeb.Plugs.AuthTest do
         subscription_expires_at: nil
       }
 
-      conn =
-        conn
+      result_conn =
+        trial_conn
         |> assign(:current_user, user)
         |> fetch_session()
         |> fetch_flash()
         |> SubscriptionGate.call([])
 
-      refute conn.halted
+      refute result_conn.halted
     end
 
     test "halts and redirects to /subscribe for free user", %{conn: conn} do

@@ -85,7 +85,7 @@ defmodule SportsFanaticWeb.AuthController do
   defp conn_info(conn) do
     %{
       ip_address: conn.remote_ip |> :inet.ntoa() |> to_string(),
-      user_agent: get_req_header(conn, "user-agent") |> List.first()
+      user_agent: conn |> get_req_header("user-agent") |> List.first()
     }
   end
 end

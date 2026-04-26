@@ -16,6 +16,7 @@ defmodule SportsFanaticWeb.CoreComponents do
   """
   use Phoenix.Component
 
+  alias Phoenix.HTML.Form, as: HtmlForm
   alias Phoenix.LiveView.JS
   use Gettext, backend: SportsFanaticWeb.Gettext
 
@@ -297,7 +298,7 @@ defmodule SportsFanaticWeb.CoreComponents do
 
   def input(%{type: "checkbox", value: value} = assigns) do
     assigns =
-      assign_new(assigns, :checked, fn -> Phoenix.HTML.Form.normalize_value("checkbox", value) end)
+      assign_new(assigns, :checked, fn -> HtmlForm.normalize_value("checkbox", value) end)
 
     ~H"""
     <div phx-feedback-for={@name}>

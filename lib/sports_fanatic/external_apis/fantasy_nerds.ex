@@ -14,30 +14,11 @@ defmodule SportsFanatic.ExternalApis.FantasyNerds do
   @timeout 30_000
 
   def fetch_lineups(game_date) do
-    get("/lineups", date: game_date)
-    |> case do
+    result = get("/lineups", date: game_date)
+
+    case result do
       {:ok, %{"games" => games}} ->
-        players =
-          Enum.flat_map(games, fn game ->
-            lineups = Map.get(game, "lineups", %{})
-
-            Enum.flat_map(["away", "home"], fn side ->
-              team_code = Map.get(game, "#{side}_team", "")
-              side_data = Map.get(lineups, side, %{})
-
-              Map.get(side_data, "lineup", [])
-              |> Enum.map(fn player ->
-                %{
-                  player_id: player["playerId"],
-                  team_code: team_code,
-                  batting_order: player["battingOrder"],
-                  position: player["position"]
-                }
-              end)
-              |> Enum.filter(& &1.player_id)
-            end)
-          end)
-
+        players = Enum.flat_map(games, &extract_game_lineups/1)
         {:ok, players}
 
       {:ok, data} ->
@@ -47,6 +28,27 @@ defmodule SportsFanatic.ExternalApis.FantasyNerds do
       error ->
         error
     end
+  end
+
+  defp extract_game_lineups(game) do
+    lineups = Map.get(game, "lineups", %{})
+
+    Enum.flat_map(["away", "home"], fn side ->
+      team_code = Map.get(game, "#{side}_team", "")
+      side_data = Map.get(lineups, side, %{})
+
+      side_data
+      |> Map.get("lineup", [])
+      |> Enum.map(fn player ->
+        %{
+          player_id: player["playerId"],
+          team_code: team_code,
+          batting_order: player["battingOrder"],
+          position: player["position"]
+        }
+      end)
+      |> Enum.filter(& &1.player_id)
+    end)
   end
 
   def fetch_teams do

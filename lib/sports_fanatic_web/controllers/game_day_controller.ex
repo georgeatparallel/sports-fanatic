@@ -2,17 +2,16 @@ defmodule SportsFanaticWeb.GameDayController do
   use SportsFanaticWeb, :controller
 
   import Ecto.Query
-  alias SportsFanatic.Repo
   alias SportsFanatic.Content.GameDayMagazine
+  alias SportsFanatic.Repo
 
   def show(conn, %{"date" => date_str, "slug" => slug}) do
     date = Date.from_iso8601!(date_str)
 
     magazine =
-      from(m in GameDayMagazine,
-        where: m.game_date == ^date and m.slug == ^slug,
-        preload: [:away_team, :home_team]
-      )
+      GameDayMagazine
+      |> where([m], m.game_date == ^date and m.slug == ^slug)
+      |> preload([:away_team, :home_team])
       |> Repo.one!()
 
     canonical = "https://sportsfanatic.com/mlb/game-day/#{date_str}/#{slug}"

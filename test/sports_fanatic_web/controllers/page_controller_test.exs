@@ -1,5 +1,5 @@
 defmodule SportsFanaticWeb.PageControllerTest do
-  use SportsFanaticWeb.ConnCase
+  use SportsFanaticWeb.ConnCase, async: true
 
   test "GET /", %{conn: conn} do
     conn = get(conn, ~p"/")

@@ -3,9 +3,10 @@ defmodule SportsFanatic.Billing do
   The Billing context: Stripe subscription management.
   """
 
-  alias SportsFanatic.Repo
   alias SportsFanatic.Accounts
   alias SportsFanatic.Billing.Subscription
+  alias SportsFanatic.Repo
+  alias Stripe.Checkout.Session, as: StripeCheckoutSession
 
   @trial_days 7
 
@@ -23,7 +24,7 @@ defmodule SportsFanatic.Billing do
       metadata: %{plan: plan, user_id: user.id}
     }
 
-    Stripe.Checkout.Session.create(params)
+    StripeCheckoutSession.create(params)
   end
 
   def handle_webhook_event(%{"type" => type, "data" => %{"object" => object}}) do

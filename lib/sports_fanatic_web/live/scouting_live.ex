@@ -2,24 +2,24 @@ defmodule SportsFanaticWeb.ScoutingLive do
   use SportsFanaticWeb, :live_view
 
   import Ecto.Query
-  alias SportsFanatic.Repo
-  alias SportsFanatic.Mlb.{Player, Team}
   alias SportsFanatic.Content.ScoutingReport
+  alias SportsFanatic.Mlb.{Player, Team}
+  alias SportsFanatic.Repo
 
   @impl true
   def mount(%{"team_slug" => team_slug, "player_slug" => player_slug}, _session, socket) do
     team = Repo.get_by!(Team, slug: team_slug)
 
     player =
-      from(p in Player, where: p.team_id == ^team.id and p.slug == ^player_slug)
+      Player
+      |> where([p], p.team_id == ^team.id and p.slug == ^player_slug)
       |> Repo.one!()
 
     report =
-      from(sr in ScoutingReport,
-        where: sr.player_id == ^player.id,
-        order_by: [desc: sr.report_date],
-        limit: 1
-      )
+      ScoutingReport
+      |> where([sr], sr.player_id == ^player.id)
+      |> order_by([sr], desc: sr.report_date)
+      |> limit(1)
       |> Repo.one()
 
     {:ok,

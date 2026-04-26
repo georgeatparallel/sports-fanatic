@@ -2,7 +2,7 @@ defmodule SportsFanatic.AccountsTest do
   use SportsFanatic.DataCase, async: true
 
   alias SportsFanatic.Accounts
-  alias SportsFanatic.Accounts.{User, Session}
+  alias SportsFanatic.Accounts.{Session, User}
 
   # --- Helpers ---
 
@@ -131,7 +131,7 @@ defmodule SportsFanatic.AccountsTest do
 
       # Manually insert an expired session
       expired_at = DateTime.utc_now() |> DateTime.add(-1, :second)
-      token = :crypto.strong_rand_bytes(32) |> Base.url_encode64()
+      token = 32 |> :crypto.strong_rand_bytes() |> Base.url_encode64()
 
       Repo.insert!(%Session{
         user_id: user.id,
@@ -161,7 +161,7 @@ defmodule SportsFanatic.AccountsTest do
       user = register_user()
       expired_at = DateTime.utc_now() |> DateTime.add(-3600, :second)
 
-      expired_token = :crypto.strong_rand_bytes(32) |> Base.url_encode64()
+      expired_token = 32 |> :crypto.strong_rand_bytes() |> Base.url_encode64()
 
       Repo.insert!(%Session{
         user_id: user.id,

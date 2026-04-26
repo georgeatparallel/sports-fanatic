@@ -2,22 +2,19 @@ defmodule SportsFanaticWeb.ArchiveScoutingLive do
   use SportsFanaticWeb, :live_view
 
   import Ecto.Query
-  alias SportsFanatic.Repo
   alias SportsFanatic.Content.ScoutingReport
   alias SportsFanatic.Mlb.{Player, Team}
+  alias SportsFanatic.Repo
 
   @impl true
   def mount(_params, _session, socket) do
     reports =
-      from(sr in ScoutingReport,
-        join: p in Player,
-        on: sr.player_id == p.id,
-        join: t in Team,
-        on: p.team_id == t.id,
-        select: %{report: sr, player: p, team: t},
-        order_by: [desc: sr.report_date],
-        limit: 50
-      )
+      ScoutingReport
+      |> join(:inner, [sr], p in Player, on: sr.player_id == p.id)
+      |> join(:inner, [sr, p], t in Team, on: p.team_id == t.id)
+      |> select([sr, p, t], %{report: sr, player: p, team: t})
+      |> order_by([sr], desc: sr.report_date)
+      |> limit(50)
       |> Repo.all()
 
     {:ok,

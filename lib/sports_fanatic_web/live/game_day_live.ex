@@ -2,18 +2,17 @@ defmodule SportsFanaticWeb.GameDayLive do
   use SportsFanaticWeb, :live_view
 
   import Ecto.Query
-  alias SportsFanatic.Repo
   alias SportsFanatic.Content.GameDayMagazine
+  alias SportsFanatic.Repo
 
   @impl true
   def mount(%{"date" => date_str, "slug" => slug}, _session, socket) do
     date = Date.from_iso8601!(date_str)
 
     magazine =
-      from(m in GameDayMagazine,
-        where: m.game_date == ^date and m.slug == ^slug,
-        preload: [:away_team, :home_team]
-      )
+      GameDayMagazine
+      |> where([m], m.game_date == ^date and m.slug == ^slug)
+      |> preload([:away_team, :home_team])
       |> Repo.one!()
 
     if connected?(socket) do

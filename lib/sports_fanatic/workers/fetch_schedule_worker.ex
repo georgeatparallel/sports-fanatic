@@ -6,9 +6,9 @@ defmodule SportsFanatic.Workers.FetchScheduleWorker do
     max_attempts: 3,
     unique: [period: 3600]
 
-  alias SportsFanatic.Repo
   alias SportsFanatic.Mlb.ScheduledGame
   alias SportsFanatic.PythonBridge
+  alias SportsFanatic.Repo
 
   require Logger
 

@@ -1,8 +1,8 @@
 defmodule SportsFanatic.BillingTest do
   use SportsFanatic.DataCase, async: true
 
-  alias SportsFanatic.Billing
   alias SportsFanatic.Accounts
+  alias SportsFanatic.Billing
   alias SportsFanatic.Billing.Subscription
 
   defp unique_email, do: "billing_test_#{System.unique_integer([:positive])}@example.com"

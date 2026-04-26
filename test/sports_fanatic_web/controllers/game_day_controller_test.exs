@@ -1,9 +1,9 @@
 defmodule SportsFanaticWeb.GameDayControllerTest do
   use SportsFanaticWeb.ConnCase, async: true
 
-  alias SportsFanatic.Repo
-  alias SportsFanatic.Mlb.Team
   alias SportsFanatic.Content.GameDayMagazine
+  alias SportsFanatic.Mlb.Team
+  alias SportsFanatic.Repo
 
   defp create_team(attrs \\ %{}) do
     n = System.unique_integer([:positive])

@@ -2,15 +2,14 @@ defmodule SportsFanaticWeb.TeamController do
   use SportsFanaticWeb, :controller
 
   import Ecto.Query
+  alias SportsFanatic.Mlb.{Player, ScheduledGame, Team}
   alias SportsFanatic.Repo
-  alias SportsFanatic.Mlb.{Team, Player, ScheduledGame}
 
   def index(conn, _params) do
     teams =
-      from(t in Team,
-        where: not is_nil(t.slug),
-        order_by: [asc: t.division, asc: t.name]
-      )
+      Team
+      |> where([t], not is_nil(t.slug))
+      |> order_by([t], asc: t.division, asc: t.name)
       |> Repo.all()
 
     conn
@@ -23,20 +22,22 @@ defmodule SportsFanaticWeb.TeamController do
     team = Repo.get_by!(Team, slug: team_slug)
 
     players =
-      from(p in Player,
-        where: p.team_id == ^team.id and p.status == "active",
-        order_by: [asc: p.position, asc: p.last_name]
-      )
+      Player
+      |> where([p], p.team_id == ^team.id and p.status == "active")
+      |> order_by([p], asc: p.position, asc: p.last_name)
       |> Repo.all()
 
+    mlb_id = get_mlb_id(team)
+
     upcoming_games =
-      from(sg in ScheduledGame,
-        where:
-          (sg.away_mlb_id == ^get_mlb_id(team) or sg.home_mlb_id == ^get_mlb_id(team)) and
-            sg.game_date >= ^Date.utc_today(),
-        order_by: sg.game_date,
-        limit: 10
+      ScheduledGame
+      |> where(
+        [sg],
+        (sg.away_mlb_id == ^mlb_id or sg.home_mlb_id == ^mlb_id) and
+          sg.game_date >= ^Date.utc_today()
       )
+      |> order_by([sg], sg.game_date)
+      |> limit(10)
       |> Repo.all()
 
     canonical = "https://sportsfanatic.com/mlb/teams/#{team_slug}"
