@@ -1,8 +1,8 @@
 defmodule SportsFanaticWeb.ScoutingControllerTest do
   use SportsFanaticWeb.ConnCase, async: true
 
+  alias SportsFanatic.Mlb.{Player, Team}
   alias SportsFanatic.Repo
-  alias SportsFanatic.Mlb.{Team, Player}
 
   defp create_team(attrs \\ %{}) do
     n = System.unique_integer([:positive])

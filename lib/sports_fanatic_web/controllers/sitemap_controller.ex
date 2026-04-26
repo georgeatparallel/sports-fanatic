@@ -1,8 +1,8 @@
 defmodule SportsFanaticWeb.SitemapController do
   use SportsFanaticWeb, :controller
 
-  alias SportsFanatic.Repo
   alias SportsFanatic.Content.Sitemap
+  alias SportsFanatic.Repo
 
   def index(conn, _params) do
     sitemap = Repo.get_by(Sitemap, sitemap_type: "index")

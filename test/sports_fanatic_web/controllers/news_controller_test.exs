@@ -1,8 +1,8 @@
 defmodule SportsFanaticWeb.NewsControllerTest do
   use SportsFanaticWeb.ConnCase, async: true
 
-  alias SportsFanatic.Repo
   alias SportsFanatic.Content.NewsItem
+  alias SportsFanatic.Repo
 
   defp create_news_item(attrs \\ %{}) do
     n = System.unique_integer([:positive])

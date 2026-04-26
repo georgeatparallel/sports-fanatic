@@ -1,8 +1,8 @@
 defmodule SportsFanaticWeb.PlayerControllerTest do
   use SportsFanaticWeb.ConnCase, async: true
 
+  alias SportsFanatic.Mlb.{Player, Team}
   alias SportsFanatic.Repo
-  alias SportsFanatic.Mlb.{Team, Player}
 
   # --- Helpers ---
 

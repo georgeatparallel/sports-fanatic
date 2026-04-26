@@ -2,34 +2,31 @@ defmodule SportsFanaticWeb.DashboardLive do
   use SportsFanaticWeb, :live_view
 
   import Ecto.Query
+  alias SportsFanatic.Mlb.{HrPick, Pick, ScheduledGame}
   alias SportsFanatic.Repo
-  alias SportsFanatic.Mlb.{ScheduledGame, Pick, HrPick}
 
   @impl true
   def mount(_params, _session, socket) do
     today = Date.utc_today()
 
     games =
-      from(sg in ScheduledGame,
-        where: sg.game_date == ^today,
-        order_by: sg.game_datetime
-      )
+      ScheduledGame
+      |> where([sg], sg.game_date == ^today)
+      |> order_by([sg], sg.game_datetime)
       |> Repo.all()
 
     top_picks =
-      from(p in Pick,
-        where: p.prediction_date == ^today and p.prediction == "Hit",
-        order_by: [desc: p.confidence],
-        limit: 10
-      )
+      Pick
+      |> where([p], p.prediction_date == ^today and p.prediction == "Hit")
+      |> order_by([p], desc: p.confidence)
+      |> limit(10)
       |> Repo.all()
 
     top_hr_picks =
-      from(hp in HrPick,
-        where: hp.prediction_date == ^today,
-        order_by: [desc: hp.hr_probability],
-        limit: 10
-      )
+      HrPick
+      |> where([hp], hp.prediction_date == ^today)
+      |> order_by([hp], desc: hp.hr_probability)
+      |> limit(10)
       |> Repo.all()
 
     if connected?(socket) do
@@ -144,12 +141,14 @@ defmodule SportsFanaticWeb.DashboardLive do
 
   defp generate_slug(game) do
     away =
-      String.downcase(game.away_name || "")
+      (game.away_name || "")
+      |> String.downcase()
       |> String.replace(~r/[^a-z0-9]+/, "-")
       |> String.trim("-")
 
     home =
-      String.downcase(game.home_name || "")
+      (game.home_name || "")
+      |> String.downcase()
       |> String.replace(~r/[^a-z0-9]+/, "-")
       |> String.trim("-")
 

@@ -9,13 +9,8 @@ defmodule SportsFanaticWeb.Plugs.FetchCurrentUser do
   def call(conn, _opts) do
     token = get_session(conn, :session_token)
 
-    cond do
-      user = token && Accounts.get_user_by_session_token(token) ->
-        assign(conn, :current_user, user)
-
-      true ->
-        assign(conn, :current_user, nil)
-    end
+    user = token && Accounts.get_user_by_session_token(token)
+    assign(conn, :current_user, user)
   end
 end
 
@@ -82,7 +77,7 @@ defmodule SportsFanaticWeb.Plugs.VerifyStripeWebhook do
 
   def call(conn, _opts) do
     signing_secret = Application.get_env(:stripity_stripe, :signing_secret)
-    signature = get_req_header(conn, "stripe-signature") |> List.first()
+    signature = conn |> get_req_header("stripe-signature") |> List.first()
 
     case Stripe.Webhook.construct_event(conn.assigns[:raw_body], signature, signing_secret) do
       {:ok, event} ->

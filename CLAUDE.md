@@ -304,3 +304,81 @@ Full security audit is in `.on-loop/agent-notes/security.md`.
 docker compose --profile dev up stripe-cli
 # stripe-cli forwards events from Stripe to http://web:4000/webhooks/stripe
 ```
+
+---
+
+## Database Backup & Restore
+
+Scripts live in `scripts/`. Local backups land in `backups/` (gitignored). Run any script with `-h` for full flag reference.
+
+**Quick reference:**
+
+```bash
+# Local backup only
+./scripts/db_backup.sh
+
+# Backup and upload to S3
+S3_BUCKET=my-bucket ./scripts/db_backup.sh
+
+# Backup specific schemas only
+./scripts/db_backup.sh --schemas public,mlb,content
+
+# Backup without S3 upload even when S3_BUCKET is set
+./scripts/db_backup.sh --no-s3
+
+# Restore from local file (prompts for confirmation)
+./scripts/db_restore.sh backups/sports_fanatic_20260426_090000.dump
+
+# Restore from local file — skip prompt
+./scripts/db_restore.sh backups/sports_fanatic_20260426_090000.dump --force
+
+# Restore from S3 URI with clean DB (drop + recreate + init.sql + restore)
+./scripts/db_restore.sh s3://my-bucket/backups/sports-fanatic/sports_fanatic_20260426_090000.dump --force --drop
+
+# Parallel restore (faster for large databases)
+./scripts/db_restore.sh backups/sports_fanatic_20260426_090000.dump --force --jobs 4
+
+# List backups in S3
+S3_BUCKET=my-bucket ./scripts/db_s3_sync.sh list
+
+# Upload a file manually
+S3_BUCKET=my-bucket ./scripts/db_s3_sync.sh upload backups/sports_fanatic_20260426_090000.dump
+
+# Download a backup from S3
+S3_BUCKET=my-bucket ./scripts/db_s3_sync.sh download sports_fanatic_20260426_090000.dump
+
+# Mix task wrappers (run from project root)
+mix db.backup
+mix db.restore backups/sports_fanatic_20260426_090000.dump
+```
+
+**Environment variables:**
+
+| Variable | Description | Default | Required |
+|----------|-------------|---------|----------|
+| `PGHOST` | Database host (auto-detects Docker `db` or `localhost`) | auto | No |
+| `PGPORT` | Database port | `5432` | No |
+| `PGUSER` | Database user | `postgres` | No |
+| `PGPASSWORD` | Database password | `postgres` | No |
+| `PGDATABASE` | Database name | `sports_fanatic` | No |
+| `BACKUP_DIR` | Directory for local backup files | `./backups` | No |
+| `BACKUP_RETENTION_DAYS` | Days to keep local backups before cleanup | `30` | No |
+| `S3_BUCKET` | S3 bucket name for remote backups | — | Only for S3 ops |
+| `S3_PREFIX` | S3 key prefix | `backups/sports-fanatic` | No |
+| `AWS_PROFILE` | AWS CLI named profile | — | No |
+| `AWS_REGION` | AWS region | `us-east-1` | No |
+
+Variables can also be set in `.env` at the project root — the scripts source it automatically if present.
+
+**Docker usage:**
+
+```bash
+# From host (PostgreSQL port must be exposed — default docker-compose.yml exposes 5432)
+PGHOST=localhost ./scripts/db_backup.sh
+
+# Inside the web container (connects to the 'db' service on the internal network)
+docker compose exec web ./scripts/db_backup.sh
+
+# S3 credentials available inside the container via environment
+docker compose exec -e S3_BUCKET=my-bucket -e AWS_REGION=us-east-1 web ./scripts/db_backup.sh
+```

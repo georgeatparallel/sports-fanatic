@@ -2,9 +2,9 @@ defmodule SportsFanaticWeb.PageController do
   use SportsFanaticWeb, :controller
 
   import Ecto.Query
-  alias SportsFanatic.Repo
-  alias SportsFanatic.Mlb.{ScheduledGame, Team}
   alias SportsFanatic.Content.NewsItem
+  alias SportsFanatic.Mlb.{ScheduledGame, Team}
+  alias SportsFanatic.Repo
 
   def health(conn, _params) do
     conn
@@ -16,18 +16,16 @@ defmodule SportsFanaticWeb.PageController do
     today = Date.utc_today()
 
     games =
-      from(sg in ScheduledGame,
-        where: sg.game_date == ^today,
-        order_by: sg.game_datetime
-      )
+      ScheduledGame
+      |> where([sg], sg.game_date == ^today)
+      |> order_by([sg], sg.game_datetime)
       |> Repo.all()
 
     recent_news =
-      from(n in NewsItem,
-        where: n.published_date >= ^Date.add(today, -3),
-        order_by: [desc: n.published_date],
-        limit: 10
-      )
+      NewsItem
+      |> where([n], n.published_date >= ^Date.add(today, -3))
+      |> order_by([n], desc: n.published_date)
+      |> limit(10)
       |> Repo.all()
 
     teams = Repo.all(from t in Team, where: not is_nil(t.slug), order_by: t.name)

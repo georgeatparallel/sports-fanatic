@@ -4,8 +4,8 @@ defmodule SportsFanatic.Accounts do
   """
 
   import Ecto.Query
+  alias SportsFanatic.Accounts.{Session, User}
   alias SportsFanatic.Repo
-  alias SportsFanatic.Accounts.{User, Session}
 
   @session_validity_days 30
 
@@ -45,7 +45,7 @@ defmodule SportsFanatic.Accounts do
   # --- Session Management ---
 
   def create_session(user, conn_info \\ %{}) do
-    token = :crypto.strong_rand_bytes(32) |> Base.url_encode64()
+    token = 32 |> :crypto.strong_rand_bytes() |> Base.url_encode64()
     expires_at = DateTime.utc_now() |> DateTime.add(@session_validity_days * 24 * 3600, :second)
 
     %Session{}
@@ -73,14 +73,16 @@ defmodule SportsFanatic.Accounts do
   end
 
   def delete_session(token) when is_binary(token) do
-    from(s in Session, where: s.token == ^token)
+    Session
+    |> where([s], s.token == ^token)
     |> Repo.delete_all()
   end
 
   def delete_expired_sessions do
     now = DateTime.utc_now()
 
-    from(s in Session, where: s.expires_at < ^now)
+    Session
+    |> where([s], s.expires_at < ^now)
     |> Repo.delete_all()
   end
 
@@ -94,7 +96,7 @@ defmodule SportsFanatic.Accounts do
 
   def has_active_subscription?(user) do
     user.subscription_tier in ["trial", "monthly", "yearly"] &&
-      not is_nil(user.subscription_expires_at) &&
-      DateTime.compare(user.subscription_expires_at, DateTime.utc_now()) == :gt
+      (is_nil(user.subscription_expires_at) ||
+         DateTime.compare(user.subscription_expires_at, DateTime.utc_now()) == :gt)
   end
 end

@@ -1,8 +1,8 @@
 defmodule SportsFanaticWeb.PageControllerTest do
-  use SportsFanaticWeb.ConnCase
+  use SportsFanaticWeb.ConnCase, async: true
 
   test "GET /", %{conn: conn} do
     conn = get(conn, ~p"/")
-    assert html_response(conn, 200) =~ "Peace of mind from prototype to production"
+    assert html_response(conn, 200) =~ "AI-Powered MLB Intelligence"
   end
 end

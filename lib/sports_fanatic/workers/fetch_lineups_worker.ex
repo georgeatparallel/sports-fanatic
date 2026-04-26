@@ -6,9 +6,10 @@ defmodule SportsFanatic.Workers.FetchLineupsWorker do
     max_attempts: 3,
     unique: [period: 60]
 
-  alias SportsFanatic.Repo
-  alias SportsFanatic.Mlb.Lineup
   alias SportsFanatic.ExternalApis.FantasyNerds
+  alias SportsFanatic.Mlb.Lineup
+  alias SportsFanatic.Repo
+  alias SportsFanatic.Workers.GeneratePredictionsWorker
 
   require Logger
 
@@ -40,7 +41,7 @@ defmodule SportsFanatic.Workers.FetchLineupsWorker do
         # Trigger predictions after lineups confirmed
         if length(players) > 0 do
           %{date: today}
-          |> SportsFanatic.Workers.GeneratePredictionsWorker.new()
+          |> GeneratePredictionsWorker.new()
           |> Oban.insert()
         end
 

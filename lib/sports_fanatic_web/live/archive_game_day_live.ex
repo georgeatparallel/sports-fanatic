@@ -2,18 +2,17 @@ defmodule SportsFanaticWeb.ArchiveGameDayLive do
   use SportsFanaticWeb, :live_view
 
   import Ecto.Query
-  alias SportsFanatic.Repo
   alias SportsFanatic.Content.GameDayMagazine
+  alias SportsFanatic.Repo
 
   @impl true
   def mount(_params, _session, socket) do
     magazines =
-      from(m in GameDayMagazine,
-        where: m.status == "published",
-        preload: [:away_team, :home_team],
-        order_by: [desc: m.game_date],
-        limit: 50
-      )
+      GameDayMagazine
+      |> where([m], m.status == "published")
+      |> preload([:away_team, :home_team])
+      |> order_by([m], desc: m.game_date)
+      |> limit(50)
       |> Repo.all()
 
     {:ok,

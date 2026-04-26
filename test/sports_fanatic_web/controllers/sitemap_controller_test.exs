@@ -1,8 +1,8 @@
 defmodule SportsFanaticWeb.SitemapControllerTest do
   use SportsFanaticWeb.ConnCase, async: true
 
-  alias SportsFanatic.Repo
   alias SportsFanatic.Content.Sitemap
+  alias SportsFanatic.Repo
 
   describe "GET /sitemap.xml" do
     test "returns 200 with XML content type", %{conn: conn} do
