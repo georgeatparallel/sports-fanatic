@@ -46,13 +46,6 @@ defmodule SportsFanaticWeb.AdminLive do
     %{key: "warm_cache", module: SportsFanatic.Workers.WarmCacheWorker, label: "Warm Cache"}
   ]
 
-  def on_mount(:require_admin, _params, _session, socket) do
-    case socket.assigns[:current_user] do
-      %{is_admin: true} -> {:cont, socket}
-      _ -> {:halt, Phoenix.LiveView.redirect(socket, to: "/")}
-    end
-  end
-
   @impl true
   def mount(_params, _session, socket) do
     if connected?(socket) do
