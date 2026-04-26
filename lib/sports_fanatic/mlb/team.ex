@@ -26,8 +26,17 @@ defmodule SportsFanatic.Mlb.Team do
   def changeset(team, attrs) do
     team
     |> cast(attrs, [
-      :name, :abbreviation, :city, :slug, :division, :league,
-      :logo_url, :primary_color, :secondary_color, :external_ids, :sport_id
+      :name,
+      :abbreviation,
+      :city,
+      :slug,
+      :division,
+      :league,
+      :logo_url,
+      :primary_color,
+      :secondary_color,
+      :external_ids,
+      :sport_id
     ])
     |> validate_required([:name])
     |> unique_constraint(:slug)

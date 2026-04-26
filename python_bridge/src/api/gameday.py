@@ -2,7 +2,6 @@
 
 import json
 import logging
-from datetime import date
 
 from fastapi import APIRouter
 from pydantic import BaseModel
@@ -44,7 +43,8 @@ async def generate_game_day(request: GameDayRequest):
             messages=[
                 {
                     "role": "user",
-                    "content": f"""You are a baseball magazine editor creating a Game Day Magazine preview.
+                    "content": f"""You are a baseball magazine editor creating \
+a Game Day Magazine preview.
 Write an engaging, data-driven preview for today's game.
 
 Game Context:
@@ -53,7 +53,7 @@ Game Context:
 Return a JSON object with these fields:
 - headline: catchy headline for the matchup (string)
 - subheadline: supporting detail (string)
-- narrative: 3-4 paragraph editorial narrative about the matchup (string, use \\n for paragraph breaks)
+- narrative: 3-4 paragraph editorial narrative (string, use \\n for breaks)
 - key_matchups: array of 3 key player matchups, each with "title" and "analysis" (strings)
 - predictions_narrative: 1-2 paragraph analysis of our model predictions (string)
 - weather_impact: one sentence about weather impact on the game or null

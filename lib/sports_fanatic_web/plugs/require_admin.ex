@@ -6,7 +6,9 @@ defmodule SportsFanaticWeb.Plugs.RequireAdmin do
 
   def call(conn, _opts) do
     case conn.assigns[:current_user] do
-      %{is_admin: true} -> conn
+      %{is_admin: true} ->
+        conn
+
       _ ->
         conn
         |> put_flash(:error, "Unauthorized.")

@@ -7,12 +7,12 @@ import logging
 
 from fastapi import FastAPI
 
-from src.api.predict import router as predict_router
-from src.api.scouting import router as scouting_router
 from src.api.gameday import router as gameday_router
+from src.api.predict import router as predict_router
 from src.api.schedule import router as schedule_router
-from src.simulation.engine import router as simulation_router
+from src.api.scouting import router as scouting_router
 from src.config import settings
+from src.simulation.engine import router as simulation_router
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

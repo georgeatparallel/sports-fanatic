@@ -36,13 +36,40 @@ defmodule SportsFanatic.Content.GameDayMagazine do
   def changeset(magazine, attrs) do
     magazine
     |> cast(attrs, [
-      :game_date, :away_team_id, :home_team_id, :game_id, :slug,
-      :headline, :subheadline, :matchup_analysis, :weather_impact,
-      :away_lineup, :home_lineup, :away_pitcher, :home_pitcher,
-      :batter_matchups, :key_storylines, :historical_data, :prediction,
-      :status, :model_version, :generation_ms, :published_at
+      :game_date,
+      :away_team_id,
+      :home_team_id,
+      :game_id,
+      :slug,
+      :headline,
+      :subheadline,
+      :matchup_analysis,
+      :weather_impact,
+      :away_lineup,
+      :home_lineup,
+      :away_pitcher,
+      :home_pitcher,
+      :batter_matchups,
+      :key_storylines,
+      :historical_data,
+      :prediction,
+      :status,
+      :model_version,
+      :generation_ms,
+      :published_at
     ])
-    |> validate_required([:game_date, :away_team_id, :home_team_id, :slug, :headline, :matchup_analysis, :away_lineup, :home_lineup, :away_pitcher, :home_pitcher])
+    |> validate_required([
+      :game_date,
+      :away_team_id,
+      :home_team_id,
+      :slug,
+      :headline,
+      :matchup_analysis,
+      :away_lineup,
+      :home_lineup,
+      :away_pitcher,
+      :home_pitcher
+    ])
     |> unique_constraint([:game_date, :slug])
   end
 end

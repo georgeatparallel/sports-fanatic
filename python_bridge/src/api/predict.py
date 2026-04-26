@@ -7,7 +7,6 @@ import logging
 import math
 from typing import Any
 
-import numpy as np
 from fastapi import APIRouter
 from pydantic import BaseModel
 from sklearn.ensemble import GradientBoostingClassifier
@@ -136,9 +135,15 @@ def _generate_top_factors(features: dict, prob: float) -> list[dict]:
 
     park_factor = features.get("park_hr_factor", 1.0)
     if park_factor > 1.05:
-        factors.append({"feature": "park_hr_factor", "value": park_factor, "impact": "moderate positive"})
+        factors.append({
+            "feature": "park_hr_factor", "value": park_factor,
+            "impact": "moderate positive",
+        })
     elif park_factor < 0.92:
-        factors.append({"feature": "park_hr_factor", "value": park_factor, "impact": "moderate negative"})
+        factors.append({
+            "feature": "park_hr_factor", "value": park_factor,
+            "impact": "moderate negative",
+        })
 
     temp = features.get("temperature")
     if temp is not None and temp > 28:
@@ -189,7 +194,7 @@ async def predict_hit(request: HitPredictionRequest):
 
     for player in request.players:
         # Build feature vector from player stats
-        features = {col: None for col in HIT_FEATURE_COLS}
+        features = dict.fromkeys(HIT_FEATURE_COLS)
         features.update(player.stats)
         features.update(player.weather)
         features.update(player.matchup)
@@ -220,7 +225,7 @@ async def predict_hr(request: HrPredictionRequest):
     predictions = []
 
     for player in request.players:
-        features = {col: None for col in HR_FEATURE_COLS}
+        features = dict.fromkeys(HR_FEATURE_COLS)
         features.update(player.stats)
         features.update(player.weather)
 

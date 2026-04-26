@@ -36,8 +36,10 @@ defmodule SportsFanaticWeb.GameDayIndexLive do
 
       <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
         <%= for mag <- @magazines do %>
-          <.link navigate={"/premium/game-day/#{@date_str}/#{mag.slug}"}
-            class="block bg-white rounded-xl shadow-sm border border-gray-200 hover:border-blue-300 hover:shadow-md transition overflow-hidden">
+          <.link
+            navigate={"/premium/game-day/#{@date_str}/#{mag.slug}"}
+            class="block bg-white rounded-xl shadow-sm border border-gray-200 hover:border-blue-300 hover:shadow-md transition overflow-hidden"
+          >
             <div class="bg-gradient-to-r from-slate-800 to-blue-900 text-white p-6">
               <h2 class="text-xl font-bold"><%= mag.headline %></h2>
               <%= if mag.subheadline do %>

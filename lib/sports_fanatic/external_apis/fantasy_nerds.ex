@@ -71,7 +71,12 @@ defmodule SportsFanatic.ExternalApis.FantasyNerds do
       url = @base_url <> path
       params = Keyword.put(params, :apikey, api_key)
 
-      case Req.get(url, params: params, receive_timeout: @timeout, retry: :transient, max_retries: 3) do
+      case Req.get(url,
+             params: params,
+             receive_timeout: @timeout,
+             retry: :transient,
+             max_retries: 3
+           ) do
         {:ok, %{status: 200, body: body}} ->
           {:ok, body}
 

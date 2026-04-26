@@ -111,8 +111,12 @@ defmodule SportsFanaticWeb.PlayerControllerTest do
   describe "GET /mlb/players (index active filter)" do
     test "does not include inactive players in listing", %{conn: conn} do
       team = create_team(%{slug: "boston-red-sox"})
-      _active = create_player(team, %{full_name: "Active Star", slug: "active-star", status: "active"})
-      _inactive = create_player(team, %{full_name: "Bench Warmer", slug: "bench-warmer", status: "inactive"})
+
+      _active =
+        create_player(team, %{full_name: "Active Star", slug: "active-star", status: "active"})
+
+      _inactive =
+        create_player(team, %{full_name: "Bench Warmer", slug: "bench-warmer", status: "inactive"})
 
       conn = get(conn, "/mlb/players")
       response = html_response(conn, 200)

@@ -21,6 +21,7 @@ defmodule SportsFanatic.Workers.GeneratePlayerSeoWorker do
 
     Enum.each(players_without_bio, fn player ->
       bio = generate_basic_bio(player)
+
       player
       |> Ecto.Changeset.change(%{bio: bio})
       |> Repo.update()

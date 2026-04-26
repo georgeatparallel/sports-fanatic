@@ -26,7 +26,10 @@ defmodule SportsFanaticWeb.PlayerController do
 
     conn
     |> assign(:page_title, "MLB Players - Stats & Analysis | Sports Fan Agent")
-    |> assign(:meta_description, "Browse all MLB players with stats, scouting reports, and analysis. Find your favorite player.")
+    |> assign(
+      :meta_description,
+      "Browse all MLB players with stats, scouting reports, and analysis. Find your favorite player."
+    )
     |> render(:index,
       players: players,
       page: page,
@@ -61,7 +64,9 @@ defmodule SportsFanaticWeb.PlayerController do
     hit_pick =
       if mlb_id do
         from(p in Pick,
-          where: p.player_mlb_id == ^String.to_integer(to_string(mlb_id)) and p.prediction_date == ^today
+          where:
+            p.player_mlb_id == ^String.to_integer(to_string(mlb_id)) and
+              p.prediction_date == ^today
         )
         |> Repo.one()
       end
@@ -69,7 +74,9 @@ defmodule SportsFanaticWeb.PlayerController do
     hr_pick =
       if mlb_id do
         from(hp in HrPick,
-          where: hp.player_mlb_id == ^String.to_integer(to_string(mlb_id)) and hp.prediction_date == ^today
+          where:
+            hp.player_mlb_id == ^String.to_integer(to_string(mlb_id)) and
+              hp.prediction_date == ^today
         )
         |> Repo.one()
       end
@@ -98,8 +105,18 @@ defmodule SportsFanaticWeb.PlayerController do
     }
 
     conn
-    |> assign(:page_title, "#{player.full_name} - #{team.name} | Stats, Scouting & Analysis | Sports Fan Agent")
-    |> assign(:meta_description, String.slice("#{player.full_name} of the #{team.name}. View stats, AI scouting report, hit predictions, and analysis.", 0, 160))
+    |> assign(
+      :page_title,
+      "#{player.full_name} - #{team.name} | Stats, Scouting & Analysis | Sports Fan Agent"
+    )
+    |> assign(
+      :meta_description,
+      String.slice(
+        "#{player.full_name} of the #{team.name}. View stats, AI scouting report, hit predictions, and analysis.",
+        0,
+        160
+      )
+    )
     |> assign(:canonical, canonical)
     |> assign(:json_ld, Jason.encode!(json_ld))
     |> render(:show,

@@ -6,14 +6,42 @@ defmodule SportsFanaticWeb.AdminLive do
 
   @workers [
     %{key: "cleanup", module: SportsFanatic.Workers.CleanupWorker, label: "Cleanup"},
-    %{key: "fetch_lineups", module: SportsFanatic.Workers.FetchLineupsWorker, label: "Fetch Lineups"},
+    %{
+      key: "fetch_lineups",
+      module: SportsFanatic.Workers.FetchLineupsWorker,
+      label: "Fetch Lineups"
+    },
     %{key: "fetch_news", module: SportsFanatic.Workers.FetchNewsWorker, label: "Fetch News"},
-    %{key: "fetch_schedule", module: SportsFanatic.Workers.FetchScheduleWorker, label: "Fetch Schedule"},
-    %{key: "generate_game_day", module: SportsFanatic.Workers.GenerateGameDayWorker, label: "Generate Game Day"},
-    %{key: "generate_player_seo", module: SportsFanatic.Workers.GeneratePlayerSeoWorker, label: "Generate Player SEO"},
-    %{key: "generate_predictions", module: SportsFanatic.Workers.GeneratePredictionsWorker, label: "Generate Predictions"},
-    %{key: "generate_scouting", module: SportsFanatic.Workers.GenerateScoutingWorker, label: "Generate Scouting"},
-    %{key: "generate_sitemap", module: SportsFanatic.Workers.GenerateSitemapWorker, label: "Generate Sitemap"},
+    %{
+      key: "fetch_schedule",
+      module: SportsFanatic.Workers.FetchScheduleWorker,
+      label: "Fetch Schedule"
+    },
+    %{
+      key: "generate_game_day",
+      module: SportsFanatic.Workers.GenerateGameDayWorker,
+      label: "Generate Game Day"
+    },
+    %{
+      key: "generate_player_seo",
+      module: SportsFanatic.Workers.GeneratePlayerSeoWorker,
+      label: "Generate Player SEO"
+    },
+    %{
+      key: "generate_predictions",
+      module: SportsFanatic.Workers.GeneratePredictionsWorker,
+      label: "Generate Predictions"
+    },
+    %{
+      key: "generate_scouting",
+      module: SportsFanatic.Workers.GenerateScoutingWorker,
+      label: "Generate Scouting"
+    },
+    %{
+      key: "generate_sitemap",
+      module: SportsFanatic.Workers.GenerateSitemapWorker,
+      label: "Generate Sitemap"
+    },
     %{key: "warm_cache", module: SportsFanatic.Workers.WarmCacheWorker, label: "Warm Cache"}
   ]
 
@@ -224,9 +252,27 @@ defmodule SportsFanaticWeb.AdminLive do
                 status_badge_class(status.state)
               ]}>
                 <%= if status.state == :running do %>
-                  <svg class="animate-spin -ml-0.5 mr-1.5 h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                  <svg
+                    class="animate-spin -ml-0.5 mr-1.5 h-3 w-3"
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                  >
+                    <circle
+                      class="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      stroke-width="4"
+                    >
+                    </circle>
+                    <path
+                      class="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                    >
+                    </path>
                   </svg>
                 <% end %>
                 <%= status_label(status.state) %>

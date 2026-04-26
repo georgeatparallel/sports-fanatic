@@ -9,7 +9,9 @@
   <header class="mb-6">
     <h1 class="text-3xl font-bold text-gray-900">Scouting Report: <%= @player.full_name %></h1>
     <p class="text-lg text-gray-600">
-      <a href={"/mlb/teams/#{@team.slug}"} class="text-blue-600 hover:text-blue-800"><%= @team.name %></a>
+      <a href={"/mlb/teams/#{@team.slug}"} class="text-blue-600 hover:text-blue-800">
+        <%= @team.name %>
+      </a>
       | <%= @player.position %>
     </p>
   </header>
@@ -47,21 +49,33 @@
           This is a preview of the full scouting report. Subscribe for complete analysis
           including hit/HR probabilities, all strengths/weaknesses, injury details, and confidence modifiers.
         </p>
-        <a href="/subscribe" class="inline-block bg-blue-600 text-white font-semibold px-6 py-2 rounded-lg hover:bg-blue-700 transition text-sm">
+        <a
+          href="/subscribe"
+          class="inline-block bg-blue-600 text-white font-semibold px-6 py-2 rounded-lg hover:bg-blue-700 transition text-sm"
+        >
           Unlock Full Report
         </a>
       </div>
     </div>
   <% else %>
     <div class="bg-gray-50 rounded-lg p-8 text-center">
-      <p class="text-gray-500 mb-4">No scouting report available yet for <%= @player.full_name %>.</p>
-      <p class="text-sm text-gray-400">Reports are generated daily for players in confirmed lineups.</p>
+      <p class="text-gray-500 mb-4">
+        No scouting report available yet for <%= @player.full_name %>.
+      </p>
+      <p class="text-sm text-gray-400">
+        Reports are generated daily for players in confirmed lineups.
+      </p>
     </div>
   <% end %>
 
   <SportsFanaticWeb.SEOComponents.subscribe_cta return_to={"/mlb/scouting/#{@team.slug}/#{@player.slug}"} />
 
   <div class="mt-6">
-    <a href={"/mlb/players/#{@team.slug}/#{@player.slug}"} class="text-blue-600 hover:text-blue-800">&larr; Back to player profile</a>
+    <a
+      href={"/mlb/players/#{@team.slug}/#{@player.slug}"}
+      class="text-blue-600 hover:text-blue-800"
+    >
+      &larr; Back to player profile
+    </a>
   </div>
 </article>

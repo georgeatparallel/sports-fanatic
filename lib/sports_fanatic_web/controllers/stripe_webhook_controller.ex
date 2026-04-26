@@ -15,6 +15,7 @@ defmodule SportsFanaticWeb.StripeWebhookController do
 
       {:error, reason} ->
         Logger.error("Stripe webhook error: #{inspect(reason)}")
+
         conn
         |> put_status(422)
         |> json(%{error: "Processing failed"})

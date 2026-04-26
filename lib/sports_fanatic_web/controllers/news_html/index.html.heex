@@ -5,7 +5,9 @@
 ]} />
 
 <section class="max-w-4xl mx-auto px-4 py-8">
-  <h1 class="text-3xl font-bold text-gray-900 mb-6">MLB News - <%= Calendar.strftime(@date, "%B %d, %Y") %></h1>
+  <h1 class="text-3xl font-bold text-gray-900 mb-6">
+    MLB News - <%= Calendar.strftime(@date, "%B %d, %Y") %>
+  </h1>
 
   <%= if Enum.empty?(@news) do %>
     <p class="text-gray-500">No news for this date.</p>
@@ -21,7 +23,9 @@
           <% end %>
           <div class="flex gap-3 mt-3 text-sm text-gray-400">
             <%= if item.category do %>
-              <span class="px-2 py-0.5 bg-gray-100 rounded text-gray-600"><%= item.category %></span>
+              <span class="px-2 py-0.5 bg-gray-100 rounded text-gray-600">
+                <%= item.category %>
+              </span>
             <% end %>
             <span><%= item.source %></span>
           </div>

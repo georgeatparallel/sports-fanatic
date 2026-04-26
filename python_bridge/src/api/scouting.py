@@ -44,7 +44,8 @@ async def generate_scouting(request: ScoutingGenerateRequest):
             messages=[
                 {
                     "role": "user",
-                    "content": f"""Analyze the following news and data about MLB player {request.player_name}.
+                    "content": f"""Analyze the following news and data about MLB player \
+{request.player_name}.
 Return a JSON object with exactly these fields:
 
 - hit_streak: current hitting streak (integer or null)
