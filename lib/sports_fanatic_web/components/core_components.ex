@@ -17,7 +17,7 @@ defmodule SportsFanaticWeb.CoreComponents do
   use Phoenix.Component
 
   alias Phoenix.LiveView.JS
-  import SportsFanaticWeb.Gettext
+  use Gettext, backend: SportsFanaticWeb.Gettext
 
   @doc """
   Renders a modal.

@@ -111,17 +111,17 @@ async def search_player(request: ScoutingSearchRequest):
 
         all_results = []
         for query in queries:
-            results = exa.search_and_contents(
-                query, num_results=3, text=True, use_autoprompt=True
-            )
+            results = exa.search_and_contents(query, num_results=3, text=True, use_autoprompt=True)
             for r in results.results:
-                all_results.append({
-                    "url": r.url,
-                    "title": r.title,
-                    "text": r.text[:5000] if r.text else None,
-                    "published_date": r.published_date,
-                    "score": r.score,
-                })
+                all_results.append(
+                    {
+                        "url": r.url,
+                        "title": r.title,
+                        "text": r.text[:5000] if r.text else None,
+                        "published_date": r.published_date,
+                        "score": r.score,
+                    }
+                )
 
         return {"sources": all_results}
 
