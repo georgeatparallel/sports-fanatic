@@ -34,12 +34,16 @@ defmodule SportsFanatic.AccountsTest do
     end
 
     test "returns error changeset for invalid email" do
-      assert {:error, changeset} = Accounts.register_user(%{email: "bademail", password: "password123"})
+      assert {:error, changeset} =
+               Accounts.register_user(%{email: "bademail", password: "password123"})
+
       assert %{email: _} = errors_on(changeset)
     end
 
     test "returns error changeset for short password" do
-      assert {:error, changeset} = Accounts.register_user(%{email: unique_email(), password: "short"})
+      assert {:error, changeset} =
+               Accounts.register_user(%{email: unique_email(), password: "short"})
+
       assert %{password: _} = errors_on(changeset)
     end
 
@@ -74,7 +78,8 @@ defmodule SportsFanatic.AccountsTest do
     end
 
     test "returns error for non-existent user" do
-      assert {:error, :invalid_credentials} = Accounts.authenticate_user("nobody@example.com", "password")
+      assert {:error, :invalid_credentials} =
+               Accounts.authenticate_user("nobody@example.com", "password")
     end
 
     test "returns error for empty email" do
@@ -215,7 +220,10 @@ defmodule SportsFanatic.AccountsTest do
 
     test "sets stripe_customer_id" do
       user = register_user()
-      {:ok, updated} = Accounts.update_user_subscription(user, %{stripe_customer_id: "cus_abc123"})
+
+      {:ok, updated} =
+        Accounts.update_user_subscription(user, %{stripe_customer_id: "cus_abc123"})
+
       assert updated.stripe_customer_id == "cus_abc123"
     end
   end

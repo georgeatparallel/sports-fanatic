@@ -21,16 +21,15 @@ if System.get_env("PHX_SERVER") do
 end
 
 # Valkey/Redis configuration
-config :sports_fanatic, :valkey_url,
-  System.get_env("VALKEY_URL") || "redis://localhost:6379"
+config :sports_fanatic, :valkey_url, System.get_env("VALKEY_URL") || "redis://localhost:6379"
 
 # Python Bridge URL
-config :sports_fanatic, :python_bridge_url,
-  System.get_env("PYTHON_BRIDGE_URL") || "http://localhost:8000"
+config :sports_fanatic,
+       :python_bridge_url,
+       System.get_env("PYTHON_BRIDGE_URL") || "http://localhost:8000"
 
 # FantasyNerds API key
-config :sports_fanatic, :fantasy_nerds_api_key,
-  System.get_env("FANTASY_NERDS_API_KEY")
+config :sports_fanatic, :fantasy_nerds_api_key, System.get_env("FANTASY_NERDS_API_KEY")
 
 # Stripe configuration (runtime)
 if stripe_key = System.get_env("STRIPE_SECRET_KEY") do
@@ -41,11 +40,13 @@ if stripe_webhook_secret = System.get_env("STRIPE_WEBHOOK_SECRET") do
   config :stripity_stripe, signing_secret: stripe_webhook_secret
 end
 
-config :sports_fanatic, :stripe_price_monthly,
-  System.get_env("STRIPE_PRICE_MONTHLY") || "price_monthly"
+config :sports_fanatic,
+       :stripe_price_monthly,
+       System.get_env("STRIPE_PRICE_MONTHLY") || "price_monthly"
 
-config :sports_fanatic, :stripe_price_yearly,
-  System.get_env("STRIPE_PRICE_YEARLY") || "price_yearly"
+config :sports_fanatic,
+       :stripe_price_yearly,
+       System.get_env("STRIPE_PRICE_YEARLY") || "price_yearly"
 
 if config_env() == :prod do
   database_url =

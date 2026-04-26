@@ -82,7 +82,9 @@ defmodule SportsFanatic.Workers.GenerateScoutingWorker do
             )
 
           {:error, reason} ->
-            Logger.warning("Scouting generation failed for #{player.full_name}: #{inspect(reason)}")
+            Logger.warning(
+              "Scouting generation failed for #{player.full_name}: #{inspect(reason)}"
+            )
         end
 
       {:error, reason} ->

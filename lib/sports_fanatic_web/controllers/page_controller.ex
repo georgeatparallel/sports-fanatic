@@ -34,7 +34,10 @@ defmodule SportsFanaticWeb.PageController do
 
     conn
     |> assign(:page_title, "Sports Fan Agent - MLB Stats, Scouting Reports & Game Day Analysis")
-    |> assign(:meta_description, "Your source for MLB player stats, AI-powered scouting reports, Game Day Magazines, and daily lineup analysis.")
+    |> assign(
+      :meta_description,
+      "Your source for MLB player stats, AI-powered scouting reports, Game Day Magazines, and daily lineup analysis."
+    )
     |> render(:home,
       games: games,
       recent_news: recent_news,

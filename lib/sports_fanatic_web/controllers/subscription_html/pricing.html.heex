@@ -14,16 +14,29 @@
         <span class="text-gray-500">/month</span>
       </div>
       <ul class="space-y-3 text-sm text-gray-600 mb-8">
-        <li class="flex items-center gap-2"><span class="text-green-500">&#x2713;</span> 7-day free trial</li>
-        <li class="flex items-center gap-2"><span class="text-green-500">&#x2713;</span> Full scouting reports</li>
-        <li class="flex items-center gap-2"><span class="text-green-500">&#x2713;</span> Game Day Magazines</li>
-        <li class="flex items-center gap-2"><span class="text-green-500">&#x2713;</span> Real-time predictions</li>
-        <li class="flex items-center gap-2"><span class="text-green-500">&#x2713;</span> Archive access</li>
+        <li class="flex items-center gap-2">
+          <span class="text-green-500">&#x2713;</span> 7-day free trial
+        </li>
+        <li class="flex items-center gap-2">
+          <span class="text-green-500">&#x2713;</span> Full scouting reports
+        </li>
+        <li class="flex items-center gap-2">
+          <span class="text-green-500">&#x2713;</span> Game Day Magazines
+        </li>
+        <li class="flex items-center gap-2">
+          <span class="text-green-500">&#x2713;</span> Real-time predictions
+        </li>
+        <li class="flex items-center gap-2">
+          <span class="text-green-500">&#x2713;</span> Archive access
+        </li>
       </ul>
       <form action="/subscribe/checkout" method="post">
         <input type="hidden" name="_csrf_token" value={Plug.CSRFProtection.get_csrf_token()} />
         <input type="hidden" name="plan" value="monthly" />
-        <button type="submit" class="w-full bg-blue-600 text-white font-semibold py-3 rounded-lg hover:bg-blue-700 transition">
+        <button
+          type="submit"
+          class="w-full bg-blue-600 text-white font-semibold py-3 rounded-lg hover:bg-blue-700 transition"
+        >
           Start Free Trial
         </button>
       </form>
@@ -40,15 +53,26 @@
         <p class="text-sm text-green-600 font-medium mt-1">Save 33%</p>
       </div>
       <ul class="space-y-3 text-sm text-gray-600 mb-8">
-        <li class="flex items-center gap-2"><span class="text-green-500">&#x2713;</span> 7-day free trial</li>
-        <li class="flex items-center gap-2"><span class="text-green-500">&#x2713;</span> Everything in Monthly</li>
-        <li class="flex items-center gap-2"><span class="text-green-500">&#x2713;</span> Priority support</li>
-        <li class="flex items-center gap-2"><span class="text-green-500">&#x2713;</span> Early access to features</li>
+        <li class="flex items-center gap-2">
+          <span class="text-green-500">&#x2713;</span> 7-day free trial
+        </li>
+        <li class="flex items-center gap-2">
+          <span class="text-green-500">&#x2713;</span> Everything in Monthly
+        </li>
+        <li class="flex items-center gap-2">
+          <span class="text-green-500">&#x2713;</span> Priority support
+        </li>
+        <li class="flex items-center gap-2">
+          <span class="text-green-500">&#x2713;</span> Early access to features
+        </li>
       </ul>
       <form action="/subscribe/checkout" method="post">
         <input type="hidden" name="_csrf_token" value={Plug.CSRFProtection.get_csrf_token()} />
         <input type="hidden" name="plan" value="yearly" />
-        <button type="submit" class="w-full bg-blue-600 text-white font-semibold py-3 rounded-lg hover:bg-blue-700 transition">
+        <button
+          type="submit"
+          class="w-full bg-blue-600 text-white font-semibold py-3 rounded-lg hover:bg-blue-700 transition"
+        >
           Start Free Trial
         </button>
       </form>

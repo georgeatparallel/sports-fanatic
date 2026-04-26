@@ -27,6 +27,7 @@ defmodule Mix.Tasks.Db.RestoreTest do
   describe "script path resolution" do
     test "restore script exists relative to project root" do
       script = Path.join([File.cwd!(), "scripts", "db_restore.sh"])
+
       assert File.exists?(script),
              "Expected restore script at #{script}"
     end
@@ -65,7 +66,12 @@ defmodule Mix.Tasks.Db.RestoreTest do
   @tag :unit
   describe "run/1 with invalid dump file (bad PGDMP header)" do
     setup do
-      path = Path.join(System.tmp_dir!(), "sf_mix_restore_test_invalid_#{System.unique_integer()}.dump")
+      path =
+        Path.join(
+          System.tmp_dir!(),
+          "sf_mix_restore_test_invalid_#{System.unique_integer()}.dump"
+        )
+
       File.write!(path, "THIS IS NOT A VALID PG DUMP\n")
       on_exit(fn -> File.rm(path) end)
       {:ok, path: path}
@@ -81,7 +87,9 @@ defmodule Mix.Tasks.Db.RestoreTest do
   @tag :unit
   describe "run/1 with empty dump file" do
     setup do
-      path = Path.join(System.tmp_dir!(), "sf_mix_restore_test_empty_#{System.unique_integer()}.dump")
+      path =
+        Path.join(System.tmp_dir!(), "sf_mix_restore_test_empty_#{System.unique_integer()}.dump")
+
       File.write!(path, "")
       on_exit(fn -> File.rm(path) end)
       {:ok, path: path}

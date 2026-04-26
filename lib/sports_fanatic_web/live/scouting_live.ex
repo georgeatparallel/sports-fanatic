@@ -37,7 +37,9 @@ defmodule SportsFanaticWeb.ScoutingLive do
     <div class="max-w-4xl mx-auto px-4 py-8">
       <div class="flex items-center gap-4 mb-6">
         <div class="text-center">
-          <span class="text-4xl font-bold text-blue-600"><%= if @report, do: @report.overall_grade, else: "-" %></span>
+          <span class="text-4xl font-bold text-blue-600">
+            <%= if @report, do: @report.overall_grade, else: "-" %>
+          </span>
           <p class="text-xs text-gray-500">Grade</p>
         </div>
         <div>
@@ -60,10 +62,16 @@ defmodule SportsFanaticWeb.ScoutingLive do
                 <div class="mb-4">
                   <div class="flex justify-between text-sm mb-1">
                     <span class="text-gray-600">Hit Probability</span>
-                    <span class="font-bold text-green-600"><%= Float.round((@report.hit_probability || 0) * 100, 1) %>%</span>
+                    <span class="font-bold text-green-600">
+                      <%= Float.round((@report.hit_probability || 0) * 100, 1) %>%
+                    </span>
                   </div>
                   <div class="w-full bg-gray-200 rounded-full h-2">
-                    <div class="bg-green-500 h-2 rounded-full" style={"width: #{(@report.hit_probability || 0) * 100}%"}></div>
+                    <div
+                      class="bg-green-500 h-2 rounded-full"
+                      style={"width: #{(@report.hit_probability || 0) * 100}%"}
+                    >
+                    </div>
                   </div>
                 </div>
               <% end %>
@@ -71,22 +79,32 @@ defmodule SportsFanaticWeb.ScoutingLive do
                 <div>
                   <div class="flex justify-between text-sm mb-1">
                     <span class="text-gray-600">HR Probability</span>
-                    <span class="font-bold text-purple-600"><%= Float.round((@report.hr_probability || 0) * 100, 1) %>%</span>
+                    <span class="font-bold text-purple-600">
+                      <%= Float.round((@report.hr_probability || 0) * 100, 1) %>%
+                    </span>
                   </div>
                   <div class="w-full bg-gray-200 rounded-full h-2">
-                    <div class="bg-purple-500 h-2 rounded-full" style={"width: #{min((@report.hr_probability || 0) * 100 * 5, 100)}%"}></div>
+                    <div
+                      class="bg-purple-500 h-2 rounded-full"
+                      style={"width: #{min((@report.hr_probability || 0) * 100 * 5, 100)}%"}
+                    >
+                    </div>
                   </div>
                 </div>
               <% end %>
               <%= if @report.confidence_modifier do %>
-                <p class="text-sm text-gray-500 mt-3">Confidence modifier: <%= @report.confidence_modifier %></p>
+                <p class="text-sm text-gray-500 mt-3">
+                  Confidence modifier: <%= @report.confidence_modifier %>
+                </p>
               <% end %>
             </section>
 
             <section class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
               <h2 class="text-lg font-semibold text-gray-900 mb-3">Injury Status</h2>
               <div class="flex items-center gap-2 mb-2">
-                <span class={"px-2 py-1 rounded-full text-sm font-medium #{if @report.injury_risk == "healthy", do: "bg-green-100 text-green-800", else: "bg-red-100 text-red-800"}"}><%= @report.injury_risk || "healthy" %></span>
+                <span class={"px-2 py-1 rounded-full text-sm font-medium #{if @report.injury_risk == "healthy", do: "bg-green-100 text-green-800", else: "bg-red-100 text-red-800"}"}>
+                  <%= @report.injury_risk || "healthy" %>
+                </span>
               </div>
               <%= if @report.injury_detail do %>
                 <p class="text-sm text-gray-600"><%= @report.injury_detail %></p>
@@ -125,9 +143,7 @@ defmodule SportsFanaticWeb.ScoutingLive do
           </div>
 
           <p class="text-sm text-gray-400">
-            Report generated: <%= Calendar.strftime(@report.report_date, "%B %d, %Y") %>
-            | Sources: <%= @report.sources_count %>
-            | Model: <%= @report.model_version %>
+            Report generated: <%= Calendar.strftime(@report.report_date, "%B %d, %Y") %> | Sources: <%= @report.sources_count %> | Model: <%= @report.model_version %>
           </p>
         </div>
       <% else %>

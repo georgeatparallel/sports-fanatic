@@ -49,9 +49,7 @@ defmodule SportsFanatic.Workers.GenerateSitemapWorker do
     xml = """
     <?xml version="1.0" encoding="UTF-8"?>
     <sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-    #{Enum.map_join(types, "\n", fn type ->
-      "  <sitemap><loc>#{@base_url}/sitemap-#{type}.xml</loc><lastmod>#{Date.utc_today()}</lastmod></sitemap>"
-    end)}
+    #{Enum.map_join(types, "\n", fn type -> "  <sitemap><loc>#{@base_url}/sitemap-#{type}.xml</loc><lastmod>#{Date.utc_today()}</lastmod></sitemap>" end)}
     </sitemapindex>
     """
 
@@ -74,7 +72,11 @@ defmodule SportsFanatic.Workers.GenerateSitemapWorker do
     )
     |> Repo.all()
     |> Enum.map(fn {team_slug, player_slug, updated} ->
-      %{loc: "#{@base_url}/mlb/players/#{team_slug}/#{player_slug}", lastmod: updated, changefreq: "daily"}
+      %{
+        loc: "#{@base_url}/mlb/players/#{team_slug}/#{player_slug}",
+        lastmod: updated,
+        changefreq: "daily"
+      }
     end)
   end
 
@@ -92,7 +94,11 @@ defmodule SportsFanatic.Workers.GenerateSitemapWorker do
 
     Date.range(start_date, today)
     |> Enum.map(fn date ->
-      %{loc: "#{@base_url}/mlb/lineups/#{date}", lastmod: date, changefreq: if(date == today, do: "daily", else: "weekly")}
+      %{
+        loc: "#{@base_url}/mlb/lineups/#{date}",
+        lastmod: date,
+        changefreq: if(date == today, do: "daily", else: "weekly")
+      }
     end)
   end
 
@@ -120,7 +126,11 @@ defmodule SportsFanatic.Workers.GenerateSitemapWorker do
     )
     |> Repo.all()
     |> Enum.map(fn {team_slug, player_slug, updated} ->
-      %{loc: "#{@base_url}/mlb/scouting/#{team_slug}/#{player_slug}", lastmod: updated, changefreq: "weekly"}
+      %{
+        loc: "#{@base_url}/mlb/scouting/#{team_slug}/#{player_slug}",
+        lastmod: updated,
+        changefreq: "weekly"
+      }
     end)
   end
 

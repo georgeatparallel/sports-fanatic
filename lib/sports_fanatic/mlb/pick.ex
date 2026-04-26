@@ -37,12 +37,30 @@ defmodule SportsFanatic.Mlb.Pick do
   def changeset(pick, attrs) do
     pick
     |> cast(attrs, [
-      :pipeline_run_id, :prediction_date, :player_id, :player_mlb_id,
-      :player_name, :player_team, :vs_team, :probable_pitcher_name,
-      :venue_id, :venue_name, :prediction, :confidence,
-      :temperature, :wind_speed, :wind_direction, :precipitation,
-      :weathercode, :surface_pressure, :vs_avg, :vs_plate_appearances,
-      :vs_home_runs, :vs_season_score, :actual_result, :actual_hits
+      :pipeline_run_id,
+      :prediction_date,
+      :player_id,
+      :player_mlb_id,
+      :player_name,
+      :player_team,
+      :vs_team,
+      :probable_pitcher_name,
+      :venue_id,
+      :venue_name,
+      :prediction,
+      :confidence,
+      :temperature,
+      :wind_speed,
+      :wind_direction,
+      :precipitation,
+      :weathercode,
+      :surface_pressure,
+      :vs_avg,
+      :vs_plate_appearances,
+      :vs_home_runs,
+      :vs_season_score,
+      :actual_result,
+      :actual_hits
     ])
     |> validate_required([:prediction_date, :player_mlb_id])
     |> unique_constraint([:prediction_date, :player_mlb_id])

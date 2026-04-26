@@ -31,9 +31,23 @@ defmodule SportsFanatic.Mlb.Player do
   def changeset(player, attrs) do
     player
     |> cast(attrs, [
-      :first_name, :last_name, :full_name, :slug, :position,
-      :bats, :throws, :throw_hand, :height, :weight, :birth_date,
-      :headshot_url, :bio, :status, :jersey_number, :external_ids, :team_id
+      :first_name,
+      :last_name,
+      :full_name,
+      :slug,
+      :position,
+      :bats,
+      :throws,
+      :throw_hand,
+      :height,
+      :weight,
+      :birth_date,
+      :headshot_url,
+      :bio,
+      :status,
+      :jersey_number,
+      :external_ids,
+      :team_id
     ])
     |> validate_required([:full_name])
     |> maybe_generate_slug()

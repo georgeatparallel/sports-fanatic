@@ -43,13 +43,36 @@ defmodule SportsFanatic.Mlb.HrPick do
   def changeset(hr_pick, attrs) do
     hr_pick
     |> cast(attrs, [
-      :pipeline_run_id, :prediction_date, :player_id, :player_mlb_id,
-      :player_name, :player_team, :vs_team, :probable_pitcher_name,
-      :pitcher_hand, :venue_id, :venue_name, :hr_probability, :confidence_tier,
-      :temperature, :wind_speed, :wind_direction, :wind_score, :precipitation,
-      :park_hr_factor, :player_iso_30d, :player_hr_rate_season, :player_slg_season,
-      :pitcher_hr_per_9, :pitcher_era, :batting_order, :home_away, :day_night,
-      :top_factors, :narrative, :actual_result
+      :pipeline_run_id,
+      :prediction_date,
+      :player_id,
+      :player_mlb_id,
+      :player_name,
+      :player_team,
+      :vs_team,
+      :probable_pitcher_name,
+      :pitcher_hand,
+      :venue_id,
+      :venue_name,
+      :hr_probability,
+      :confidence_tier,
+      :temperature,
+      :wind_speed,
+      :wind_direction,
+      :wind_score,
+      :precipitation,
+      :park_hr_factor,
+      :player_iso_30d,
+      :player_hr_rate_season,
+      :player_slg_season,
+      :pitcher_hr_per_9,
+      :pitcher_era,
+      :batting_order,
+      :home_away,
+      :day_night,
+      :top_factors,
+      :narrative,
+      :actual_result
     ])
     |> validate_required([:prediction_date, :player_mlb_id])
     |> unique_constraint([:prediction_date, :player_mlb_id])

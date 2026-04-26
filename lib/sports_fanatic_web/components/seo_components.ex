@@ -81,10 +81,16 @@ defmodule SportsFanaticWeb.SEOComponents do
         and real-time updates. Start your 7-day free trial today.
       </p>
       <div class="flex justify-center gap-4">
-        <a href="/subscribe" class="bg-white text-blue-700 font-semibold px-8 py-3 rounded-lg hover:bg-blue-50 transition">
+        <a
+          href="/subscribe"
+          class="bg-white text-blue-700 font-semibold px-8 py-3 rounded-lg hover:bg-blue-50 transition"
+        >
           Start Free Trial
         </a>
-        <a href={"/login?return_to=#{@return_to}"} class="border border-white text-white font-semibold px-8 py-3 rounded-lg hover:bg-white/10 transition">
+        <a
+          href={"/login?return_to=#{@return_to}"}
+          class="border border-white text-white font-semibold px-8 py-3 rounded-lg hover:bg-white/10 transition"
+        >
           Sign In
         </a>
       </div>

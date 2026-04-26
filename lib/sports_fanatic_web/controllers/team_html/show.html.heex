@@ -11,7 +11,9 @@
 <article class="max-w-6xl mx-auto px-4 py-8">
   <header class="mb-8">
     <h1 class="text-3xl font-bold text-gray-900"><%= @team.name %></h1>
-    <p class="text-lg text-gray-600"><%= @team.city %> | <%= @team.league %> - <%= @team.division %></p>
+    <p class="text-lg text-gray-600">
+      <%= @team.city %> | <%= @team.league %> - <%= @team.division %>
+    </p>
   </header>
 
   <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -33,7 +35,10 @@
                 <tr class="hover:bg-gray-50">
                   <td class="px-4 py-2 text-gray-500"><%= player.jersey_number %></td>
                   <td class="px-4 py-2">
-                    <a href={"/mlb/players/#{@team.slug}/#{player.slug}"} class="text-blue-600 hover:text-blue-800 font-medium">
+                    <a
+                      href={"/mlb/players/#{@team.slug}/#{player.slug}"}
+                      class="text-blue-600 hover:text-blue-800 font-medium"
+                    >
                       <%= player.full_name %>
                     </a>
                   </td>

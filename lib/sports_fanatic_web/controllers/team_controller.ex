@@ -55,7 +55,10 @@ defmodule SportsFanaticWeb.TeamController do
 
     conn
     |> assign(:page_title, "#{team.name} - Roster, Schedule & Stats | Sports Fan Agent")
-    |> assign(:meta_description, "#{team.name} roster, upcoming schedule, team stats, and player analysis.")
+    |> assign(
+      :meta_description,
+      "#{team.name} roster, upcoming schedule, team stats, and player analysis."
+    )
     |> assign(:canonical, canonical)
     |> assign(:json_ld, json_ld)
     |> render(:show,

@@ -31,6 +31,7 @@ defmodule Mix.Tasks.Db.BackupTest do
       # The Mix task derives the path from File.cwd!/0.
       # In test mode cwd is the project root, so the script must be present.
       script = Path.join([File.cwd!(), "scripts", "db_backup.sh"])
+
       assert File.exists?(script),
              "Expected backup script at #{script}"
     end

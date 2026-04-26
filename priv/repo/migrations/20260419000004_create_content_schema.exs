@@ -27,7 +27,11 @@ defmodule SportsFanatic.Repo.Migrations.CreateContentSchema do
     end
 
     create unique_index(:scouting_reports, [:player_id, :report_date], prefix: "content")
-    create index(:scouting_reports, [:player_id, :report_date], prefix: "content", name: :idx_scouting_player_date)
+
+    create index(:scouting_reports, [:player_id, :report_date],
+             prefix: "content",
+             name: :idx_scouting_player_date
+           )
 
     create table(:game_day_magazines, prefix: "content", primary_key: false) do
       add :id, :binary_id, primary_key: true, default: fragment("gen_random_uuid()")
