@@ -41,6 +41,7 @@ defmodule SportsFanaticWeb.SitemapController do
     Disallow: /account/
     Disallow: /api/
     Disallow: /dev/
+    Disallow: /admin
 
     Sitemap: https://sportsfanatic.com/sitemap.xml
     """

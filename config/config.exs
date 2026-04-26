@@ -72,7 +72,10 @@ config :sports_fanatic, Oban,
        {"0 7 * * *", SportsFanatic.Workers.GenerateScoutingWorker},
        {"0 9 * * *", SportsFanatic.Workers.GenerateGameDayWorker},
        {"0 */6 * * *", SportsFanatic.Workers.GenerateSitemapWorker},
-       {"0 3 * * *", SportsFanatic.Workers.CleanupWorker}
+       {"0 3 * * *", SportsFanatic.Workers.CleanupWorker},
+       {"0 4 * * *", SportsFanatic.Workers.GeneratePlayerSeoWorker},
+       {"30 9 * * *", SportsFanatic.Workers.GeneratePredictionsWorker},
+       {"*/15 * * * *", SportsFanatic.Workers.WarmCacheWorker}
      ]}
   ],
   queues: [data_fetch: 5, content_generation: 3, cache: 2, system: 1]
