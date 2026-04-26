@@ -159,7 +159,9 @@ defmodule SportsFanatic.AccountsTest do
   describe "delete_expired_sessions/0" do
     test "deletes expired sessions" do
       user = register_user()
-      expired_at = DateTime.utc_now() |> DateTime.add(-3600, :second) |> DateTime.truncate(:second)
+
+      expired_at =
+        DateTime.utc_now() |> DateTime.add(-3600, :second) |> DateTime.truncate(:second)
 
       expired_token = 32 |> :crypto.strong_rand_bytes() |> Base.url_encode64()
 
