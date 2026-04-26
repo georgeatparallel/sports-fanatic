@@ -193,6 +193,10 @@ defmodule SportsFanaticWeb.AdminLive do
   defp parse_oban_state(_), do: :idle
 
   defp parse_duration_ms(nil), do: nil
+
+  defp parse_duration_ms(%Decimal{} = secs),
+    do: secs |> Decimal.mult(1000) |> Decimal.round() |> Decimal.to_integer()
+
   defp parse_duration_ms(secs), do: round(secs * 1000)
 
   defp find_worker_key(worker_name) do
