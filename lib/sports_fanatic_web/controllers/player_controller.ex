@@ -14,7 +14,7 @@ defmodule SportsFanaticWeb.PlayerController do
       from(p in Player,
         join: t in Team,
         on: p.team_id == t.id,
-        where: not is_nil(p.slug) and not is_nil(t.slug),
+        where: p.status == "active" and not is_nil(p.slug) and not is_nil(t.slug),
         order_by: [asc: p.last_name, asc: p.first_name],
         select: %{player: p, team: t},
         offset: ^((page - 1) * per_page),
@@ -43,7 +43,7 @@ defmodule SportsFanaticWeb.PlayerController do
 
     player =
       Player
-      |> where([p], p.team_id == ^team.id and p.slug == ^player_slug)
+      |> where([p], p.team_id == ^team.id and p.slug == ^player_slug and p.status == "active")
       |> Repo.one!()
 
     today = Date.utc_today()
@@ -113,7 +113,7 @@ defmodule SportsFanaticWeb.PlayerController do
       )
     )
     |> assign(:canonical, canonical)
-    |> assign(:json_ld, json_ld)
+    |> assign(:json_ld, Jason.encode!(json_ld))
     |> render(:show,
       player: player,
       team: team,

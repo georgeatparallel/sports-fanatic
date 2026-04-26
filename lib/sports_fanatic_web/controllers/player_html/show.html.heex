@@ -61,6 +61,60 @@
         </section>
       <% end %>
 
+      <section class="mb-8">
+        <h2 class="text-xl font-semibold text-gray-900 mb-3">Player Overview</h2>
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <div class="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+            <div>
+              <span class="text-gray-500 block">Position</span>
+              <p class="font-medium text-gray-900"><%= @player.position || "N/A" %></p>
+            </div>
+            <div>
+              <span class="text-gray-500 block">Team</span>
+              <p class="font-medium text-gray-900"><%= @team.name %></p>
+            </div>
+            <%= if @player.bats do %>
+              <div>
+                <span class="text-gray-500 block">Bats</span>
+                <p class="font-medium text-gray-900"><%= @player.bats %></p>
+              </div>
+            <% end %>
+            <%= if @player.throws do %>
+              <div>
+                <span class="text-gray-500 block">Throws</span>
+                <p class="font-medium text-gray-900"><%= @player.throws %></p>
+              </div>
+            <% end %>
+            <%= if @player.height do %>
+              <div>
+                <span class="text-gray-500 block">Height</span>
+                <p class="font-medium text-gray-900"><%= @player.height %></p>
+              </div>
+            <% end %>
+            <%= if @player.weight do %>
+              <div>
+                <span class="text-gray-500 block">Weight</span>
+                <p class="font-medium text-gray-900"><%= @player.weight %> lbs</p>
+              </div>
+            <% end %>
+            <%= if @player.birth_date do %>
+              <div>
+                <span class="text-gray-500 block">Born</span>
+                <p class="font-medium text-gray-900">
+                  <%= Calendar.strftime(@player.birth_date, "%B %d, %Y") %>
+                </p>
+              </div>
+            <% end %>
+            <%= if @player.jersey_number do %>
+              <div>
+                <span class="text-gray-500 block">Jersey</span>
+                <p class="font-medium text-gray-900">#<%= @player.jersey_number %></p>
+              </div>
+            <% end %>
+          </div>
+        </div>
+      </section>
+
       <%= if @scouting do %>
         <section class="mb-8">
           <h2 class="text-xl font-semibold text-gray-900 mb-3">Scouting Report Preview</h2>
@@ -76,6 +130,20 @@
             >
               View full scouting report &rarr;
             </a>
+          </div>
+        </section>
+      <% end %>
+
+      <%= if is_nil(@scouting) do %>
+        <section class="mb-8">
+          <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-800">
+            <p class="font-medium">AI Scouting Report</p>
+            <p class="mt-1">
+              A detailed scouting report for <%= @player.full_name %> will be available once generated.
+              <a href="/subscribe" class="underline font-medium">
+                Subscribe for premium daily analysis.
+              </a>
+            </p>
           </div>
         </section>
       <% end %>

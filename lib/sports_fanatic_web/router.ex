@@ -24,6 +24,11 @@ defmodule SportsFanaticWeb.Router do
     plug SportsFanaticWeb.Plugs.SubscriptionGate
   end
 
+  pipeline :require_admin do
+    plug SportsFanaticWeb.Plugs.RequireAuthenticated
+    plug SportsFanaticWeb.Plugs.RequireAdmin
+  end
+
   pipeline :stripe_webhook do
     plug :accepts, ["json"]
     plug SportsFanaticWeb.Plugs.CacheRawBody
@@ -113,6 +118,15 @@ defmodule SportsFanaticWeb.Router do
     live "/game-day/:date", GameDayIndexLive
     live "/archive/scouting", ArchiveScoutingLive
     live "/archive/game-day", ArchiveGameDayLive
+  end
+
+  # --- Admin Routes ---
+  scope "/admin", SportsFanaticWeb do
+    pipe_through [:browser, :require_admin]
+
+    live_session :admin, on_mount: [{SportsFanaticWeb.AdminLive, :require_admin}] do
+      live "/", AdminLive
+    end
   end
 
   # Enable LiveDashboard in development

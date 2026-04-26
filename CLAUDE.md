@@ -80,17 +80,17 @@ lib/sports_fanatic/
   mlb/                Sport, Team, Player, Venue, Game, ScheduledGame, Lineup, Pick, HrPick
   python_bridge.ex    HTTP client for Python bridge with circuit breaker integration
   python_bridge/      CircuitBreaker GenServer + HealthCheck GenServer
-  workers/            9 Oban workers (fetch_lineups, fetch_schedule, fetch_news,
+  workers/            10 Oban workers (fetch_lineups, fetch_schedule, fetch_news,
                        generate_predictions, generate_scouting, generate_game_day,
-                       warm_cache, generate_sitemap, cleanup)
+                       generate_player_seo, warm_cache, generate_sitemap, cleanup)
 
 lib/sports_fanatic_web/
   components/         seo_components.ex — json_ld/2, breadcrumbs/1, subscribe_cta/1
   controllers/        Page, Player, Team, Lineup, News, Scouting, GameDay, Sitemap,
                        Auth, Subscription, StripeWebhook controllers + HTML modules
   live/               DashboardLive, ScoutingLive, GameDayLive, GameDayIndexLive,
-                       ArchiveScoutingLive, ArchiveGameDayLive
-  plugs/              FetchCurrentUser, RequireAuthenticated, SubscriptionGate,
+                       ArchiveScoutingLive, ArchiveGameDayLive, AdminLive
+  plugs/              FetchCurrentUser, RequireAuthenticated, RequireAdmin, SubscriptionGate,
                        VerifyStripeWebhook, CacheRawBody
   router.ex           Route definitions — see Routing section below
 
@@ -137,6 +137,8 @@ python_bridge/src/
 /premium/game-day/:date         GameDayIndexLive
 /premium/archive/scouting       ArchiveScoutingLive
 /premium/archive/game-day       ArchiveGameDayLive
+
+/admin                          AdminLive             (requires admin user, live_session)
 ```
 
 **Sitemap route note**: The router uses `/sitemaps/:type` (not `/sitemap-:type.xml`) because Phoenix does not support hyphens before dynamic segments.
@@ -153,6 +155,8 @@ python_bridge/src/
 
 :require_subscription — RequireAuthenticated + SubscriptionGate (redirects to /subscribe if no
                          active subscription or expired)
+
+:require_admin        — RequireAuthenticated + RequireAdmin (redirects to / if user is not an admin)
 
 :stripe_webhook       — accepts json, CacheRawBody (preserves raw body for sig check),
                          VerifyStripeWebhook (validates Stripe-Signature header)
@@ -217,6 +221,11 @@ In production, the `python-bridge` service should not expose port 8000 to the ho
 All workers live in `lib/sports_fanatic/workers/`. They use `use Oban.Worker, queue: :default, max_attempts: 3`.
 
 Cron schedules are defined in `config/config.exs` under `Oban.crontab`. Times are UTC (convert from ET accordingly).
+
+Scheduled cron entries:
+- `GeneratePlayerSeoWorker` — 4:00 AM UTC daily
+- `GeneratePredictionsWorker` — 9:30 AM UTC daily
+- `WarmCacheWorker` — every 15 minutes
 
 To manually enqueue a worker in IEx:
 ```elixir

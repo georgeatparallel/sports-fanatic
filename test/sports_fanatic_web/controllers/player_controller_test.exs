@@ -46,7 +46,7 @@ defmodule SportsFanaticWeb.PlayerControllerTest do
       {:ok, team: team, player: player}
     end
 
-    test "renders 200 for valid player", %{conn: conn, team: team, player: player} do
+    test "renders 200 for valid active player", %{conn: conn, team: team, player: player} do
       conn = get(conn, "/mlb/players/#{team.slug}/#{player.slug}")
       assert html_response(conn, 200) =~ player.full_name
     end
@@ -73,6 +73,56 @@ defmodule SportsFanaticWeb.PlayerControllerTest do
       assert_raise Ecto.NoResultsError, fn ->
         get(conn, "/mlb/players/#{team.slug}/nonexistent-player")
       end
+    end
+
+    test "returns 404 for inactive player", %{conn: conn, team: team} do
+      inactive_player =
+        create_player(team, %{
+          full_name: "Inactive Player",
+          slug: "inactive-player",
+          status: "inactive"
+        })
+
+      assert_raise Ecto.NoResultsError, fn ->
+        get(conn, "/mlb/players/#{team.slug}/#{inactive_player.slug}")
+      end
+    end
+
+    test "returns 404 for retired player", %{conn: conn, team: team} do
+      retired_player =
+        create_player(team, %{
+          full_name: "Retired Player",
+          slug: "retired-player",
+          status: "retired"
+        })
+
+      assert_raise Ecto.NoResultsError, fn ->
+        get(conn, "/mlb/players/#{team.slug}/#{retired_player.slug}")
+      end
+    end
+
+    test "renders player overview section", %{conn: conn, team: team, player: player} do
+      conn = get(conn, "/mlb/players/#{team.slug}/#{player.slug}")
+      response = html_response(conn, 200)
+      assert response =~ "Player Overview"
+    end
+  end
+
+  describe "GET /mlb/players (index active filter)" do
+    test "does not include inactive players in listing", %{conn: conn} do
+      team = create_team(%{slug: "boston-red-sox"})
+
+      _active =
+        create_player(team, %{full_name: "Active Star", slug: "active-star", status: "active"})
+
+      _inactive =
+        create_player(team, %{full_name: "Bench Warmer", slug: "bench-warmer", status: "inactive"})
+
+      conn = get(conn, "/mlb/players")
+      response = html_response(conn, 200)
+
+      assert response =~ "Active Star"
+      refute response =~ "Bench Warmer"
     end
   end
 end
