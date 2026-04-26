@@ -89,6 +89,11 @@
           </div>
           <div class="flex items-center gap-3">
             <%= if assigns[:current_user] do %>
+              <%= if @current_user.is_admin do %>
+                <a href="/admin" class="text-sm text-gray-600 font-medium hover:text-gray-900">
+                  Admin
+                </a>
+              <% end %>
               <a
                 href="/premium/dashboard"
                 class="text-sm text-blue-600 font-medium hover:text-blue-700"
