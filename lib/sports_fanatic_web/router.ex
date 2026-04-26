@@ -122,9 +122,9 @@ defmodule SportsFanaticWeb.Router do
 
   # --- Admin Routes ---
   scope "/admin", SportsFanaticWeb do
-    pipe_through [:browser, :require_admin]
+    pipe_through [:browser]
 
-    live_session :admin, on_mount: [{SportsFanaticWeb.AdminLive, :require_admin}] do
+    live_session :admin do
       live "/", AdminLive
     end
   end
