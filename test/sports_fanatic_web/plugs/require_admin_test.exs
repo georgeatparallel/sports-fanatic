@@ -1,8 +1,8 @@
 defmodule SportsFanaticWeb.Plugs.RequireAdminTest do
   use SportsFanaticWeb.ConnCase, async: true
 
-  alias SportsFanaticWeb.Plugs.RequireAdmin
   alias SportsFanatic.Accounts.User
+  alias SportsFanaticWeb.Plugs.RequireAdmin
 
   describe "RequireAdmin.call/2" do
     test "passes through when current_user has is_admin true", %{conn: conn} do

@@ -5,19 +5,20 @@ defmodule SportsFanatic.Workers.GeneratePlayerSeoWorker do
     unique: [period: 3600]
 
   import Ecto.Query
-  alias SportsFanatic.Repo
-  alias SportsFanatic.Mlb.Player
   alias SportsFanatic.Cache
+  alias SportsFanatic.Mlb.Player
+  alias SportsFanatic.Repo
   require Logger
 
   @impl Oban.Worker
   def perform(%Oban.Job{}) do
-    players_without_bio =
+    query =
       from(p in Player,
         where: p.status == "active" and (is_nil(p.bio) or p.bio == ""),
         preload: [:team]
       )
-      |> Repo.all()
+
+    players_without_bio = Repo.all(query)
 
     Enum.each(players_without_bio, fn player ->
       bio = generate_basic_bio(player)

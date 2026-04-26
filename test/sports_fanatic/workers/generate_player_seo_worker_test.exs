@@ -2,8 +2,8 @@ defmodule SportsFanatic.Workers.GeneratePlayerSeoWorkerTest do
   use SportsFanatic.DataCase, async: true
   use Oban.Testing, repo: SportsFanatic.Repo
 
-  alias SportsFanatic.Workers.GeneratePlayerSeoWorker
   alias SportsFanatic.Mlb.{Player, Team}
+  alias SportsFanatic.Workers.GeneratePlayerSeoWorker
 
   # --- Helpers ---
 

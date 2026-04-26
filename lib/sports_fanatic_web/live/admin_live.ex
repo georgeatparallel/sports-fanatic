@@ -169,43 +169,37 @@ defmodule SportsFanaticWeb.AdminLive do
     case Ecto.Adapters.SQL.query(Repo, query, [worker_names]) do
       {:ok, %{rows: rows, columns: columns}} ->
         rows
-        |> Enum.map(fn row -> Enum.zip(columns, row) |> Map.new() end)
-        |> Enum.reduce(%{}, fn row, acc ->
-          case find_worker_key(row["worker"]) do
-            nil ->
-              acc
-
-            key ->
-              duration_ms =
-                case row["duration_seconds"] do
-                  nil -> nil
-                  secs when is_float(secs) -> round(secs * 1000)
-                  secs -> round(secs * 1000)
-                end
-
-              state =
-                case row["state"] do
-                  "completed" -> :completed
-                  "executing" -> :running
-                  "available" -> :idle
-                  "scheduled" -> :idle
-                  "retryable" -> :failed
-                  "discarded" -> :failed
-                  _ -> :idle
-                end
-
-              Map.put(acc, key, %{
-                state: state,
-                completed_at: row["completed_at"],
-                duration_ms: duration_ms
-              })
-          end
-        end)
+        |> Enum.map(fn row -> columns |> Enum.zip(row) |> Map.new() end)
+        |> Enum.reduce(%{}, &build_status_entry/2)
 
       {:error, _} ->
         %{}
     end
   end
+
+  defp build_status_entry(row, acc) do
+    case find_worker_key(row["worker"]) do
+      nil -> acc
+      key -> Map.put(acc, key, parse_worker_status(row))
+    end
+  end
+
+  defp parse_worker_status(row) do
+    %{
+      state: parse_oban_state(row["state"]),
+      completed_at: row["completed_at"],
+      duration_ms: parse_duration_ms(row["duration_seconds"])
+    }
+  end
+
+  defp parse_oban_state("completed"), do: :completed
+  defp parse_oban_state("executing"), do: :running
+  defp parse_oban_state("retryable"), do: :failed
+  defp parse_oban_state("discarded"), do: :failed
+  defp parse_oban_state(_), do: :idle
+
+  defp parse_duration_ms(nil), do: nil
+  defp parse_duration_ms(secs), do: round(secs * 1000)
 
   defp find_worker_key(worker_name) do
     case Enum.find(@workers, fn w -> inspect(w.module) == worker_name end) do
