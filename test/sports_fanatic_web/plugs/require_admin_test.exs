@@ -20,7 +20,7 @@ defmodule SportsFanaticWeb.Plugs.RequireAdminTest do
       conn =
         conn
         |> assign(:current_user, nil)
-        |> fetch_session()
+        |> init_test_session(%{})
         |> fetch_flash()
         |> RequireAdmin.call([])
 
@@ -34,7 +34,7 @@ defmodule SportsFanaticWeb.Plugs.RequireAdminTest do
       conn =
         conn
         |> assign(:current_user, user)
-        |> fetch_session()
+        |> init_test_session(%{})
         |> fetch_flash()
         |> RequireAdmin.call([])
 
@@ -48,7 +48,7 @@ defmodule SportsFanaticWeb.Plugs.RequireAdminTest do
       conn =
         conn
         |> assign(:current_user, user)
-        |> fetch_session()
+        |> init_test_session(%{})
         |> fetch_flash()
         |> RequireAdmin.call([])
 
@@ -59,7 +59,7 @@ defmodule SportsFanaticWeb.Plugs.RequireAdminTest do
       conn =
         conn
         |> assign(:current_user, nil)
-        |> fetch_session()
+        |> init_test_session(%{})
         |> fetch_flash()
         |> RequireAdmin.call([])
 
@@ -72,7 +72,7 @@ defmodule SportsFanaticWeb.Plugs.RequireAdminTest do
       conn =
         conn
         |> assign(:current_user, user)
-        |> fetch_session()
+        |> init_test_session(%{})
         |> fetch_flash()
         |> RequireAdmin.call([])
 
