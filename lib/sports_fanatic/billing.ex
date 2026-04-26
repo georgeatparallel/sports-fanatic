@@ -71,10 +71,10 @@ defmodule SportsFanatic.Billing do
       |> Repo.insert(on_conflict: :replace_all, conflict_target: :stripe_subscription_id)
 
       # Update user tier with expiry so has_active_subscription? works immediately
-      period_end = DateTime.utc_now() |> DateTime.add(@trial_days * 24 * 3600, :second)
+      period_end = DateTime.utc_now() |> DateTime.add(30 * 24 * 3600, :second)
 
       Accounts.update_user_subscription(user, %{
-        subscription_tier: "trial",
+        subscription_tier: plan,
         subscription_expires_at: period_end
       })
     end

@@ -96,7 +96,7 @@ defmodule SportsFanatic.Accounts do
 
   def has_active_subscription?(user) do
     user.subscription_tier in ["trial", "monthly", "yearly"] &&
-      not is_nil(user.subscription_expires_at) &&
-      DateTime.compare(user.subscription_expires_at, DateTime.utc_now()) == :gt
+      (is_nil(user.subscription_expires_at) ||
+         DateTime.compare(user.subscription_expires_at, DateTime.utc_now()) == :gt)
   end
 end

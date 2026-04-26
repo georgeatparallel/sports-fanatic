@@ -16,8 +16,7 @@ defmodule SportsFanaticWeb.Plugs.AuthTest do
 
   defp conn_with_session_token(conn, token) do
     conn
-    |> fetch_session()
-    |> put_session(:session_token, token)
+    |> init_test_session(%{session_token: token})
   end
 
   # --- FetchCurrentUser ---
@@ -26,7 +25,7 @@ defmodule SportsFanaticWeb.Plugs.AuthTest do
     test "assigns nil current_user when no session token", %{conn: conn} do
       conn =
         conn
-        |> fetch_session()
+        |> init_test_session(%{})
         |> FetchCurrentUser.call([])
 
       assert conn.assigns[:current_user] == nil
@@ -72,7 +71,7 @@ defmodule SportsFanaticWeb.Plugs.AuthTest do
       conn =
         conn
         |> assign(:current_user, nil)
-        |> fetch_session()
+        |> init_test_session(%{})
         |> fetch_flash()
         |> RequireAuthenticated.call([])
 
@@ -84,7 +83,7 @@ defmodule SportsFanaticWeb.Plugs.AuthTest do
       conn =
         %{conn | request_path: "/premium/dashboard"}
         |> assign(:current_user, nil)
-        |> fetch_session()
+        |> init_test_session(%{})
         |> fetch_flash()
         |> RequireAuthenticated.call([])
 
@@ -96,11 +95,11 @@ defmodule SportsFanaticWeb.Plugs.AuthTest do
       conn =
         conn
         |> assign(:current_user, nil)
-        |> fetch_session()
+        |> init_test_session(%{})
         |> fetch_flash()
         |> RequireAuthenticated.call([])
 
-      assert get_flash(conn, :error) =~ "log in"
+      assert Phoenix.Flash.get(conn.assigns.flash, :error) =~ "log in"
     end
   end
 
@@ -119,16 +118,14 @@ defmodule SportsFanaticWeb.Plugs.AuthTest do
       conn =
         conn
         |> assign(:current_user, user)
-        |> fetch_session()
+        |> init_test_session(%{})
         |> fetch_flash()
         |> SubscriptionGate.call([])
 
       refute conn.halted
     end
 
-    test "passes through for user with trial subscription" do
-      trial_conn = Phoenix.ConnTest.build_conn()
-
+    test "passes through for user with trial subscription", %{conn: conn} do
       user = %SportsFanatic.Accounts.User{
         id: Ecto.UUID.generate(),
         subscription_tier: "trial",
@@ -136,9 +133,9 @@ defmodule SportsFanaticWeb.Plugs.AuthTest do
       }
 
       result_conn =
-        trial_conn
+        conn
         |> assign(:current_user, user)
-        |> fetch_session()
+        |> init_test_session(%{})
         |> fetch_flash()
         |> SubscriptionGate.call([])
 
@@ -155,7 +152,7 @@ defmodule SportsFanaticWeb.Plugs.AuthTest do
       conn =
         conn
         |> assign(:current_user, user)
-        |> fetch_session()
+        |> init_test_session(%{})
         |> fetch_flash()
         |> SubscriptionGate.call([])
 
@@ -167,7 +164,7 @@ defmodule SportsFanaticWeb.Plugs.AuthTest do
       conn =
         conn
         |> assign(:current_user, nil)
-        |> fetch_session()
+        |> init_test_session(%{})
         |> fetch_flash()
         |> SubscriptionGate.call([])
 
@@ -187,7 +184,7 @@ defmodule SportsFanaticWeb.Plugs.AuthTest do
       conn =
         conn
         |> assign(:current_user, user)
-        |> fetch_session()
+        |> init_test_session(%{})
         |> fetch_flash()
         |> SubscriptionGate.call([])
 
