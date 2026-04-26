@@ -1,6 +1,7 @@
 defmodule SportsFanaticWeb.AdminLive do
   use SportsFanaticWeb, :live_view
 
+  alias Ecto.Adapters.SQL
   alias SportsFanatic.Repo
   require Logger
 
@@ -166,7 +167,7 @@ defmodule SportsFanaticWeb.AdminLive do
     ORDER BY worker, inserted_at DESC
     """
 
-    case Ecto.Adapters.SQL.query(Repo, query, [worker_names]) do
+    case SQL.query(Repo, query, [worker_names]) do
       {:ok, %{rows: rows, columns: columns}} ->
         rows
         |> Enum.map(fn row -> columns |> Enum.zip(row) |> Map.new() end)
