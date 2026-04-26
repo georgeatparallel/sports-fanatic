@@ -6,7 +6,10 @@ defmodule SportsFanaticWeb.SubscriptionController do
   def pricing(conn, _params) do
     conn
     |> assign(:page_title, "Subscribe to Sports Fan Agent Premium")
-    |> assign(:meta_description, "Get full scouting reports, Game Day Magazines, and real-time predictions. Start your 7-day free trial.")
+    |> assign(
+      :meta_description,
+      "Get full scouting reports, Game Day Magazines, and real-time predictions. Start your 7-day free trial."
+    )
     |> render(:pricing)
   end
 

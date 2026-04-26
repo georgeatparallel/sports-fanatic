@@ -7,9 +7,9 @@ defmodule SportsFanatic.Workers.WarmCacheWorker do
     unique: [period: 120]
 
   import Ecto.Query
-  alias SportsFanatic.Repo
-  alias SportsFanatic.Mlb.{Team, Player}
   alias SportsFanatic.Cache
+  alias SportsFanatic.Mlb.{Player, Team}
+  alias SportsFanatic.Repo
 
   require Logger
 
@@ -24,13 +24,11 @@ defmodule SportsFanatic.Workers.WarmCacheWorker do
 
     # Warm top player pages
     players =
-      from(p in Player,
-        where: p.status == "active" and not is_nil(p.slug),
-        join: t in Team,
-        on: p.team_id == t.id,
-        select: {p, t},
-        limit: 200
-      )
+      Player
+      |> where([p], p.status == "active" and not is_nil(p.slug))
+      |> join(:inner, [p], t in Team, on: p.team_id == t.id)
+      |> select([p, t], {p, t})
+      |> limit(200)
       |> Repo.all()
 
     Enum.each(players, fn {player, team} ->

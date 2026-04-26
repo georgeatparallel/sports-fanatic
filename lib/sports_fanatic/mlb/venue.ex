@@ -21,7 +21,17 @@ defmodule SportsFanatic.Mlb.Venue do
 
   def changeset(venue, attrs) do
     venue
-    |> cast(attrs, [:name, :city, :state, :capacity, :surface, :roof_type, :latitude, :longitude, :external_id])
+    |> cast(attrs, [
+      :name,
+      :city,
+      :state,
+      :capacity,
+      :surface,
+      :roof_type,
+      :latitude,
+      :longitude,
+      :external_id
+    ])
     |> validate_required([:name])
     |> unique_constraint(:external_id)
   end

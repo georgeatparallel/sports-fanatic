@@ -44,27 +44,36 @@ async def generate_scouting(request: ScoutingGenerateRequest):
             messages=[
                 {
                     "role": "user",
-                    "content": f"""Analyze the following news and data about MLB player {request.player_name}.
-Return a JSON object with exactly these fields:
-
-- hit_streak: current hitting streak (integer or null)
-- hr_streak: current home run streak (integer or null)
-- on_base_streak: current on-base streak (integer or null)
-- injury_status: one of "healthy", "day-to-day", "IL-10", "IL-15", "IL-60"
-- injury_detail: description of injury or null
-- positive_factors: array of positive factors affecting performance (strings)
-- negative_factors: array of negative factors (strings)
-- overall_sentiment: one of "positive", "neutral", "negative"
-- confidence_modifier: float between -0.1 and 0.1
-- news_summary: 2-3 sentence summary of recent news
-- sources_count: number of sources analyzed
-- hit_probability: estimated hit probability today (float 0-1 or null)
-- hr_probability: estimated HR probability today (float 0-1 or null)
-
-Return ONLY valid JSON, no other text.
-
-Sources:
-{combined_text}""",
+                    "content": (
+                        "Analyze the following news and data about MLB "
+                        f"player {request.player_name}.\n"
+                        "Return a JSON object with exactly these fields:\n\n"
+                        "- hit_streak: current hitting streak "
+                        "(integer or null)\n"
+                        "- hr_streak: current home run streak "
+                        "(integer or null)\n"
+                        "- on_base_streak: current on-base streak "
+                        "(integer or null)\n"
+                        '- injury_status: one of "healthy", "day-to-day", '
+                        '"IL-10", "IL-15", "IL-60"\n'
+                        "- injury_detail: description of injury or null\n"
+                        "- positive_factors: array of positive factors "
+                        "affecting performance (strings)\n"
+                        "- negative_factors: array of negative factors "
+                        "(strings)\n"
+                        '- overall_sentiment: one of "positive", "neutral", '
+                        '"negative"\n'
+                        "- confidence_modifier: float between -0.1 and 0.1\n"
+                        "- news_summary: 2-3 sentence summary of recent "
+                        "news\n"
+                        "- sources_count: number of sources analyzed\n"
+                        "- hit_probability: estimated hit probability today "
+                        "(float 0-1 or null)\n"
+                        "- hr_probability: estimated HR probability today "
+                        "(float 0-1 or null)\n\n"
+                        "Return ONLY valid JSON, no other text.\n\n"
+                        f"Sources:\n{combined_text}"
+                    ),
                 }
             ],
         )
@@ -102,17 +111,17 @@ async def search_player(request: ScoutingSearchRequest):
 
         all_results = []
         for query in queries:
-            results = exa.search_and_contents(
-                query, num_results=3, text=True, use_autoprompt=True
-            )
+            results = exa.search_and_contents(query, num_results=3, text=True, use_autoprompt=True)
             for r in results.results:
-                all_results.append({
-                    "url": r.url,
-                    "title": r.title,
-                    "text": r.text[:5000] if r.text else None,
-                    "published_date": r.published_date,
-                    "score": r.score,
-                })
+                all_results.append(
+                    {
+                        "url": r.url,
+                        "title": r.title,
+                        "text": r.text[:5000] if r.text else None,
+                        "published_date": r.published_date,
+                        "score": r.score,
+                    }
+                )
 
         return {"sources": all_results}
 

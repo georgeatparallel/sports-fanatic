@@ -31,10 +31,22 @@ defmodule SportsFanatic.Content.ScoutingReport do
   def changeset(report, attrs) do
     report
     |> cast(attrs, [
-      :player_id, :report_date, :summary, :overall_grade, :full_report,
-      :hit_probability, :hr_probability, :strengths, :weaknesses,
-      :injury_risk, :injury_detail, :category_impact, :confidence_modifier,
-      :sources_count, :model_version, :generation_ms
+      :player_id,
+      :report_date,
+      :summary,
+      :overall_grade,
+      :full_report,
+      :hit_probability,
+      :hr_probability,
+      :strengths,
+      :weaknesses,
+      :injury_risk,
+      :injury_detail,
+      :category_impact,
+      :confidence_modifier,
+      :sources_count,
+      :model_version,
+      :generation_ms
     ])
     |> validate_required([:player_id, :report_date, :summary, :full_report])
     |> unique_constraint([:player_id, :report_date])

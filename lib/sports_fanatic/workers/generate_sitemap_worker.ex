@@ -7,9 +7,9 @@ defmodule SportsFanatic.Workers.GenerateSitemapWorker do
     unique: [period: 3600]
 
   import Ecto.Query
+  alias SportsFanatic.Content.{GameDayMagazine, NewsItem, ScoutingReport, Sitemap}
+  alias SportsFanatic.Mlb.{Player, Team}
   alias SportsFanatic.Repo
-  alias SportsFanatic.Mlb.{Team, Player}
-  alias SportsFanatic.Content.{Sitemap, ScoutingReport, GameDayMagazine, NewsItem}
 
   require Logger
 
@@ -49,9 +49,7 @@ defmodule SportsFanatic.Workers.GenerateSitemapWorker do
     xml = """
     <?xml version="1.0" encoding="UTF-8"?>
     <sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-    #{Enum.map_join(types, "\n", fn type ->
-      "  <sitemap><loc>#{@base_url}/sitemap-#{type}.xml</loc><lastmod>#{Date.utc_today()}</lastmod></sitemap>"
-    end)}
+    #{Enum.map_join(types, "\n", fn type -> "  <sitemap><loc>#{@base_url}/sitemap-#{type}.xml</loc><lastmod>#{Date.utc_today()}</lastmod></sitemap>" end)}
     </sitemapindex>
     """
 
@@ -66,20 +64,24 @@ defmodule SportsFanatic.Workers.GenerateSitemapWorker do
   end
 
   defp player_urls do
-    from(p in Player,
-      join: t in Team,
-      on: p.team_id == t.id,
-      where: not is_nil(p.slug) and not is_nil(t.slug),
-      select: {t.slug, p.slug, p.updated_at}
-    )
+    Player
+    |> join(:inner, [p], t in Team, on: p.team_id == t.id)
+    |> where([p, t], not is_nil(p.slug) and not is_nil(t.slug))
+    |> select([p, t], {t.slug, p.slug, p.updated_at})
     |> Repo.all()
     |> Enum.map(fn {team_slug, player_slug, updated} ->
-      %{loc: "#{@base_url}/mlb/players/#{team_slug}/#{player_slug}", lastmod: updated, changefreq: "daily"}
+      %{
+        loc: "#{@base_url}/mlb/players/#{team_slug}/#{player_slug}",
+        lastmod: updated,
+        changefreq: "daily"
+      }
     end)
   end
 
   defp team_urls do
-    from(t in Team, where: not is_nil(t.slug), select: {t.slug, t.updated_at})
+    Team
+    |> where([t], not is_nil(t.slug))
+    |> select([t], {t.slug, t.updated_at})
     |> Repo.all()
     |> Enum.map(fn {slug, updated} ->
       %{loc: "#{@base_url}/mlb/teams/#{slug}", lastmod: updated, changefreq: "daily"}
@@ -89,19 +91,24 @@ defmodule SportsFanatic.Workers.GenerateSitemapWorker do
   defp lineup_urls do
     today = Date.utc_today()
     start_date = Date.add(today, -30)
+    date_range = Date.range(start_date, today)
 
-    Date.range(start_date, today)
-    |> Enum.map(fn date ->
-      %{loc: "#{@base_url}/mlb/lineups/#{date}", lastmod: date, changefreq: if(date == today, do: "daily", else: "weekly")}
+    Enum.map(date_range, fn date ->
+      %{
+        loc: "#{@base_url}/mlb/lineups/#{date}",
+        lastmod: date,
+        changefreq: if(date == today, do: "daily", else: "weekly")
+      }
     end)
   end
 
   defp news_urls do
-    from(n in NewsItem,
-      where: n.published_date >= ^Date.add(Date.utc_today(), -90),
-      select: {n.published_date, n.slug},
-      order_by: [desc: n.published_date]
-    )
+    ninety_days_ago = Date.add(Date.utc_today(), -90)
+
+    NewsItem
+    |> where([n], n.published_date >= ^ninety_days_ago)
+    |> select([n], {n.published_date, n.slug})
+    |> order_by([n], desc: n.published_date)
     |> Repo.all()
     |> Enum.map(fn {date, slug} ->
       %{loc: "#{@base_url}/mlb/news/#{date}/#{slug}", lastmod: date, changefreq: "daily"}
@@ -109,27 +116,29 @@ defmodule SportsFanatic.Workers.GenerateSitemapWorker do
   end
 
   defp scouting_urls do
-    from(sr in ScoutingReport,
-      join: p in Player,
-      on: sr.player_id == p.id,
-      join: t in Team,
-      on: p.team_id == t.id,
-      where: not is_nil(t.slug) and not is_nil(p.slug),
-      select: {t.slug, p.slug, sr.updated_at},
-      distinct: [p.id]
-    )
+    ScoutingReport
+    |> join(:inner, [sr], p in Player, on: sr.player_id == p.id)
+    |> join(:inner, [sr, p], t in Team, on: p.team_id == t.id)
+    |> where([sr, p, t], not is_nil(t.slug) and not is_nil(p.slug))
+    |> select([sr, p, t], {t.slug, p.slug, sr.updated_at})
+    |> distinct([sr, p], p.id)
     |> Repo.all()
     |> Enum.map(fn {team_slug, player_slug, updated} ->
-      %{loc: "#{@base_url}/mlb/scouting/#{team_slug}/#{player_slug}", lastmod: updated, changefreq: "weekly"}
+      %{
+        loc: "#{@base_url}/mlb/scouting/#{team_slug}/#{player_slug}",
+        lastmod: updated,
+        changefreq: "weekly"
+      }
     end)
   end
 
   defp gameday_urls do
-    from(m in GameDayMagazine,
-      where: m.game_date >= ^Date.add(Date.utc_today(), -30),
-      select: {m.game_date, m.slug},
-      order_by: [desc: m.game_date]
-    )
+    thirty_days_ago = Date.add(Date.utc_today(), -30)
+
+    GameDayMagazine
+    |> where([m], m.game_date >= ^thirty_days_ago)
+    |> select([m], {m.game_date, m.slug})
+    |> order_by([m], desc: m.game_date)
     |> Repo.all()
     |> Enum.map(fn {date, slug} ->
       %{loc: "#{@base_url}/mlb/game-day/#{date}/#{slug}", lastmod: date, changefreq: "daily"}
@@ -158,7 +167,7 @@ defmodule SportsFanatic.Workers.GenerateSitemapWorker do
     """
   end
 
-  defp format_date(%DateTime{} = dt), do: DateTime.to_date(dt) |> Date.to_iso8601()
+  defp format_date(%DateTime{} = dt), do: dt |> DateTime.to_date() |> Date.to_iso8601()
   defp format_date(%Date{} = d), do: Date.to_iso8601(d)
   defp format_date(_), do: Date.utc_today() |> Date.to_iso8601()
 end

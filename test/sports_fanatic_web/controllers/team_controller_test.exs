@@ -1,8 +1,8 @@
 defmodule SportsFanaticWeb.TeamControllerTest do
   use SportsFanaticWeb.ConnCase, async: true
 
-  alias SportsFanatic.Repo
   alias SportsFanatic.Mlb.Team
+  alias SportsFanatic.Repo
 
   defp create_team(attrs \\ %{}) do
     n = System.unique_integer([:positive])
@@ -23,7 +23,9 @@ defmodule SportsFanaticWeb.TeamControllerTest do
     end
 
     test "renders teams that exist in the database", %{conn: conn} do
-      team = create_team(%{name: "Visible Team", city: "Some City", slug: "some-city-visible-team"})
+      team =
+        create_team(%{name: "Visible Team", city: "Some City", slug: "some-city-visible-team"})
+
       conn = get(conn, "/mlb/teams")
       assert html_response(conn, 200) =~ team.name
     end

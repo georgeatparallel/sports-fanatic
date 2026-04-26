@@ -1,8 +1,8 @@
 defmodule SportsFanatic.BillingTest do
   use SportsFanatic.DataCase, async: true
 
-  alias SportsFanatic.Billing
   alias SportsFanatic.Accounts
+  alias SportsFanatic.Billing
   alias SportsFanatic.Billing.Subscription
 
   defp unique_email, do: "billing_test_#{System.unique_integer([:positive])}@example.com"
@@ -152,7 +152,9 @@ defmodule SportsFanatic.BillingTest do
     test "handles customer.subscription.updated syncs status and period" do
       user = create_user()
       sub = create_subscription(user)
-      new_period_end = DateTime.utc_now() |> DateTime.add(90 * 86_400, :second) |> DateTime.to_unix()
+
+      new_period_end =
+        DateTime.utc_now() |> DateTime.add(90 * 86_400, :second) |> DateTime.to_unix()
 
       event = %{
         "type" => "customer.subscription.updated",

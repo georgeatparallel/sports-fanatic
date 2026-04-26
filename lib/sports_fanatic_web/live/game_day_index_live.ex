@@ -2,19 +2,18 @@ defmodule SportsFanaticWeb.GameDayIndexLive do
   use SportsFanaticWeb, :live_view
 
   import Ecto.Query
-  alias SportsFanatic.Repo
   alias SportsFanatic.Content.GameDayMagazine
+  alias SportsFanatic.Repo
 
   @impl true
   def mount(%{"date" => date_str}, _session, socket) do
     date = Date.from_iso8601!(date_str)
 
     magazines =
-      from(m in GameDayMagazine,
-        where: m.game_date == ^date and m.status == "published",
-        preload: [:away_team, :home_team],
-        order_by: m.inserted_at
-      )
+      GameDayMagazine
+      |> where([m], m.game_date == ^date and m.status == "published")
+      |> preload([:away_team, :home_team])
+      |> order_by([m], m.inserted_at)
       |> Repo.all()
 
     {:ok,
@@ -36,8 +35,10 @@ defmodule SportsFanaticWeb.GameDayIndexLive do
 
       <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
         <%= for mag <- @magazines do %>
-          <.link navigate={"/premium/game-day/#{@date_str}/#{mag.slug}"}
-            class="block bg-white rounded-xl shadow-sm border border-gray-200 hover:border-blue-300 hover:shadow-md transition overflow-hidden">
+          <.link
+            navigate={"/premium/game-day/#{@date_str}/#{mag.slug}"}
+            class="block bg-white rounded-xl shadow-sm border border-gray-200 hover:border-blue-300 hover:shadow-md transition overflow-hidden"
+          >
             <div class="bg-gradient-to-r from-slate-800 to-blue-900 text-white p-6">
               <h2 class="text-xl font-bold"><%= mag.headline %></h2>
               <%= if mag.subheadline do %>

@@ -126,7 +126,7 @@ defmodule SportsFanaticWeb.AuthControllerTest do
 
       conn =
         conn
-        |> put_session(:session_token, session.token)
+        |> init_test_session(%{session_token: session.token})
         |> delete("/logout")
 
       assert redirected_to(conn) == "/"

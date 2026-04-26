@@ -2,7 +2,7 @@ defmodule SportsFanatic.AccountsTest do
   use SportsFanatic.DataCase, async: true
 
   alias SportsFanatic.Accounts
-  alias SportsFanatic.Accounts.{User, Session}
+  alias SportsFanatic.Accounts.{Session, User}
 
   # --- Helpers ---
 
@@ -34,12 +34,16 @@ defmodule SportsFanatic.AccountsTest do
     end
 
     test "returns error changeset for invalid email" do
-      assert {:error, changeset} = Accounts.register_user(%{email: "bademail", password: "password123"})
+      assert {:error, changeset} =
+               Accounts.register_user(%{email: "bademail", password: "password123"})
+
       assert %{email: _} = errors_on(changeset)
     end
 
     test "returns error changeset for short password" do
-      assert {:error, changeset} = Accounts.register_user(%{email: unique_email(), password: "short"})
+      assert {:error, changeset} =
+               Accounts.register_user(%{email: unique_email(), password: "short"})
+
       assert %{password: _} = errors_on(changeset)
     end
 
@@ -74,7 +78,8 @@ defmodule SportsFanatic.AccountsTest do
     end
 
     test "returns error for non-existent user" do
-      assert {:error, :invalid_credentials} = Accounts.authenticate_user("nobody@example.com", "password")
+      assert {:error, :invalid_credentials} =
+               Accounts.authenticate_user("nobody@example.com", "password")
     end
 
     test "returns error for empty email" do
@@ -125,8 +130,8 @@ defmodule SportsFanatic.AccountsTest do
       user = register_user()
 
       # Manually insert an expired session
-      expired_at = DateTime.utc_now() |> DateTime.add(-1, :second)
-      token = :crypto.strong_rand_bytes(32) |> Base.url_encode64()
+      expired_at = DateTime.utc_now() |> DateTime.add(-1, :second) |> DateTime.truncate(:second)
+      token = 32 |> :crypto.strong_rand_bytes() |> Base.url_encode64()
 
       Repo.insert!(%Session{
         user_id: user.id,
@@ -154,9 +159,11 @@ defmodule SportsFanatic.AccountsTest do
   describe "delete_expired_sessions/0" do
     test "deletes expired sessions" do
       user = register_user()
-      expired_at = DateTime.utc_now() |> DateTime.add(-3600, :second)
 
-      expired_token = :crypto.strong_rand_bytes(32) |> Base.url_encode64()
+      expired_at =
+        DateTime.utc_now() |> DateTime.add(-3600, :second) |> DateTime.truncate(:second)
+
+      expired_token = 32 |> :crypto.strong_rand_bytes() |> Base.url_encode64()
 
       Repo.insert!(%Session{
         user_id: user.id,
@@ -215,7 +222,10 @@ defmodule SportsFanatic.AccountsTest do
 
     test "sets stripe_customer_id" do
       user = register_user()
-      {:ok, updated} = Accounts.update_user_subscription(user, %{stripe_customer_id: "cus_abc123"})
+
+      {:ok, updated} =
+        Accounts.update_user_subscription(user, %{stripe_customer_id: "cus_abc123"})
+
       assert updated.stripe_customer_id == "cus_abc123"
     end
   end

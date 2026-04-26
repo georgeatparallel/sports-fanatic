@@ -2,17 +2,16 @@ defmodule SportsFanaticWeb.NewsController do
   use SportsFanaticWeb, :controller
 
   import Ecto.Query
-  alias SportsFanatic.Repo
   alias SportsFanatic.Content.NewsItem
+  alias SportsFanatic.Repo
 
   def index(conn, %{"date" => date_str}) do
     date = Date.from_iso8601!(date_str)
 
     news =
-      from(n in NewsItem,
-        where: n.published_date == ^date,
-        order_by: [desc: n.inserted_at]
-      )
+      NewsItem
+      |> where([n], n.published_date == ^date)
+      |> order_by([n], desc: n.inserted_at)
       |> Repo.all()
 
     canonical = "https://sportsfanatic.com/mlb/news/#{date_str}"
@@ -32,9 +31,8 @@ defmodule SportsFanaticWeb.NewsController do
     date = Date.from_iso8601!(date_str)
 
     news_item =
-      from(n in NewsItem,
-        where: n.published_date == ^date and n.slug == ^slug
-      )
+      NewsItem
+      |> where([n], n.published_date == ^date and n.slug == ^slug)
       |> Repo.one!()
 
     canonical = "https://sportsfanatic.com/mlb/news/#{date_str}/#{slug}"

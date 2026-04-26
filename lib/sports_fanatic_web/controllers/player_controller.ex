@@ -2,9 +2,9 @@ defmodule SportsFanaticWeb.PlayerController do
   use SportsFanaticWeb, :controller
 
   import Ecto.Query
+  alias SportsFanatic.Content.{NewsItem, ScoutingReport}
+  alias SportsFanatic.Mlb.{HrPick, Pick, Player, Team}
   alias SportsFanatic.Repo
-  alias SportsFanatic.Mlb.{Player, Team, Pick, HrPick}
-  alias SportsFanatic.Content.{ScoutingReport, NewsItem}
 
   def index(conn, params) do
     page = String.to_integer(params["page"] || "1")
@@ -26,7 +26,10 @@ defmodule SportsFanaticWeb.PlayerController do
 
     conn
     |> assign(:page_title, "MLB Players - Stats & Analysis | Sports Fan Agent")
-    |> assign(:meta_description, "Browse all MLB players with stats, scouting reports, and analysis. Find your favorite player.")
+    |> assign(
+      :meta_description,
+      "Browse all MLB players with stats, scouting reports, and analysis. Find your favorite player."
+    )
     |> render(:index,
       players: players,
       page: page,
@@ -39,20 +42,18 @@ defmodule SportsFanaticWeb.PlayerController do
     team = Repo.get_by!(Team, slug: team_slug)
 
     player =
-      from(p in Player,
-        where: p.team_id == ^team.id and p.slug == ^player_slug
-      )
+      Player
+      |> where([p], p.team_id == ^team.id and p.slug == ^player_slug)
       |> Repo.one!()
 
     today = Date.utc_today()
 
     # Latest scouting report preview
     scouting =
-      from(sr in ScoutingReport,
-        where: sr.player_id == ^player.id,
-        order_by: [desc: sr.report_date],
-        limit: 1
-      )
+      ScoutingReport
+      |> where([sr], sr.player_id == ^player.id)
+      |> order_by([sr], desc: sr.report_date)
+      |> limit(1)
       |> Repo.one()
 
     # Today's predictions
@@ -60,27 +61,28 @@ defmodule SportsFanaticWeb.PlayerController do
 
     hit_pick =
       if mlb_id do
-        from(p in Pick,
-          where: p.player_mlb_id == ^String.to_integer(to_string(mlb_id)) and p.prediction_date == ^today
-        )
+        parsed_id = String.to_integer(to_string(mlb_id))
+
+        Pick
+        |> where([p], p.player_mlb_id == ^parsed_id and p.prediction_date == ^today)
         |> Repo.one()
       end
 
     hr_pick =
       if mlb_id do
-        from(hp in HrPick,
-          where: hp.player_mlb_id == ^String.to_integer(to_string(mlb_id)) and hp.prediction_date == ^today
-        )
+        parsed_id = String.to_integer(to_string(mlb_id))
+
+        HrPick
+        |> where([hp], hp.player_mlb_id == ^parsed_id and hp.prediction_date == ^today)
         |> Repo.one()
       end
 
     # Player news
     news =
-      from(n in NewsItem,
-        where: ^player.id in n.player_ids,
-        order_by: [desc: n.published_date],
-        limit: 5
-      )
+      NewsItem
+      |> where([n], ^player.id in n.player_ids)
+      |> order_by([n], desc: n.published_date)
+      |> limit(5)
       |> Repo.all()
 
     canonical = "https://sportsfanatic.com/mlb/players/#{team_slug}/#{player_slug}"
@@ -98,8 +100,18 @@ defmodule SportsFanaticWeb.PlayerController do
     }
 
     conn
-    |> assign(:page_title, "#{player.full_name} - #{team.name} | Stats, Scouting & Analysis | Sports Fan Agent")
-    |> assign(:meta_description, String.slice("#{player.full_name} of the #{team.name}. View stats, AI scouting report, hit predictions, and analysis.", 0, 160))
+    |> assign(
+      :page_title,
+      "#{player.full_name} - #{team.name} | Stats, Scouting & Analysis | Sports Fan Agent"
+    )
+    |> assign(
+      :meta_description,
+      String.slice(
+        "#{player.full_name} of the #{team.name}. View stats, AI scouting report, hit predictions, and analysis.",
+        0,
+        160
+      )
+    )
     |> assign(:canonical, canonical)
     |> assign(:json_ld, json_ld)
     |> render(:show,

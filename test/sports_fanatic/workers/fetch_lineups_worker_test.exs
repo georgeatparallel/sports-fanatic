@@ -2,8 +2,8 @@ defmodule SportsFanatic.Workers.FetchLineupsWorkerTest do
   use SportsFanatic.DataCase, async: true
   use Oban.Testing, repo: SportsFanatic.Repo
 
-  alias SportsFanatic.Workers.FetchLineupsWorker
   alias SportsFanatic.Mlb.Lineup
+  alias SportsFanatic.Workers.FetchLineupsWorker
 
   # We use Mox or simple override techniques. Since the project doesn't have
   # Mox configured, we test what we can without mocking external HTTP calls.
@@ -34,7 +34,7 @@ defmodule SportsFanatic.Workers.FetchLineupsWorkerTest do
     test "valid with game_date and player_nerds_id" do
       attrs = %{
         game_date: Date.utc_today(),
-        player_nerds_id: 12345,
+        player_nerds_id: 12_345,
         team_code: "NYY",
         batting_order: 1,
         position: "CF",
@@ -46,7 +46,7 @@ defmodule SportsFanatic.Workers.FetchLineupsWorkerTest do
     end
 
     test "invalid without game_date" do
-      attrs = %{player_nerds_id: 12345}
+      attrs = %{player_nerds_id: 12_345}
       changeset = Lineup.changeset(%Lineup{}, attrs)
       refute changeset.valid?
       assert %{game_date: _} = errors_on(changeset)

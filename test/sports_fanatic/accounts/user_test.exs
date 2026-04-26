@@ -13,7 +13,9 @@ defmodule SportsFanatic.Accounts.UserTest do
 
   describe "registration_changeset/2" do
     test "valid with email and password" do
-      changeset = User.registration_changeset(%User{}, %{email: "test@example.com", password: "password123"})
+      changeset =
+        User.registration_changeset(%User{}, %{email: "test@example.com", password: "password123"})
+
       assert changeset.valid?
     end
 
@@ -30,38 +32,52 @@ defmodule SportsFanatic.Accounts.UserTest do
     end
 
     test "invalid with bad email format" do
-      changeset = User.registration_changeset(%User{}, %{email: "notanemail", password: "password123"})
+      changeset =
+        User.registration_changeset(%User{}, %{email: "notanemail", password: "password123"})
+
       refute changeset.valid?
       assert %{email: ["must be a valid email"]} = errors_on(changeset)
     end
 
     test "invalid with password too short" do
-      changeset = User.registration_changeset(%User{}, %{email: "test@example.com", password: "short"})
+      changeset =
+        User.registration_changeset(%User{}, %{email: "test@example.com", password: "short"})
+
       refute changeset.valid?
       assert %{password: _} = errors_on(changeset)
     end
 
     test "invalid with password too long (> 72 chars)" do
       long_password = String.duplicate("a", 73)
-      changeset = User.registration_changeset(%User{}, %{email: "test@example.com", password: long_password})
+
+      changeset =
+        User.registration_changeset(%User{}, %{email: "test@example.com", password: long_password})
+
       refute changeset.valid?
     end
 
     test "invalid with email too long (> 320 chars)" do
       long_email = String.duplicate("a", 315) <> "@b.com"
-      changeset = User.registration_changeset(%User{}, %{email: long_email, password: "password123"})
+
+      changeset =
+        User.registration_changeset(%User{}, %{email: long_email, password: "password123"})
+
       refute changeset.valid?
     end
 
     test "hashes the password" do
-      changeset = User.registration_changeset(%User{}, %{email: "test@example.com", password: "password123"})
+      changeset =
+        User.registration_changeset(%User{}, %{email: "test@example.com", password: "password123"})
+
       assert changeset.valid?
       assert Ecto.Changeset.get_change(changeset, :password_hash) != nil
       refute Ecto.Changeset.get_change(changeset, :password_hash) == "password123"
     end
 
     test "clears the virtual password field after hashing" do
-      changeset = User.registration_changeset(%User{}, %{email: "test@example.com", password: "password123"})
+      changeset =
+        User.registration_changeset(%User{}, %{email: "test@example.com", password: "password123"})
+
       assert Ecto.Changeset.get_change(changeset, :password) == nil
     end
 

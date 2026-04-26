@@ -80,7 +80,9 @@ defmodule SportsFanatic.MixProject do
       "ecto.reset": ["ecto.drop", "ecto.setup"],
       test: ["ecto.create --quiet", "ecto.migrate --quiet", "test"],
       # Run only unit tests that do not require a database connection
-      "test.unit": ["test test/sports_fanatic/mlb test/sports_fanatic/accounts/user_test.exs test/sports_fanatic/cache_test.exs test/sports_fanatic/python_bridge"],
+      "test.unit": [
+        "test test/sports_fanatic/mlb test/sports_fanatic/accounts/user_test.exs test/sports_fanatic/cache_test.exs test/sports_fanatic/python_bridge"
+      ],
       "assets.setup": ["tailwind.install --if-missing", "esbuild.install --if-missing"],
       "assets.build": ["tailwind default", "esbuild default"],
       "assets.deploy": ["tailwind default --minify", "esbuild default --minify", "phx.digest"]

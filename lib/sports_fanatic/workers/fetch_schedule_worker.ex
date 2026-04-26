@@ -6,9 +6,9 @@ defmodule SportsFanatic.Workers.FetchScheduleWorker do
     max_attempts: 3,
     unique: [period: 3600]
 
-  alias SportsFanatic.Repo
   alias SportsFanatic.Mlb.ScheduledGame
   alias SportsFanatic.PythonBridge
+  alias SportsFanatic.Repo
 
   require Logger
 
@@ -50,6 +50,7 @@ defmodule SportsFanatic.Workers.FetchScheduleWorker do
   end
 
   defp parse_datetime(nil), do: nil
+
   defp parse_datetime(str) do
     case DateTime.from_iso8601(str) do
       {:ok, dt, _} -> dt

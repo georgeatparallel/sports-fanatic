@@ -1,8 +1,8 @@
 defmodule SportsFanaticWeb.NewsControllerTest do
   use SportsFanaticWeb.ConnCase, async: true
 
-  alias SportsFanatic.Repo
   alias SportsFanatic.Content.NewsItem
+  alias SportsFanatic.Repo
 
   defp create_news_item(attrs \\ %{}) do
     n = System.unique_integer([:positive])
@@ -41,7 +41,12 @@ defmodule SportsFanaticWeb.NewsControllerTest do
     test "renders 200 for a valid news item", %{conn: conn} do
       today = Date.utc_today()
       today_str = Date.to_iso8601(today)
-      item = create_news_item(%{published_date: today, slug: "valid-slug-#{System.unique_integer([:positive])}"})
+
+      item =
+        create_news_item(%{
+          published_date: today,
+          slug: "valid-slug-#{System.unique_integer([:positive])}"
+        })
 
       conn = get(conn, "/mlb/news/#{today_str}/#{item.slug}")
       assert html_response(conn, 200) =~ item.title

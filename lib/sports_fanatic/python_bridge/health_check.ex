@@ -2,6 +2,10 @@ defmodule SportsFanatic.PythonBridge.HealthCheck do
   @moduledoc "Polls Python bridge health endpoint every 30 seconds."
 
   use GenServer
+
+  alias SportsFanatic.PythonBridge
+  alias SportsFanatic.PythonBridge.CircuitBreaker
+
   require Logger
 
   @check_interval 30_000
@@ -17,7 +21,7 @@ defmodule SportsFanatic.PythonBridge.HealthCheck do
   @impl true
   def init(_opts) do
     # Start circuit breaker
-    SportsFanatic.PythonBridge.CircuitBreaker.start_link()
+    CircuitBreaker.start_link()
     # Schedule first check after a short delay
     Process.send_after(self(), :check, 5_000)
     {:ok, %{healthy: false, last_check: nil}}
@@ -26,7 +30,7 @@ defmodule SportsFanatic.PythonBridge.HealthCheck do
   @impl true
   def handle_info(:check, state) do
     healthy =
-      case SportsFanatic.PythonBridge.health_check() do
+      case PythonBridge.health_check() do
         {:ok, %{"status" => "ok"}} ->
           true
 

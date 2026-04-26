@@ -7,6 +7,7 @@ defmodule SportsFanatic.Workers.GeneratePredictionsWorker do
     unique: [period: 300]
 
   alias SportsFanatic.PythonBridge
+  alias SportsFanatic.Workers.WarmCacheWorker
 
   require Logger
 
@@ -32,7 +33,7 @@ defmodule SportsFanatic.Workers.GeneratePredictionsWorker do
 
     # Trigger cache warming
     %{}
-    |> SportsFanatic.Workers.WarmCacheWorker.new()
+    |> WarmCacheWorker.new()
     |> Oban.insert()
 
     :ok

@@ -1,9 +1,9 @@
 defmodule SportsFanaticWeb.GameDayControllerTest do
   use SportsFanaticWeb.ConnCase, async: true
 
-  alias SportsFanatic.Repo
-  alias SportsFanatic.Mlb.Team
   alias SportsFanatic.Content.GameDayMagazine
+  alias SportsFanatic.Mlb.Team
+  alias SportsFanatic.Repo
 
   defp create_team(attrs \\ %{}) do
     n = System.unique_integer([:positive])
@@ -47,12 +47,22 @@ defmodule SportsFanaticWeb.GameDayControllerTest do
       {:ok, away_team: away_team, home_team: home_team, magazine: magazine, today_str: today_str}
     end
 
-    test "renders 200 with magazine headline", %{conn: conn, magazine: magazine, today_str: today_str} do
+    test "renders 200 with magazine headline", %{
+      conn: conn,
+      magazine: magazine,
+      today_str: today_str
+    } do
       conn = get(conn, "/mlb/game-day/#{today_str}/#{magazine.slug}")
       assert html_response(conn, 200) =~ magazine.headline
     end
 
-    test "renders team names in the response", %{conn: conn, magazine: magazine, away_team: away_team, home_team: home_team, today_str: today_str} do
+    test "renders team names in the response", %{
+      conn: conn,
+      magazine: magazine,
+      away_team: away_team,
+      home_team: home_team,
+      today_str: today_str
+    } do
       conn = get(conn, "/mlb/game-day/#{today_str}/#{magazine.slug}")
       body = html_response(conn, 200)
       assert body =~ away_team.name
