@@ -43,7 +43,7 @@ defmodule SportsFanaticWeb do
         layouts: [html: SportsFanaticWeb.Layouts]
 
       import Plug.Conn
-      import SportsFanaticWeb.Gettext
+      use Gettext, backend: SportsFanaticWeb.Gettext
 
       unquote(verified_routes())
     end
@@ -85,7 +85,7 @@ defmodule SportsFanaticWeb do
       import Phoenix.HTML
       # Core UI components and translation
       import SportsFanaticWeb.CoreComponents
-      import SportsFanaticWeb.Gettext
+      use Gettext, backend: SportsFanaticWeb.Gettext
 
       # Shortcut for generating JS commands
       alias Phoenix.LiveView.JS

@@ -1,0 +1,6 @@
+_build/
+deps/
+.on-loop/
+.git/
+.env*
+node_modules/

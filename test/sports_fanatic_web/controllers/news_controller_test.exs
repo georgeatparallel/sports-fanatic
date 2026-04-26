@@ -41,7 +41,12 @@ defmodule SportsFanaticWeb.NewsControllerTest do
     test "renders 200 for a valid news item", %{conn: conn} do
       today = Date.utc_today()
       today_str = Date.to_iso8601(today)
-      item = create_news_item(%{published_date: today, slug: "valid-slug-#{System.unique_integer([:positive])}"})
+
+      item =
+        create_news_item(%{
+          published_date: today,
+          slug: "valid-slug-#{System.unique_integer([:positive])}"
+        })
 
       conn = get(conn, "/mlb/news/#{today_str}/#{item.slug}")
       assert html_response(conn, 200) =~ item.title

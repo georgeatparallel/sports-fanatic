@@ -24,7 +24,7 @@ defmodule SportsFanaticWeb.AdminDashboardLive do
       Process.send_after(self(), :refresh, @refresh_interval)
     end
 
-    {:ok, assign(socket, page_title: "Admin Dashboard") |> load_data()}
+    {:ok, assign(socket, page_title: "Admin Dashboard", worker_modules: @worker_modules) |> load_data()}
   end
 
   @impl true
@@ -79,7 +79,7 @@ defmodule SportsFanaticWeb.AdminDashboardLive do
   end
 
   defp count_today_lineups do
-    today = Date.utc_today() |> Date.to_iso8601()
+    today = Date.utc_today()
     result = Repo.query!("SELECT count(*) FROM mlb.lineups WHERE game_date = $1", [today])
     [[count]] = result.rows
     count
@@ -238,7 +238,7 @@ defmodule SportsFanaticWeb.AdminDashboardLive do
         <section>
           <h2 class="text-lg font-semibold text-gray-700 mb-3">Trigger Workers</h2>
           <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-            <%= for {name, _module} <- Enum.sort(@worker_modules) do %>
+            <%= for {name, _module} <- Enum.sort_by(@worker_modules, fn {k, _} -> k end) do %>
               <button
                 phx-click="trigger_worker"
                 phx-value-worker={name}

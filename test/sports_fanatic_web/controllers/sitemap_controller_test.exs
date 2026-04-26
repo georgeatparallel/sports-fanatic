@@ -20,7 +20,8 @@ defmodule SportsFanaticWeb.SitemapControllerTest do
     test "returns custom XML when sitemap index exists in DB", %{conn: conn} do
       Repo.insert!(%Sitemap{
         sitemap_type: "index",
-        xml_content: "<?xml version=\"1.0\"?><sitemapindex xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\"><sitemap><loc>https://sportsfanatic.com/sitemaps/players</loc></sitemap></sitemapindex>",
+        xml_content:
+          "<?xml version=\"1.0\"?><sitemapindex xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\"><sitemap><loc>https://sportsfanatic.com/sitemaps/players</loc></sitemap></sitemapindex>",
         page_count: 1
       })
 
@@ -35,7 +36,8 @@ defmodule SportsFanaticWeb.SitemapControllerTest do
     test "returns 200 with XML for known type", %{conn: conn} do
       Repo.insert!(%Sitemap{
         sitemap_type: "players",
-        xml_content: "<?xml version=\"1.0\"?><urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\"></urlset>",
+        xml_content:
+          "<?xml version=\"1.0\"?><urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\"></urlset>",
         page_count: 0
       })
 
