@@ -1,33 +1,74 @@
 <SportsFanaticWeb.SEOComponents.breadcrumbs items={[
   %{label: "Home", href: "/"},
-  %{label: "News"},
+  %{label: "Baseball", href: "/mlb/teams"},
+  %{label: "News", href: "/mlb/news"},
   %{label: Calendar.strftime(@date, "%B %d, %Y")}
 ]} />
 
 <section class="max-w-4xl mx-auto px-4 py-8">
   <h1 class="text-3xl font-bold text-gray-900 mb-6">
-    MLB News - <%= Calendar.strftime(@date, "%B %d, %Y") %>
+    MLB News &mdash; <%= Calendar.strftime(@date, "%B %d, %Y") %>
   </h1>
 
-  <%= if Enum.empty?(@news) do %>
+  <%= if Enum.empty?(@feed) do %>
     <p class="text-gray-500">No news for this date.</p>
   <% else %>
     <div class="space-y-4">
-      <%= for item <- @news do %>
+      <%= for item <- @feed do %>
         <article class="bg-white rounded-lg shadow-sm border border-gray-100 p-5">
-          <a href={"/mlb/news/#{@date_str}/#{item.slug}"} class="hover:text-blue-600">
-            <h2 class="text-lg font-semibold text-gray-900"><%= item.title %></h2>
-          </a>
-          <%= if item.summary do %>
-            <p class="text-gray-600 mt-2"><%= String.slice(item.summary, 0, 250) %></p>
-          <% end %>
-          <div class="flex gap-3 mt-3 text-sm text-gray-400">
-            <%= if item.category do %>
-              <span class="px-2 py-0.5 bg-gray-100 rounded text-gray-600">
-                <%= item.category %>
-              </span>
+          <div class="flex items-center gap-2 mb-2">
+            <.category_badge category={item["category"]} />
+            <.sentiment_dot sentiment={item["sentiment"]} />
+            <%= if item["ai_processed"] do %>
+              <span class="text-xs text-purple-500 font-medium">AI</span>
             <% end %>
-            <span><%= item.source %></span>
+          </div>
+
+          <a href={"/mlb/news/#{@date_str}/#{item["slug"]}"} class="hover:text-blue-600">
+            <h2 class="text-lg font-semibold text-gray-900"><%= item["title"] %></h2>
+          </a>
+
+          <%= if item["ai_summary"] && item["ai_summary"] != "" do %>
+            <p class="text-gray-600 mt-2 text-sm"><%= item["ai_summary"] %></p>
+          <% else %>
+            <%= if item["summary"] do %>
+              <p class="text-gray-600 mt-2 text-sm">
+                <%= String.slice(item["summary"], 0, 250) %>
+              </p>
+            <% end %>
+          <% end %>
+
+          <div class="flex flex-wrap gap-2 mt-3">
+            <%= for player <- item["players"] || [] do %>
+              <%= if player["team_slug"] && player["slug"] do %>
+                <a
+                  href={"/mlb/players/#{player["team_slug"]}/#{player["slug"]}"}
+                  class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800 hover:bg-indigo-200 transition"
+                >
+                  <%= player["full_name"] %>
+                </a>
+              <% else %>
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-50 text-indigo-600">
+                  <%= player["full_name"] %>
+                </span>
+              <% end %>
+            <% end %>
+
+            <%= for team <- item["teams"] || [] do %>
+              <a
+                href={"/mlb/teams/#{team["slug"]}"}
+                class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 transition"
+              >
+                <%= team["name"] %>
+              </a>
+            <% end %>
+          </div>
+
+          <div class="flex gap-3 mt-3 text-xs text-gray-400">
+            <span><%= item["source"] %></span>
+            <%= if item["author"] do %>
+              <span>&middot; <%= item["author"] %></span>
+            <% end %>
           </div>
         </article>
       <% end %>

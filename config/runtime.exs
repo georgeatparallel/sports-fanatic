@@ -31,6 +31,10 @@ config :sports_fanatic,
 # FantasyNerds API key
 config :sports_fanatic, :fantasy_nerds_api_key, System.get_env("FANTASY_NERDS_API_KEY")
 
+# S3 storage for raw news articles (runtime so env vars are read at boot, not compile time)
+config :sports_fanatic, :news_s3_bucket, System.get_env("NEWS_S3_BUCKET", "sports-fanatic-news")
+config :sports_fanatic, :news_s3_enabled, System.get_env("NEWS_S3_ENABLED", "true") == "true"
+
 # Stripe configuration (runtime)
 if stripe_key = System.get_env("STRIPE_SECRET_KEY") do
   config :stripity_stripe, api_key: stripe_key

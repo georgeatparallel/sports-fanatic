@@ -20,27 +20,56 @@ defmodule SportsFanatic.Content.NewsItem do
     field :is_premium, :boolean, default: false
     field :image_url, :string
 
+    # AI enrichment fields
+    field :sentiment, :string
+    field :ai_summary, :string
+    field :s3_key, :string
+    field :source_url, :string
+    field :author, :string
+    field :ai_processed, :boolean, default: false
+
     timestamps(type: :utc_datetime, updated_at: false)
   end
 
+  @cast_fields [
+    :source,
+    :external_id,
+    :slug,
+    :title,
+    :body,
+    :summary,
+    :published_date,
+    :published_at,
+    :player_ids,
+    :team_ids,
+    :category,
+    :is_premium,
+    :image_url,
+    :sentiment,
+    :ai_summary,
+    :s3_key,
+    :source_url,
+    :author,
+    :ai_processed
+  ]
+
+  @valid_sentiments ~w(positive neutral negative)
+  @valid_categories ~w(
+    injury_elbow injury_shoulder injury_oblique injury_back
+    injury_knee injury_hamstring injury_other
+    trade hit_by_pitch news general
+  )
+
   def changeset(news_item, attrs) do
     news_item
-    |> cast(attrs, [
-      :source,
-      :external_id,
-      :slug,
-      :title,
-      :body,
-      :summary,
-      :published_date,
-      :published_at,
-      :player_ids,
-      :team_ids,
-      :category,
-      :is_premium,
-      :image_url
-    ])
+    |> cast(attrs, @cast_fields)
     |> validate_required([:source, :slug, :title, :body, :published_date])
+    |> validate_inclusion(:sentiment, @valid_sentiments)
+    |> validate_inclusion(:category, @valid_categories)
+    |> validate_length(:sentiment, max: 20)
+    |> validate_length(:s3_key, max: 500)
+    |> validate_length(:source_url, max: 1000)
+    |> validate_length(:author, max: 200)
     |> unique_constraint([:source, :external_id])
   end
 end

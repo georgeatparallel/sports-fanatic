@@ -60,6 +60,7 @@ defmodule SportsFanaticWeb.Router do
     get "/mlb/lineups/:date", LineupController, :show
 
     # News pages
+    get "/mlb/news", NewsController, :today
     get "/mlb/news/:date", NewsController, :index
     get "/mlb/news/:date/:slug", NewsController, :show
 

@@ -64,5 +64,34 @@ defmodule SportsFanatic.CacheTest do
       key = Cache.sitemap_key("players")
       assert String.starts_with?(key, "sf:sitemap:")
     end
+
+    test "all news feed data keys start with sf:data:news:feed:" do
+      key = Cache.news_feed_key("2026-05-01")
+      assert String.starts_with?(key, "sf:data:news:feed:")
+    end
+  end
+
+  describe "news_feed_key/1" do
+    test "accepts an ISO 8601 date string and returns correct key" do
+      key = Cache.news_feed_key("2026-05-01")
+      assert key == "sf:data:news:feed:2026-05-01"
+    end
+
+    test "accepts a Date struct and returns correct key" do
+      key = Cache.news_feed_key(~D[2026-05-01])
+      assert key == "sf:data:news:feed:2026-05-01"
+    end
+
+    test "Date struct and string yield the same key" do
+      string_key = Cache.news_feed_key("2026-05-01")
+      date_key = Cache.news_feed_key(~D[2026-05-01])
+      assert string_key == date_key
+    end
+
+    test "different dates produce different keys" do
+      key1 = Cache.news_feed_key("2026-05-01")
+      key2 = Cache.news_feed_key("2026-05-02")
+      refute key1 == key2
+    end
   end
 end

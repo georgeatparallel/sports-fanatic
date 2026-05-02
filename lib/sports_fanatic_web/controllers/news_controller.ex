@@ -1,67 +1,90 @@
 defmodule SportsFanaticWeb.NewsController do
   use SportsFanaticWeb, :controller
 
-  import Ecto.Query
-  alias SportsFanatic.Content.NewsItem
-  alias SportsFanatic.Repo
+  alias SportsFanatic.News
+
+  def today(conn, _params) do
+    date = Date.utc_today()
+    redirect(conn, to: "/mlb/news/#{Date.to_iso8601(date)}")
+  end
 
   def index(conn, %{"date" => date_str}) do
     date = Date.from_iso8601!(date_str)
 
-    news =
-      NewsItem
-      |> where([n], n.published_date == ^date)
-      |> order_by([n], desc: n.inserted_at)
-      |> Repo.all()
+    {:ok, feed} = News.get_cached_feed(date)
 
     canonical = "https://sportsfanatic.com/mlb/news/#{date_str}"
+    formatted_date = Calendar.strftime(date, "%B %d, %Y")
+
+    json_ld =
+      Jason.encode!(%{
+        "@context" => "https://schema.org",
+        "@type" => "CollectionPage",
+        "name" => "MLB News for #{formatted_date}",
+        "url" => canonical,
+        "publisher" => %{
+          "@type" => "Organization",
+          "name" => "Sports Fan Agent"
+        }
+      })
 
     conn
-    |> assign(:page_title, "MLB News for #{format_date(date)} | Sports Fan Agent")
-    |> assign(:meta_description, "Latest MLB news and player updates for #{format_date(date)}.")
-    |> assign(:canonical, canonical)
+    |> assign(:page_title, "MLB News for #{formatted_date} | Sports Fan Agent")
+    |> assign(
+      :meta_description,
+      "Latest MLB news, injuries, trades, and player updates for #{formatted_date}."
+    )
+    |> assign(:canonical_url, canonical)
+    |> assign(:json_ld, json_ld)
     |> render(:index,
       date: date,
       date_str: date_str,
-      news: news
+      feed: feed
     )
   end
 
   def show(conn, %{"date" => date_str, "slug" => slug}) do
     date = Date.from_iso8601!(date_str)
 
-    news_item =
-      NewsItem
-      |> where([n], n.published_date == ^date and n.slug == ^slug)
-      |> Repo.one!()
+    {:ok, feed} = News.get_cached_feed(date)
 
-    canonical = "https://sportsfanatic.com/mlb/news/#{date_str}/#{slug}"
+    news_item = Enum.find(feed, fn item -> item["slug"] == slug end)
 
-    json_ld = %{
-      "@context" => "https://schema.org",
-      "@type" => "NewsArticle",
-      "headline" => news_item.title,
-      "datePublished" => Date.to_iso8601(news_item.published_date),
-      "publisher" => %{
-        "@type" => "Organization",
-        "name" => "Sports Fan Agent"
-      },
-      "url" => canonical
-    }
+    if is_nil(news_item) do
+      conn
+      |> put_status(:not_found)
+      |> put_view(SportsFanaticWeb.ErrorHTML)
+      |> render(:"404")
+    else
+      canonical = "https://sportsfanatic.com/mlb/news/#{date_str}/#{slug}"
 
-    conn
-    |> assign(:page_title, "#{news_item.title} | Sports Fan Agent")
-    |> assign(:meta_description, String.slice(news_item.summary || news_item.body, 0, 160))
-    |> assign(:canonical, canonical)
-    |> assign(:json_ld, json_ld)
-    |> render(:show,
-      news_item: news_item,
-      date: date,
-      date_str: date_str
-    )
-  end
+      json_ld =
+        Jason.encode!(%{
+          "@context" => "https://schema.org",
+          "@type" => "NewsArticle",
+          "headline" => news_item["title"],
+          "datePublished" => news_item["published_date"],
+          "publisher" => %{
+            "@type" => "Organization",
+            "name" => "Sports Fan Agent"
+          },
+          "url" => canonical
+        })
 
-  defp format_date(date) do
-    Calendar.strftime(date, "%B %d, %Y")
+      description =
+        (news_item["ai_summary"] || news_item["summary"] || news_item["body"] || "")
+        |> String.slice(0, 160)
+
+      conn
+      |> assign(:page_title, "#{news_item["title"]} | Sports Fan Agent")
+      |> assign(:meta_description, description)
+      |> assign(:canonical_url, canonical)
+      |> assign(:json_ld, json_ld)
+      |> render(:show,
+        news_item: news_item,
+        date: date,
+        date_str: date_str
+      )
+    end
   end
 end

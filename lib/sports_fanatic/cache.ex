@@ -21,6 +21,7 @@ defmodule SportsFanatic.Cache do
     "sf:page:scouting:" => 900,
     "sf:page:gameday:" => 600,
     "sf:data:predictions:" => 300,
+    "sf:data:news:feed:" => 60,
     "sf:sitemap:" => 21_600
   }
 
@@ -97,6 +98,12 @@ defmodule SportsFanatic.Cache do
 
   def gameday_page_key(date_str, slug),
     do: "sf:page:gameday:#{date_str}:#{slug}"
+
+  def news_feed_key(%Date{} = date),
+    do: "sf:data:news:feed:#{Date.to_iso8601(date)}"
+
+  def news_feed_key(date_str) when is_binary(date_str),
+    do: "sf:data:news:feed:#{date_str}"
 
   def sitemap_key(type),
     do: "sf:sitemap:#{type}"

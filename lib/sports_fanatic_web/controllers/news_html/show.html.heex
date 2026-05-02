@@ -1,29 +1,68 @@
 <SportsFanaticWeb.SEOComponents.breadcrumbs items={[
   %{label: "Home", href: "/"},
+  %{label: "Baseball", href: "/mlb/teams"},
   %{label: "News", href: "/mlb/news/#{@date_str}"},
-  %{label: String.slice(@news_item.title, 0, 40)}
+  %{label: String.slice(@news_item["title"] || "", 0, 40)}
 ]} />
-
-<%= if assigns[:json_ld] do %>
-  <SportsFanaticWeb.SEOComponents.json_ld data={@json_ld} />
-<% end %>
 
 <article class="max-w-4xl mx-auto px-4 py-8">
   <header class="mb-6">
-    <h1 class="text-3xl font-bold text-gray-900 mb-2"><%= @news_item.title %></h1>
+    <div class="flex items-center gap-2 mb-3">
+      <.category_badge category={@news_item["category"]} />
+      <.sentiment_dot sentiment={@news_item["sentiment"]} />
+      <%= if @news_item["ai_processed"] do %>
+        <span class="text-xs text-purple-500 font-medium">AI Analyzed</span>
+      <% end %>
+    </div>
+
+    <h1 class="text-3xl font-bold text-gray-900 mb-2"><%= @news_item["title"] %></h1>
+
     <div class="flex gap-3 text-sm text-gray-500">
-      <time datetime={Date.to_iso8601(@news_item.published_date)}>
-        <%= Calendar.strftime(@news_item.published_date, "%B %d, %Y") %>
+      <time datetime={@news_item["published_date"]}>
+        <%= Calendar.strftime(@date, "%B %d, %Y") %>
       </time>
-      <span>Source: <%= @news_item.source %></span>
-      <%= if @news_item.category do %>
-        <span class="px-2 py-0.5 bg-gray-100 rounded"><%= @news_item.category %></span>
+      <span>Source: <%= @news_item["source"] %></span>
+      <%= if @news_item["author"] do %>
+        <span>&middot; <%= @news_item["author"] %></span>
       <% end %>
     </div>
   </header>
 
+  <%= if @news_item["ai_summary"] && @news_item["ai_summary"] != "" do %>
+    <div class="bg-blue-50 border-l-4 border-blue-400 p-4 mb-6 rounded-r">
+      <p class="text-sm font-medium text-blue-800 mb-1">AI Summary</p>
+      <p class="text-blue-700"><%= @news_item["ai_summary"] %></p>
+    </div>
+  <% end %>
+
+  <div class="flex flex-wrap gap-2 mb-6">
+    <%= for player <- @news_item["players"] || [] do %>
+      <%= if player["team_slug"] && player["slug"] do %>
+        <a
+          href={"/mlb/players/#{player["team_slug"]}/#{player["slug"]}"}
+          class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800 hover:bg-indigo-200 transition"
+        >
+          <%= player["full_name"] %>
+        </a>
+      <% else %>
+        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-50 text-indigo-600">
+          <%= player["full_name"] %>
+        </span>
+      <% end %>
+    <% end %>
+
+    <%= for team <- @news_item["teams"] || [] do %>
+      <a
+        href={"/mlb/teams/#{team["slug"]}"}
+        class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 transition"
+      >
+        <%= team["name"] %>
+      </a>
+    <% end %>
+  </div>
+
   <div class="prose max-w-none text-gray-700 leading-relaxed">
-    <%= for paragraph <- String.split(@news_item.body || "", "\n", trim: true) do %>
+    <%= for paragraph <- String.split(@news_item["body"] || "", "\n", trim: true) do %>
       <p><%= paragraph %></p>
     <% end %>
   </div>
