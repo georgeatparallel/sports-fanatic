@@ -151,6 +151,7 @@ defmodule SportsFanaticWeb.PlayerController do
       |> Repo.one!()
 
     sources = Scouting.sources_for_player_by_category(player.id, category)
+    scouting_categories = Scouting.categories_for_player(player.id)
 
     canonical =
       "https://sportsfanatic.com/mlb/players/#{team_slug}/#{player_slug}/sources/#{category}"
@@ -186,7 +187,8 @@ defmodule SportsFanaticWeb.PlayerController do
       team: team,
       sources: sources,
       category: category,
-      category_label: category_label
+      category_label: category_label,
+      scouting_categories: scouting_categories
     )
   end
 end

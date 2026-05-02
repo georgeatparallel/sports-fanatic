@@ -10,6 +10,7 @@ defmodule SportsFanatic.Mlb.Lineup do
     field :team_code, :string
     field :batting_order, :integer
     field :position, :string
+    field :player_name, :string
     field :confirmed, :boolean, default: false
 
     belongs_to :player, SportsFanatic.Mlb.Player, type: :binary_id
@@ -26,7 +27,8 @@ defmodule SportsFanatic.Mlb.Lineup do
       :batting_order,
       :position,
       :confirmed,
-      :player_id
+      :player_id,
+      :player_name
     ])
     |> validate_required([:game_date, :player_nerds_id])
     |> unique_constraint([:game_date, :player_nerds_id])

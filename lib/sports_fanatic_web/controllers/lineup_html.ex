@@ -20,7 +20,7 @@ defmodule SportsFanaticWeb.LineupHTML do
         <%= @player.full_name %>
       </a>
     <% else %>
-      <span>Player #<%= @lineup.player_nerds_id %></span>
+      <span><%= @lineup.player_name || "Player ##{@lineup.player_nerds_id}" %></span>
     <% end %>
     """
   end
