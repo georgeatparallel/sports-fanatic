@@ -9,7 +9,7 @@
   <SportsFanaticWeb.SEOComponents.json_ld data={@json_ld} />
 <% end %>
 
-<article class="max-w-4xl mx-auto px-4 py-8">
+<article class="max-w-6xl mx-auto px-4 py-8">
   <header class="mb-8">
     <div class="flex items-center gap-3 mb-2">
       <span class={"inline-block w-3 h-3 rounded-full #{SportsFanaticWeb.PlayerHTML.category_color(@category)}"}>
@@ -33,81 +33,132 @@
     </p>
   </header>
 
-  <%= if length(@sources) == 0 do %>
-    <div class="bg-gray-50 rounded-lg p-8 text-center">
-      <p class="text-gray-500">
-        No <%= String.downcase(@category_label) %> sources available for this player yet.
-      </p>
-      <a
-        href={"/mlb/players/#{@team.slug}/#{@player.slug}"}
-        class="inline-block mt-4 text-blue-600 hover:text-blue-800 font-medium"
-      >
-        Back to player page
-      </a>
-    </div>
-  <% else %>
-    <div class="space-y-6">
-      <%= for source <- @sources do %>
-        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <%= if source.content_summary do %>
-            <p class="text-gray-800 leading-relaxed mb-3"><%= source.content_summary %></p>
-          <% end %>
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+    <div class="lg:col-span-2">
+      <%= if length(@sources) == 0 do %>
+        <div class="bg-gray-50 rounded-lg p-8 text-center">
+          <p class="text-gray-500">
+            No <%= String.downcase(@category_label) %> sources available for this player yet.
+          </p>
+          <a
+            href={"/mlb/players/#{@team.slug}/#{@player.slug}"}
+            class="inline-block mt-4 text-blue-600 hover:text-blue-800 font-medium"
+          >
+            Back to player page
+          </a>
+        </div>
+      <% else %>
+        <div class="space-y-6">
+          <%= for source <- @sources do %>
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+              <%= if source.content_summary do %>
+                <p class="text-gray-800 leading-relaxed mb-3"><%= source.content_summary %></p>
+              <% end %>
 
-          <%= if source.key_facts && source.key_facts["facts"] do %>
-            <div class="mb-3">
-              <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
-                Key Facts
-              </h3>
-              <ul class="space-y-1">
-                <%= for fact <- source.key_facts["facts"] do %>
-                  <li class="text-sm text-gray-700 pl-3 border-l-2 border-blue-200">
-                    <%= fact %>
-                  </li>
+              <%= if source.key_facts && source.key_facts["facts"] do %>
+                <div class="mb-3">
+                  <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
+                    Key Facts
+                  </h3>
+                  <ul class="space-y-1">
+                    <%= for fact <- source.key_facts["facts"] do %>
+                      <li class="text-sm text-gray-700 pl-3 border-l-2 border-blue-200">
+                        <%= fact %>
+                      </li>
+                    <% end %>
+                  </ul>
+                </div>
+              <% end %>
+
+              <%= if source.content_text do %>
+                <details class="mb-3">
+                  <summary class="text-sm text-blue-600 hover:text-blue-800 cursor-pointer font-medium">
+                    View full source content
+                  </summary>
+                  <div class="mt-2 p-3 bg-gray-50 rounded text-sm text-gray-700 leading-relaxed max-h-64 overflow-y-auto">
+                    <%= source.content_text %>
+                  </div>
+                </details>
+              <% end %>
+
+              <div class="flex items-center gap-4 text-xs text-gray-400 pt-3 border-t border-gray-100">
+                <a
+                  href={source.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="text-blue-500 hover:text-blue-700 truncate max-w-md"
+                >
+                  <%= source.url %>
+                </a>
+                <%= if source.source_type do %>
+                  <span class="px-2 py-0.5 bg-gray-100 rounded-full text-gray-500">
+                    <%= source.source_type %>
+                  </span>
                 <% end %>
-              </ul>
+                <%= if source.processed_at do %>
+                  <span><%= Calendar.strftime(source.processed_at, "%b %d, %Y") %></span>
+                <% end %>
+              </div>
             </div>
           <% end %>
+        </div>
 
-          <%= if source.content_text do %>
-            <details class="mb-3">
-              <summary class="text-sm text-blue-600 hover:text-blue-800 cursor-pointer font-medium">
-                View full source content
-              </summary>
-              <div class="mt-2 p-3 bg-gray-50 rounded text-sm text-gray-700 leading-relaxed max-h-64 overflow-y-auto">
-                <%= source.content_text %>
-              </div>
-            </details>
-          <% end %>
-
-          <div class="flex items-center gap-4 text-xs text-gray-400 pt-3 border-t border-gray-100">
-            <a
-              href={source.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              class="text-blue-500 hover:text-blue-700 truncate max-w-md"
-            >
-              <%= source.url %>
-            </a>
-            <%= if source.source_type do %>
-              <span class="px-2 py-0.5 bg-gray-100 rounded-full text-gray-500">
-                <%= source.source_type %>
-              </span>
-            <% end %>
-            <%= if source.processed_at do %>
-              <span><%= Calendar.strftime(source.processed_at, "%b %d, %Y") %></span>
-            <% end %>
-          </div>
+        <div class="mt-8 text-center">
+          <a
+            href={"/mlb/players/#{@team.slug}/#{@player.slug}"}
+            class="inline-block text-blue-600 hover:text-blue-800 font-medium"
+          >
+            Back to <%= @player.full_name %> player page
+          </a>
         </div>
       <% end %>
     </div>
 
-    <div class="mt-8 text-center">
-      <a
-        href={"/mlb/players/#{@team.slug}/#{@player.slug}"}
-        class="inline-block text-blue-600 hover:text-blue-800 font-medium"
-      >
-        Back to <%= @player.full_name %> player page
-      </a>
-    </div>
-  <% end %>
+    <aside>
+      <div class="bg-gray-50 rounded-lg p-6">
+        <h3 class="font-semibold text-gray-900 mb-3">Quick Links</h3>
+        <ul class="space-y-2 text-sm">
+          <li>
+            <a
+              href={"/mlb/players/#{@team.slug}/#{@player.slug}"}
+              class="text-blue-600 hover:text-blue-800"
+            >
+              Player Page
+            </a>
+          </li>
+          <li>
+            <a
+              href={"/mlb/scouting/#{@team.slug}/#{@player.slug}"}
+              class="text-blue-600 hover:text-blue-800"
+            >
+              Full Scouting Report
+            </a>
+          </li>
+          <%= for cat <- @scouting_categories do %>
+            <li>
+              <a
+                href={"/mlb/players/#{@team.slug}/#{@player.slug}/sources/#{cat}"}
+                class={"#{if cat == @category, do: "text-gray-900 font-semibold", else: "text-blue-600 hover:text-blue-800"}"}
+              >
+                <%= SportsFanaticWeb.PlayerHTML.category_label(cat) %>
+              </a>
+            </li>
+          <% end %>
+          <li>
+            <a href={"/mlb/teams/#{@team.slug}"} class="text-blue-600 hover:text-blue-800">
+              <%= @team.name %> Team Page
+            </a>
+          </li>
+          <li>
+            <a
+              href={"/mlb/lineups/#{Date.to_iso8601(Date.utc_today())}"}
+              class="text-blue-600 hover:text-blue-800"
+            >
+              Today's Lineups
+            </a>
+          </li>
+        </ul>
+      </div>
+    </aside>
+  </div>
 </article>

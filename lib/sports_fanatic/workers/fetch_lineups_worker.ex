@@ -37,6 +37,7 @@ defmodule SportsFanatic.Workers.FetchLineupsWorker do
           |> Lineup.changeset(%{
             game_date: Date.utc_today(),
             player_nerds_id: player.player_id,
+            player_name: player[:player_name],
             team_code: player.team_code,
             batting_order: player[:batting_order],
             position: player[:position],
@@ -46,7 +47,15 @@ defmodule SportsFanatic.Workers.FetchLineupsWorker do
           |> Repo.insert(
             on_conflict:
               {:replace,
-               [:team_code, :batting_order, :position, :confirmed, :player_id, :updated_at]},
+               [
+                 :team_code,
+                 :batting_order,
+                 :position,
+                 :confirmed,
+                 :player_id,
+                 :player_name,
+                 :updated_at
+               ]},
             conflict_target: [:game_date, :player_nerds_id]
           )
         end)

@@ -42,6 +42,7 @@ defmodule SportsFanatic.ExternalApis.FantasyNerds do
       |> Enum.map(fn player ->
         %{
           player_id: player["playerId"],
+          player_name: player["playerName"],
           team_code: team_code,
           batting_order: player["battingOrder"],
           position: player["position"]

@@ -48,7 +48,8 @@ defmodule SportsFanaticWeb.LineupHTMLTest do
       batting_order: 1,
       position: "RF",
       team_code: "NYY",
-      game_date: ~D[2026-05-01]
+      game_date: ~D[2026-05-01],
+      player_name: nil
     }
 
     base
@@ -208,6 +209,22 @@ defmodule SportsFanaticWeb.LineupHTMLTest do
         )
 
       assert html =~ "<span>"
+    end
+  end
+
+  describe "player_link/1 when player is nil but player_name is set" do
+    test "renders the player name from the lineup record" do
+      lineup = lineup_struct(%{player: nil, player_nerds_id: 99_999, player_name: "Mike Trout"})
+
+      html =
+        render_component(&SportsFanaticWeb.LineupHTML.player_link/1,
+          lineup: lineup
+        )
+
+      assert html =~ "<span>"
+      assert html =~ "Mike Trout"
+      refute html =~ "Player #"
+      refute html =~ "<a "
     end
   end
 
