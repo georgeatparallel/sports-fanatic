@@ -38,15 +38,28 @@ defmodule SportsFanaticWeb.Plugs.SubscriptionGate do
   @moduledoc """
   Requires an active subscription to access premium content.
   Redirects free users to the pricing page.
+
+  When the `subscriptions_enabled` feature flag is disabled, this plug
+  passes all requests through as if every user has an active subscription.
   """
 
   import Plug.Conn
   import Phoenix.Controller
   alias SportsFanatic.Accounts
+  alias SportsFanatic.FeatureFlags
 
   def init(opts), do: opts
 
   def call(conn, _opts) do
+    if FeatureFlags.enabled?("subscriptions_enabled") do
+      gate_subscription(conn)
+    else
+      # Subscriptions disabled — pass through all requests
+      conn
+    end
+  end
+
+  defp gate_subscription(conn) do
     user = conn.assigns[:current_user]
 
     cond do

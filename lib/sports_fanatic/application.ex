@@ -14,6 +14,8 @@ defmodule SportsFanatic.Application do
       {Finch, name: SportsFanatic.Finch},
       # Valkey (Redis-compatible) connection
       {Redix, {valkey_url, [name: :redix]}},
+      # Feature flags (ETS cache — must start before endpoint)
+      SportsFanatic.FeatureFlags,
       # Oban background job processor
       {Oban, Application.fetch_env!(:sports_fanatic, Oban)},
       # Python Bridge health check
