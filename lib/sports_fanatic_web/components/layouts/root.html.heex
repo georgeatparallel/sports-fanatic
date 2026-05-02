@@ -115,12 +115,14 @@
               >
                 Sign In
               </a>
-              <a
-                href="/subscribe"
-                class="bg-blue-600 text-white text-sm px-4 py-2 rounded-lg hover:bg-blue-700 font-medium transition shadow-sm"
-              >
-                Subscribe
-              </a>
+              <%= if SportsFanatic.FeatureFlags.enabled?("subscriptions_enabled") do %>
+                <a
+                  href="/subscribe"
+                  class="bg-blue-600 text-white text-sm px-4 py-2 rounded-lg hover:bg-blue-700 font-medium transition shadow-sm"
+                >
+                  Subscribe
+                </a>
+              <% end %>
             <% end %>
             <!-- Mobile menu button -->
             <button
@@ -236,12 +238,14 @@
               Game Day
             </a>
           </div>
-          <div>
-            <h3 class="text-white font-semibold text-sm uppercase tracking-wider mb-3">
-              Premium
-            </h3>
-            <a href="/subscribe" class="block text-sm hover:text-white transition">Subscribe</a>
-          </div>
+          <%= if SportsFanatic.FeatureFlags.enabled?("subscriptions_enabled") do %>
+            <div>
+              <h3 class="text-white font-semibold text-sm uppercase tracking-wider mb-3">
+                Premium
+              </h3>
+              <a href="/subscribe" class="block text-sm hover:text-white transition">Subscribe</a>
+            </div>
+          <% end %>
         </div>
         <div class="border-t border-gray-800 mt-8 pt-6 text-center text-sm">
           Sports Fan Agent &copy; <%= DateTime.utc_now().year %>. All rights reserved.

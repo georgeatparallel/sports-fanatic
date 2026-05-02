@@ -106,6 +106,26 @@ defmodule SportsFanaticWeb.Plugs.AuthTest do
   # --- SubscriptionGate ---
 
   describe "SubscriptionGate" do
+    setup do
+      # Ensure the flag exists and is enabled so the gate actually gates
+      alias SportsFanatic.FeatureFlags
+      alias SportsFanatic.FeatureFlags.FeatureFlag
+      alias SportsFanatic.Repo
+
+      flag =
+        Repo.get_by(FeatureFlag, key: "subscriptions_enabled") ||
+          Repo.insert!(%FeatureFlag{
+            key: "subscriptions_enabled",
+            enabled: false,
+            description: "test"
+          })
+
+      Repo.update!(FeatureFlag.update_changeset(flag, %{enabled: true}))
+      FeatureFlags.invalidate_cache("subscriptions_enabled")
+      on_exit(fn -> FeatureFlags.invalidate_cache("subscriptions_enabled") end)
+      :ok
+    end
+
     test "passes through for user with active monthly subscription", %{conn: conn} do
       future = DateTime.utc_now() |> DateTime.add(86_400, :second)
 

@@ -140,9 +140,11 @@
             <p class="font-medium">AI Scouting Report</p>
             <p class="mt-1">
               A detailed scouting report for <%= @player.full_name %> will be available once generated.
-              <a href="/subscribe" class="underline font-medium">
-                Subscribe for premium daily analysis.
-              </a>
+              <%= if SportsFanatic.FeatureFlags.enabled?("subscriptions_enabled") do %>
+                <a href="/subscribe" class="underline font-medium">
+                  Subscribe for premium daily analysis.
+                </a>
+              <% end %>
             </p>
           </div>
         </section>

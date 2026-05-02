@@ -74,28 +74,30 @@ defmodule SportsFanaticWeb.SEOComponents do
 
   def subscribe_cta(assigns) do
     ~H"""
-    <div class="bg-gradient-to-r from-blue-600 to-indigo-700 rounded-xl p-8 text-white text-center my-8">
-      <h3 class="text-2xl font-bold mb-2">Unlock Full Premium Content</h3>
-      <p class="text-blue-100 mb-6 max-w-xl mx-auto">
-        Get complete scouting reports, Game Day Magazines, hit and HR predictions,
-        and real-time updates. Start your 7-day free trial today.
-      </p>
-      <div class="flex justify-center gap-4">
-        <a
-          href="/subscribe"
-          class="bg-white text-blue-700 font-semibold px-8 py-3 rounded-lg hover:bg-blue-50 transition"
-        >
-          Start Free Trial
-        </a>
-        <a
-          href={"/login?return_to=#{@return_to}"}
-          class="border border-white text-white font-semibold px-8 py-3 rounded-lg hover:bg-white/10 transition"
-        >
-          Sign In
-        </a>
+    <%= if SportsFanatic.FeatureFlags.enabled?("subscriptions_enabled") do %>
+      <div class="bg-gradient-to-r from-blue-600 to-indigo-700 rounded-xl p-8 text-white text-center my-8">
+        <h3 class="text-2xl font-bold mb-2">Unlock Full Premium Content</h3>
+        <p class="text-blue-100 mb-6 max-w-xl mx-auto">
+          Get complete scouting reports, Game Day Magazines, hit and HR predictions,
+          and real-time updates. Start your 7-day free trial today.
+        </p>
+        <div class="flex justify-center gap-4">
+          <a
+            href="/subscribe"
+            class="bg-white text-blue-700 font-semibold px-8 py-3 rounded-lg hover:bg-blue-50 transition"
+          >
+            Start Free Trial
+          </a>
+          <a
+            href={"/login?return_to=#{@return_to}"}
+            class="border border-white text-white font-semibold px-8 py-3 rounded-lg hover:bg-white/10 transition"
+          >
+            Sign In
+          </a>
+        </div>
+        <p class="text-blue-200 text-sm mt-4">$9.99/mo or $79.99/yr after trial</p>
       </div>
-      <p class="text-blue-200 text-sm mt-4">$9.99/mo or $79.99/yr after trial</p>
-    </div>
+    <% end %>
     """
   end
 end
