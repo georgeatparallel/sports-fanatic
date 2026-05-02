@@ -182,9 +182,7 @@ async def search_player_multi(request: ScoutingSearchRequest):
                         }
                     )
             except Exception as e:
-                logger.warning(
-                    "Exa search failed for query '%s': %s", group["query"], e
-                )
+                logger.warning("Exa search failed for query '%s': %s", group["query"], e)
 
         # Deduplicate by URL
         seen_urls = set()

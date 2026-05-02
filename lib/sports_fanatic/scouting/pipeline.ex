@@ -390,22 +390,12 @@ defmodule SportsFanatic.Scouting.Pipeline do
 
   defp generate_report(player) do
     today = Date.utc_today()
-
-    # Get all classified sources for this player
     sources_by_category = Scouting.classified_sources_for_player(player.id)
 
     if sources_by_category == %{} do
       {:error, :no_sources}
     else
-      # Build source texts organized by category
-      source_texts =
-        sources_by_category
-        |> Enum.flat_map(fn {category, sources} ->
-          Enum.map(sources, fn s ->
-            "[#{category}] #{s.content_summary || s.url}"
-          end)
-        end)
-        |> Enum.take(15)
+      source_texts = build_source_texts(sources_by_category)
 
       case PythonBridge.generate_scouting(player.full_name, player.id, source_texts) do
         {:ok, %{"report" => report}} ->
@@ -415,6 +405,14 @@ defmodule SportsFanatic.Scouting.Pipeline do
           {:error, reason}
       end
     end
+  end
+
+  defp build_source_texts(sources_by_category) do
+    sources_by_category
+    |> Enum.flat_map(fn {category, sources} ->
+      Enum.map(sources, &"[#{category}] #{&1.content_summary || &1.url}")
+    end)
+    |> Enum.take(15)
   end
 
   defp save_report(player, date, report, sources_by_category) do
