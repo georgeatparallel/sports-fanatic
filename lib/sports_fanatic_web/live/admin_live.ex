@@ -4,6 +4,8 @@ defmodule SportsFanaticWeb.AdminLive do
   alias Ecto.Adapters.SQL
   alias SportsFanatic.FeatureFlags
   alias SportsFanatic.Repo
+  alias SportsFanatic.Scouting
+  alias SportsFanatic.Scouting.Pipeline
   require Logger
 
   @workers [
@@ -40,6 +42,11 @@ defmodule SportsFanaticWeb.AdminLive do
       label: "Generate Scouting"
     },
     %{
+      key: "scouting_pipeline",
+      module: SportsFanatic.Workers.ScoutingPipelineWorker,
+      label: "Scouting Pipeline"
+    },
+    %{
       key: "generate_sitemap",
       module: SportsFanatic.Workers.GenerateSitemapWorker,
       label: "Generate Sitemap"
@@ -67,8 +74,14 @@ defmodule SportsFanaticWeb.AdminLive do
       )
     end
 
+    if connected?(socket) do
+      Pipeline.subscribe()
+    end
+
     statuses = load_initial_statuses()
     flags = FeatureFlags.list_all()
+    pipeline_status = safe_pipeline_status()
+    pipeline_runs = Scouting.list_runs(limit: 10)
 
     {:ok,
      assign(socket,
@@ -79,7 +92,14 @@ defmodule SportsFanaticWeb.AdminLive do
        flags: flags,
        new_flag_key: "",
        new_flag_description: "",
-       flag_error: nil
+       flag_error: nil,
+       pipeline_status: pipeline_status,
+       pipeline_runs: pipeline_runs,
+       pipeline_logs: [],
+       pipeline_player_statuses: %{},
+       research_concurrency: 5,
+       classification_concurrency: 5,
+       selected_run_id: nil
      )}
   end
 
@@ -179,7 +199,146 @@ defmodule SportsFanaticWeb.AdminLive do
     {:noreply, assign(socket, flags: FeatureFlags.list_all(), flag_error: nil)}
   end
 
+  def handle_event("start_pipeline", _params, socket) do
+    config = %{
+      "research_concurrency" => socket.assigns.research_concurrency,
+      "classification_concurrency" => socket.assigns.classification_concurrency
+    }
+
+    case Pipeline.start_pipeline(config) do
+      {:ok, run} ->
+        {:noreply,
+         socket
+         |> assign(
+           pipeline_status: %{
+             status: :running,
+             run_id: run.id,
+             total_players: run.total_players,
+             processed_players: 0
+           },
+           pipeline_player_statuses: %{},
+           pipeline_logs: []
+         )
+         |> put_flash(:info, "Scouting pipeline started.")}
+
+      {:error, :already_running} ->
+        {:noreply, put_flash(socket, :error, "Pipeline is already running.")}
+
+      {:error, :no_players} ->
+        {:noreply, put_flash(socket, :error, "No active players found.")}
+
+      {:error, reason} ->
+        {:noreply, put_flash(socket, :error, "Failed to start pipeline: #{inspect(reason)}")}
+    end
+  end
+
+  def handle_event("cancel_pipeline", _params, socket) do
+    case Pipeline.cancel_pipeline() do
+      :ok ->
+        {:noreply,
+         socket
+         |> assign(pipeline_status: %{status: :idle, run: nil})
+         |> put_flash(:info, "Pipeline cancelled.")}
+
+      {:error, :not_running} ->
+        {:noreply, put_flash(socket, :error, "No pipeline is running.")}
+    end
+  end
+
+  def handle_event("update_concurrency", %{"field" => "research", "value" => val}, socket) do
+    {:noreply, assign(socket, research_concurrency: parse_concurrency(val))}
+  end
+
+  def handle_event("update_concurrency", %{"field" => "classification", "value" => val}, socket) do
+    {:noreply, assign(socket, classification_concurrency: parse_concurrency(val))}
+  end
+
+  def handle_event("view_run", %{"run-id" => run_id}, socket) do
+    logs = Scouting.list_logs_for_run(run_id)
+    {:noreply, assign(socket, selected_run_id: run_id, pipeline_logs: logs)}
+  end
+
+  def handle_event("close_run_detail", _params, socket) do
+    {:noreply, assign(socket, selected_run_id: nil, pipeline_logs: [])}
+  end
+
   @impl true
+  def handle_info({:pipeline_started, payload}, socket) do
+    {:noreply,
+     assign(socket,
+       pipeline_status: %{
+         status: :running,
+         run_id: payload.run_id,
+         total_players: payload.total_players,
+         processed_players: 0
+       },
+       pipeline_player_statuses: %{}
+     )}
+  end
+
+  def handle_info({:player_started, payload}, socket) do
+    player_statuses =
+      Map.put(socket.assigns.pipeline_player_statuses, payload.player_id, %{
+        name: payload.player_name,
+        step: payload.step
+      })
+
+    {:noreply, assign(socket, pipeline_player_statuses: player_statuses)}
+  end
+
+  def handle_info({:player_completed, payload}, socket) do
+    player_statuses = Map.delete(socket.assigns.pipeline_player_statuses, payload.player_id)
+
+    pipeline_status =
+      Map.merge(socket.assigns.pipeline_status, %{
+        processed_players: payload.processed,
+        total_players: payload.total
+      })
+
+    {:noreply,
+     assign(socket, pipeline_player_statuses: player_statuses, pipeline_status: pipeline_status)}
+  end
+
+  def handle_info({:pipeline_completed, payload}, socket) do
+    runs = Scouting.list_runs(limit: 10)
+
+    {:noreply,
+     socket
+     |> assign(
+       pipeline_status: %{status: :idle, run: nil},
+       pipeline_player_statuses: %{},
+       pipeline_runs: runs
+     )
+     |> put_flash(
+       :info,
+       "Pipeline completed. Processed #{payload.processed_players}/#{payload.total_players} players."
+     )}
+  end
+
+  def handle_info({:pipeline_failed, payload}, socket) do
+    runs = Scouting.list_runs(limit: 10)
+
+    {:noreply,
+     socket
+     |> assign(
+       pipeline_status: %{status: :idle, run: nil},
+       pipeline_player_statuses: %{},
+       pipeline_runs: runs
+     )
+     |> put_flash(:error, "Pipeline failed: #{payload.error}")}
+  end
+
+  def handle_info({:pipeline_cancelled, _payload}, socket) do
+    runs = Scouting.list_runs(limit: 10)
+
+    {:noreply,
+     assign(socket,
+       pipeline_status: %{status: :idle, run: nil},
+       pipeline_player_statuses: %{},
+       pipeline_runs: runs
+     )}
+  end
+
   def handle_info({:job_finished, worker_name, duration_ms, state}, socket) do
     key = worker_key_from_module(worker_name)
 
@@ -271,6 +430,47 @@ defmodule SportsFanaticWeb.AdminLive do
     end
   end
 
+  defp safe_pipeline_status do
+    case Process.whereis(SportsFanatic.Scouting.Pipeline) do
+      nil -> %{status: :idle, run: nil}
+      _pid -> Pipeline.get_status()
+    end
+  end
+
+  defp parse_concurrency(val) when is_binary(val) do
+    case Integer.parse(val) do
+      {n, _} when n >= 1 and n <= 20 -> n
+      _ -> 5
+    end
+  end
+
+  defp parse_concurrency(val) when is_integer(val), do: max(1, min(val, 20))
+  defp parse_concurrency(_), do: 5
+
+  defp pipeline_progress_pct(%{total_players: total, processed_players: processed})
+       when total > 0 do
+    round(processed / total * 100)
+  end
+
+  defp pipeline_progress_pct(_), do: 0
+
+  defp step_label("research"), do: "Researching"
+  defp step_label("classify"), do: "Classifying"
+  defp step_label("generate"), do: "Generating"
+  defp step_label(other), do: String.capitalize(to_string(other))
+
+  defp run_status_color("completed"), do: "text-green-600"
+  defp run_status_color("running"), do: "text-blue-600"
+  defp run_status_color("failed"), do: "text-red-600"
+  defp run_status_color("cancelled"), do: "text-yellow-600"
+  defp run_status_color(_), do: "text-gray-600"
+
+  defp log_status_icon("completed"), do: "bg-green-500"
+  defp log_status_icon("started"), do: "bg-blue-500"
+  defp log_status_icon("failed"), do: "bg-red-500"
+  defp log_status_icon("skipped"), do: "bg-gray-400"
+  defp log_status_icon(_), do: "bg-gray-400"
+
   defp status_for(statuses, key) do
     Map.get(statuses, key, %{state: :idle, completed_at: nil, duration_ms: nil})
   end
@@ -313,6 +513,19 @@ defmodule SportsFanaticWeb.AdminLive do
             ]}
           >
             Workers
+          </button>
+          <button
+            phx-click="switch_tab"
+            phx-value-tab="scouting_pipeline"
+            class={[
+              "py-3 px-1 border-b-2 font-medium text-sm transition",
+              if(@active_tab == "scouting_pipeline",
+                do: "border-blue-500 text-blue-600",
+                else: "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+              )
+            ]}
+          >
+            Scouting Pipeline
           </button>
           <button
             phx-click="switch_tab"
@@ -394,6 +607,228 @@ defmodule SportsFanaticWeb.AdminLive do
               >
                 <%= if status.state == :running, do: "Running...", else: "Run" %>
               </button>
+            </div>
+          <% end %>
+        </div>
+      <% end %>
+
+      <%!-- Scouting Pipeline Tab --%>
+      <%= if @active_tab == "scouting_pipeline" do %>
+        <div class="space-y-6">
+          <%!-- Pipeline Controls --%>
+          <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">Pipeline Controls</h3>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">
+                  Research Workers (1-20)
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  max="20"
+                  value={@research_concurrency}
+                  phx-change="update_concurrency"
+                  phx-value-field="research"
+                  name="value"
+                  class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                />
+                <p class="mt-1 text-xs text-gray-400">Players researched concurrently via Exa</p>
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">
+                  Classification Workers (1-20)
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  max="20"
+                  value={@classification_concurrency}
+                  phx-change="update_concurrency"
+                  phx-value-field="classification"
+                  name="value"
+                  class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                />
+                <p class="mt-1 text-xs text-gray-400">AI classification calls per player</p>
+              </div>
+              <div class="flex items-end">
+                <%= if @pipeline_status.status == :running do %>
+                  <button
+                    phx-click="cancel_pipeline"
+                    class="w-full px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700 transition"
+                  >
+                    Cancel Pipeline
+                  </button>
+                <% else %>
+                  <button
+                    phx-click="start_pipeline"
+                    class="w-full px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 transition"
+                  >
+                    Start Pipeline
+                  </button>
+                <% end %>
+              </div>
+            </div>
+
+            <%!-- Live Progress --%>
+            <%= if @pipeline_status.status == :running do %>
+              <div class="border-t border-gray-200 pt-4">
+                <div class="flex items-center justify-between mb-2">
+                  <span class="text-sm font-medium text-gray-700">
+                    Processing: <%= Map.get(@pipeline_status, :processed_players, 0) %> / <%= Map.get(
+                      @pipeline_status,
+                      :total_players,
+                      0
+                    ) %> players
+                  </span>
+                  <span class="text-sm text-gray-500">
+                    <%= pipeline_progress_pct(@pipeline_status) %>%
+                  </span>
+                </div>
+                <div class="w-full bg-gray-200 rounded-full h-2">
+                  <div
+                    class="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                    style={"width: #{pipeline_progress_pct(@pipeline_status)}%"}
+                  >
+                  </div>
+                </div>
+
+                <%!-- Active Players --%>
+                <%= if map_size(@pipeline_player_statuses) > 0 do %>
+                  <div class="mt-4">
+                    <h4 class="text-sm font-medium text-gray-700 mb-2">Active Players</h4>
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                      <%= for {_id, player} <- @pipeline_player_statuses do %>
+                        <div class="flex items-center gap-2 bg-blue-50 rounded px-3 py-2 text-sm">
+                          <svg
+                            class="animate-spin h-3 w-3 text-blue-500"
+                            xmlns="http://www.w3.org/2000/svg"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                          >
+                            <circle
+                              class="opacity-25"
+                              cx="12"
+                              cy="12"
+                              r="10"
+                              stroke="currentColor"
+                              stroke-width="4"
+                            >
+                            </circle>
+                            <path
+                              class="opacity-75"
+                              fill="currentColor"
+                              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                            >
+                            </path>
+                          </svg>
+                          <span class="font-medium text-gray-800"><%= player.name %></span>
+                          <span class="text-xs text-blue-600"><%= step_label(player.step) %></span>
+                        </div>
+                      <% end %>
+                    </div>
+                  </div>
+                <% end %>
+              </div>
+            <% end %>
+          </div>
+
+          <%!-- Execution History --%>
+          <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+            <div class="px-6 py-4 border-b border-gray-200">
+              <h3 class="text-lg font-semibold text-gray-900">Execution History</h3>
+            </div>
+            <table class="min-w-full divide-y divide-gray-200">
+              <thead class="bg-gray-50">
+                <tr>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    Status
+                  </th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    Started
+                  </th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    Players
+                  </th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    Config
+                  </th>
+                  <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody class="bg-white divide-y divide-gray-200">
+                <%= if @pipeline_runs == [] do %>
+                  <tr>
+                    <td colspan="5" class="px-6 py-8 text-center text-gray-400 text-sm">
+                      No pipeline runs yet. Click "Start Pipeline" to begin.
+                    </td>
+                  </tr>
+                <% end %>
+                <%= for run <- @pipeline_runs do %>
+                  <tr>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                      <span class={"text-sm font-medium #{run_status_color(run.status)}"}>
+                        <%= String.capitalize(run.status) %>
+                      </span>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <%= format_time(run.started_at || run.inserted_at) %>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <%= run.processed_players %>/<%= run.total_players %>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      R:<%= get_in(run.config, ["research_concurrency"]) || "5" %> C:<%= get_in(
+                        run.config,
+                        ["classification_concurrency"]
+                      ) || "5" %>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm">
+                      <button
+                        phx-click="view_run"
+                        phx-value-run-id={run.id}
+                        class="text-blue-600 hover:text-blue-800 font-medium"
+                      >
+                        View Logs
+                      </button>
+                    </td>
+                  </tr>
+                <% end %>
+              </tbody>
+            </table>
+          </div>
+
+          <%!-- Run Detail / Logs --%>
+          <%= if @selected_run_id do %>
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+              <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-semibold text-gray-900">Run Logs</h3>
+                <button phx-click="close_run_detail" class="text-gray-400 hover:text-gray-600">
+                  Close
+                </button>
+              </div>
+              <div class="max-h-96 overflow-y-auto space-y-2">
+                <%= if @pipeline_logs == [] do %>
+                  <p class="text-sm text-gray-400">No log entries for this run.</p>
+                <% end %>
+                <%= for log <- @pipeline_logs do %>
+                  <div class="flex items-start gap-3 py-2 border-b border-gray-100 last:border-0">
+                    <div class={"mt-1.5 w-2 h-2 rounded-full flex-shrink-0 #{log_status_icon(log.status)}"}>
+                    </div>
+                    <div class="min-w-0 flex-1">
+                      <div class="flex items-center gap-2 text-xs text-gray-500">
+                        <span class="font-medium text-gray-700"><%= log.step %></span>
+                        <span><%= log.status %></span>
+                        <span><%= format_time(log.inserted_at) %></span>
+                      </div>
+                      <p class="text-sm text-gray-600 mt-0.5 break-words"><%= log.message %></p>
+                    </div>
+                  </div>
+                <% end %>
+              </div>
             </div>
           <% end %>
         </div>

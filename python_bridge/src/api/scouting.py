@@ -130,6 +130,139 @@ async def search_player(request: ScoutingSearchRequest):
         return {"sources": []}
 
 
+class ScoutingClassifyRequest(BaseModel):
+    title: str
+    text: str
+
+
+@router.post("/search_multi")
+async def search_player_multi(request: ScoutingSearchRequest):
+    """Multi-query Exa search: news, analyst reports, and fantasy/betting analysis."""
+    if not settings.exa_api_key:
+        return {"sources": []}
+
+    try:
+        from exa_py import Exa
+
+        exa = Exa(api_key=settings.exa_api_key)
+
+        query_groups = [
+            {
+                "query": f'"{request.player_name}" MLB latest news',
+                "source_type": "news",
+            },
+            {
+                "query": f'"{request.player_name}" MLB scouting report analysis evaluation',
+                "source_type": "analyst",
+            },
+            {
+                "query": f'"{request.player_name}" MLB fantasy prop betting analysis',
+                "source_type": "fantasy_betting",
+            },
+        ]
+
+        all_results = []
+        for group in query_groups:
+            try:
+                results = exa.search_and_contents(
+                    group["query"],
+                    num_results=5,
+                    text=True,
+                    use_autoprompt=True,
+                )
+                for r in results.results:
+                    all_results.append(
+                        {
+                            "url": r.url,
+                            "title": r.title,
+                            "text": r.text[:5000] if r.text else None,
+                            "published_date": r.published_date,
+                            "score": r.score,
+                            "source_type": group["source_type"],
+                        }
+                    )
+            except Exception as e:
+                logger.warning("Exa search failed for query '%s': %s", group["query"], e)
+
+        # Deduplicate by URL
+        seen_urls = set()
+        unique_results = []
+        for r in all_results:
+            if r["url"] not in seen_urls:
+                seen_urls.add(r["url"])
+                unique_results.append(r)
+
+        return {"sources": unique_results}
+
+    except Exception as e:
+        logger.warning("Exa multi-search failed: %s", e)
+        return {"sources": []}
+
+
+@router.post("/classify")
+async def classify_content(request: ScoutingClassifyRequest):
+    """Classify content into scouting categories using Claude."""
+    if not settings.anthropic_api_key:
+        return {
+            "classification": "general_news",
+            "summary": request.title,
+            "key_facts": [],
+        }
+
+    try:
+        import anthropic
+
+        client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
+
+        truncated_text = request.text[:3000] if request.text else ""
+
+        message = await client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=500,
+            messages=[
+                {
+                    "role": "user",
+                    "content": (
+                        "Classify the following sports content and extract "
+                        "key information.\n\n"
+                        f"Title: {request.title}\n"
+                        f"Content: {truncated_text}\n\n"
+                        "Return a JSON object with exactly these fields:\n"
+                        '- classification: one of "performance_analysis", '
+                        '"injury_report", "trade_rumor", '
+                        '"prospect_evaluation", "fantasy_value", '
+                        '"betting_insight", "general_news"\n'
+                        "- summary: 1-2 sentence summary of the content\n"
+                        "- key_facts: array of key facts, quotes, or data "
+                        "points extracted (max 5 items)\n\n"
+                        "Return ONLY valid JSON, no other text."
+                    ),
+                }
+            ],
+        )
+
+        response_text = message.content[0].text.strip()
+        if response_text.startswith("```"):
+            response_text = response_text.split("```")[1]
+            if response_text.startswith("json"):
+                response_text = response_text[4:]
+
+        result = json.loads(response_text)
+        return {
+            "classification": result.get("classification", "general_news"),
+            "summary": result.get("summary", request.title),
+            "key_facts": result.get("key_facts", []),
+        }
+
+    except Exception as e:
+        logger.warning("Content classification failed: %s", e)
+        return {
+            "classification": "general_news",
+            "summary": request.title,
+            "key_facts": [],
+        }
+
+
 def _empty_report() -> dict:
     return {
         "hit_streak": None,

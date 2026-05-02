@@ -78,7 +78,7 @@ config :sports_fanatic, Oban,
        {"*/15 * * * *", SportsFanatic.Workers.WarmCacheWorker}
      ]}
   ],
-  queues: [data_fetch: 5, content_generation: 3, cache: 2, system: 1]
+  queues: [data_fetch: 5, content_generation: 3, cache: 2, system: 1, default: 10]
 
 # Stripe configuration
 config :stripity_stripe,
