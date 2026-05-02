@@ -25,7 +25,7 @@ defmodule SportsFanaticWeb.NewsControllerTest do
     # Invalidate cache before each test so we always read from DB
     date = Date.utc_today()
     cache_key = SportsFanatic.Cache.news_feed_key(date)
-    SportsFanatic.Cache.delete(cache_key)
+    SportsFanatic.Cache.del(cache_key)
     :ok
   end
 
@@ -43,7 +43,7 @@ defmodule SportsFanaticWeb.NewsControllerTest do
 
       # Invalidate cache again after insert
       cache_key = SportsFanatic.Cache.news_feed_key(today)
-      SportsFanatic.Cache.delete(cache_key)
+      SportsFanatic.Cache.del(cache_key)
 
       conn = get(conn, "/mlb/news/#{today_str}")
       assert html_response(conn, 200) =~ item.title
@@ -63,7 +63,7 @@ defmodule SportsFanaticWeb.NewsControllerTest do
 
       # Invalidate cache after insert
       cache_key = SportsFanatic.Cache.news_feed_key(today)
-      SportsFanatic.Cache.delete(cache_key)
+      SportsFanatic.Cache.del(cache_key)
 
       conn = get(conn, "/mlb/news/#{today_str}/#{item.slug}")
       assert html_response(conn, 200) =~ item.title
