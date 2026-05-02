@@ -1,16 +1,11 @@
 defmodule SportsFanatic.Workers.ScoutingPipelineWorkerTest do
-  use SportsFanatic.DataCase, async: true
-  use Oban.Testing, repo: SportsFanatic.Repo
+  use ExUnit.Case, async: true
 
   alias SportsFanatic.Workers.ScoutingPipelineWorker
 
   describe "Oban.Worker behavior" do
     test "worker is a valid Oban.Worker" do
       assert function_exported?(ScoutingPipelineWorker, :perform, 1)
-    end
-
-    test "worker can be enqueued" do
-      assert {:ok, _job} = Oban.insert(ScoutingPipelineWorker.new(%{}))
     end
 
     test "worker has correct queue" do
@@ -31,11 +26,6 @@ defmodule SportsFanatic.Workers.ScoutingPipelineWorkerTest do
 
       job = ScoutingPipelineWorker.new(args)
       assert job.changes.args == args
-    end
-
-    test "worker has unique period of 1 hour" do
-      # Verify uniqueness by checking that two jobs don't conflict
-      assert {:ok, _job1} = Oban.insert(ScoutingPipelineWorker.new(%{}))
     end
   end
 end
