@@ -53,7 +53,8 @@ Browser → Phoenix Router
            └── /webhooks/stripe → StripeWebhookController
 
 Oban workers (background)
-  FetchSchedule / FetchLineups / FetchNews → PostgreSQL
+  FetchSchedule / FetchLineups → PostgreSQL
+  FetchNews (every 1 min) → S3 (raw JSON) → Python Bridge /news/analyze → PostgreSQL → Valkey invalidate
   GeneratePredictions → Python Bridge (FastAPI :8000)
   GenerateScouting / GenerateGameDay → Python Bridge → Claude API → PostgreSQL
   WarmCache → Valkey
@@ -78,8 +79,12 @@ lib/sports_fanatic/
   content/            ScoutingReport, GameDayMagazine, NewsItem, Sitemap schemas
   external_apis/      FantasyNerds HTTP client
   mlb/                Sport, Team, Player, Venue, Game, ScheduledGame, Lineup, Pick, HrPick
+  news.ex             News context — cached feed reads, entity-resolved list, get_cached_feed/1
+  news/               entity_matcher.ex — fuzzy player/team matching (jaro_distance, threshold 0.85)
   python_bridge.ex    HTTP client for Python bridge with circuit breaker integration
   python_bridge/      CircuitBreaker GenServer + HealthCheck GenServer
+  storage.ex          S3 storage module — put_object/3, get_object/2, news_article_key/2 (date-partitioned)
+                       Deps: ex_aws ~> 2.5, ex_aws_s3 ~> 2.5, sweet_xml ~> 0.7 (added to mix.exs)
   workers/            10 Oban workers (fetch_lineups, fetch_schedule, fetch_news,
                        generate_predictions, generate_scouting, generate_game_day,
                        generate_player_seo, warm_cache, generate_sitemap, cleanup)
@@ -98,6 +103,9 @@ python_bridge/src/
   api/predict.py      POST /predict/hit, /predict/hr
   api/scouting.py     POST /scouting/search (Exa), /scouting/generate (Claude)
   api/gameday.py      POST /gameday/generate (Claude)
+  api/news.py         POST /news/analyze — Claude tool_use classification (category, sentiment, summary)
+  news/analyzer.py    analyze_article() with classify_article tool definition
+  news/models.py      Pydantic models: NewsCategory enum, NewsSentiment enum, NewsAnalysis
   simulation/engine.py  Monte Carlo engine, NumPy-vectorized, 10k trials
   config.py           Settings from environment variables
   main.py             FastAPI app, routers registered, /health endpoint
@@ -114,6 +122,7 @@ python_bridge/src/
 /mlb/teams                TeamController :index
 /mlb/teams/:team          TeamController :show
 /mlb/lineups/:date        LineupController :show
+/mlb/news                 NewsController :today  (redirects to today's date)
 /mlb/news/:date           NewsController :index
 /mlb/news/:date/:slug     NewsController :show
 /mlb/scouting/:team/:player ScoutingController :show   (public preview)
@@ -203,16 +212,25 @@ sf:page:news:{date}:{slug}        TTL 5 min
 sf:page:scouting:{team}:{slug}    TTL 15 min
 sf:page:gameday:{date}:{slug}     TTL 10 min
 sf:data:predictions:*             TTL 5 min
+sf:data:news:feed:{date}          TTL 60 s  (enriched JSON news feed; invalidated by FetchNewsWorker on new articles)
 sf:sitemap:*                      TTL 6 hours
 ```
 
 Use `SportsFanatic.Cache.get/1`, `put/3`, `delete/1`, `invalidate_pattern/1`.
+
+Key builders: `Cache.news_feed_key/1` accepts a `%Date{}` or ISO-8601 string.
 
 ---
 
 ## Python Bridge
 
 `SportsFanatic.PythonBridge` is the Elixir-side HTTP client. It calls `http://python-bridge:8000` (Docker internal) via `Req`. The circuit breaker (`SportsFanatic.PythonBridge.CircuitBreaker`) trips after 3 consecutive failures and stays open for 5 minutes. `SportsFanatic.PythonBridge.HealthCheck` pings `/health` every 30 seconds.
+
+Available endpoints (called via `PythonBridge.*` functions):
+- `POST /predict/hit`, `POST /predict/hr` — ML game predictions
+- `POST /scouting/search`, `POST /scouting/generate` — AI scouting reports
+- `POST /gameday/generate` — AI Game Day Magazine generation
+- `POST /news/analyze` — Claude tool_use classification; returns `{category, sentiment, summary}` for a news headline + excerpt. Called by `FetchNewsWorker` via `PythonBridge.analyze_news/2`. If the circuit breaker is open, articles are stored with `ai_processed: false` for later backfill.
 
 In production, the `python-bridge` service should not expose port 8000 to the host. The `docker-compose.yml` currently exposes it — remove the `ports` entry for production (SEC-007).
 
@@ -225,6 +243,7 @@ All workers live in `lib/sports_fanatic/workers/`. They use `use Oban.Worker, qu
 Cron schedules are defined in `config/config.exs` under `Oban.crontab`. Times are UTC (convert from ET accordingly).
 
 Scheduled cron entries:
+- `FetchNewsWorker` — every 1 minute (`* * * * *`). Uses `unique: [period: 55]` to prevent overlap. Most runs are no-ops when no new articles are found.
 - `GeneratePlayerSeoWorker` — 4:00 AM UTC daily
 - `GeneratePredictionsWorker` — 9:30 AM UTC daily
 - `WarmCacheWorker` — every 15 minutes
@@ -354,7 +373,21 @@ mix db.backup
 mix db.restore backups/sports_fanatic_20260426_090000.dump
 ```
 
-**Environment variables:**
+**News S3 environment variables:**
+
+| Variable | Description | Default | Required |
+|----------|-------------|---------|----------|
+| `NEWS_S3_BUCKET` | S3 bucket for raw news article JSON storage | `sports-fanatic-news` | Only when S3 enabled |
+| `NEWS_S3_ENABLED` | Set to `"false"` to skip S3 uploads (e.g., local dev without MinIO) | `"true"` | No |
+| `AWS_REGION` | AWS region for ExAws | `us-east-1` | No |
+| `AWS_ACCESS_KEY_ID` | AWS credentials for ExAws | — | Yes (or IAM role) |
+| `AWS_SECRET_ACCESS_KEY` | AWS credentials for ExAws | — | Yes (or IAM role) |
+
+Raw articles are stored at `news/raw/{YYYY}/{MM}/{DD}/{external_id}.json`. The `external_id` is sanitized (only `[a-zA-Z0-9_-]` allowed) before use in the S3 key to prevent path traversal. The S3 bucket must not be publicly accessible — raw content is served through the application layer only. If S3 upload fails, the article is still stored in PostgreSQL (`s3_key` will be `nil`).
+
+---
+
+**Database Backup & Restore environment variables:**
 
 | Variable | Description | Default | Required |
 |----------|-------------|---------|----------|

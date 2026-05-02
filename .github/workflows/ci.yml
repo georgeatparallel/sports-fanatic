@@ -95,6 +95,8 @@ jobs:
       # Python bridge is not running in CI; circuit breaker / health check will
       # start in :open state. Tests that require the bridge are skipped via tags.
       PYTHON_BRIDGE_URL: http://localhost:8000
+      # Disable S3 uploads in CI — no AWS credentials available
+      NEWS_S3_ENABLED: "false"
       SECRET_KEY_BASE: "ci_test_secret_key_base_must_be_at_least_64_bytes_long_for_phoenix_to_accept_it"
       PHX_HOST: localhost
 

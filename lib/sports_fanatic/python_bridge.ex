@@ -48,6 +48,10 @@ defmodule SportsFanatic.PythonBridge do
     post("/simulation/run", %{players: players, n_simulations: n_simulations})
   end
 
+  def analyze_news(headline, excerpt) do
+    post("/news/analyze", %{headline: headline, excerpt: excerpt})
+  end
+
   def health_check do
     base_url = base_url()
 

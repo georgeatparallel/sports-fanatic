@@ -68,7 +68,7 @@ config :sports_fanatic, Oban,
      crontab: [
        {"0 6 * * *", SportsFanatic.Workers.FetchScheduleWorker},
        {"*/30 8-20 * * *", SportsFanatic.Workers.FetchLineupsWorker},
-       {"0 */2 * * *", SportsFanatic.Workers.FetchNewsWorker},
+       {"* * * * *", SportsFanatic.Workers.FetchNewsWorker},
        {"0 7 * * *", SportsFanatic.Workers.GenerateScoutingWorker},
        {"0 9 * * *", SportsFanatic.Workers.GenerateGameDayWorker},
        {"0 */6 * * *", SportsFanatic.Workers.GenerateSitemapWorker},
@@ -84,6 +84,11 @@ config :sports_fanatic, Oban,
 config :stripity_stripe,
   api_key: System.get_env("STRIPE_SECRET_KEY") || "sk_test_placeholder",
   signing_secret: System.get_env("STRIPE_WEBHOOK_SECRET") || "whsec_placeholder"
+
+# ExAws configuration
+config :ex_aws,
+  region: System.get_env("AWS_REGION", "us-east-1"),
+  json_codec: Jason
 
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.
