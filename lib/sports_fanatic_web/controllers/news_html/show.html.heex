@@ -21,9 +21,8 @@
       <time datetime={@news_item["published_date"]}>
         <%= Calendar.strftime(@date, "%B %d, %Y") %>
       </time>
-      <span>Source: <%= @news_item["source"] %></span>
       <%= if @news_item["author"] do %>
-        <span>&middot; <%= @news_item["author"] %></span>
+        <span><%= @news_item["author"] %></span>
       <% end %>
     </div>
   </header>
