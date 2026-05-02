@@ -20,6 +20,7 @@ defmodule SportsFanatic.Content.PlayerSourceUrl do
     field :classification, :string
     field :content_summary, :string
     field :key_facts, :map
+    field :content_text, :string
     field :processed_at, :utc_datetime
 
     belongs_to :player, SportsFanatic.Mlb.Player, type: :binary_id
@@ -36,6 +37,7 @@ defmodule SportsFanatic.Content.PlayerSourceUrl do
       :classification,
       :content_summary,
       :key_facts,
+      :content_text,
       :processed_at
     ])
     |> validate_required([:player_id, :url, :source_type])
