@@ -9,8 +9,7 @@ logger = logging.getLogger(__name__)
 CLASSIFY_TOOL = {
     "name": "classify_article",
     "description": (
-        "Classify an MLB news article with category, sentiment, "
-        "summary, and entity extraction."
+        "Classify an MLB news article with category, sentiment, summary, and entity extraction."
     ),
     "input_schema": {
         "type": "object",

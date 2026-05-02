@@ -68,7 +68,7 @@ config :sports_fanatic, Oban,
      crontab: [
        {"0 6 * * *", SportsFanatic.Workers.FetchScheduleWorker},
        {"*/30 8-20 * * *", SportsFanatic.Workers.FetchLineupsWorker},
-       {"* * * * *", SportsFanatic.Workers.FetchNewsWorker},
+       {"*/15 * * * *", SportsFanatic.Workers.FetchNewsWorker},
        {"0 7 * * *", SportsFanatic.Workers.GenerateScoutingWorker},
        {"0 9 * * *", SportsFanatic.Workers.GenerateGameDayWorker},
        {"0 */6 * * *", SportsFanatic.Workers.GenerateSitemapWorker},
