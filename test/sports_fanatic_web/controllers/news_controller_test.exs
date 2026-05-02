@@ -14,10 +14,19 @@ defmodule SportsFanaticWeb.NewsControllerTest do
       slug: "test-news-slug-#{n}",
       title: "Test News #{n}",
       body: "Test news body content for article #{n}.",
-      published_date: today
+      published_date: today,
+      category: "news"
     }
 
     Repo.insert!(struct(NewsItem, Map.merge(defaults, attrs)))
+  end
+
+  setup do
+    # Invalidate cache before each test so we always read from DB
+    date = Date.utc_today()
+    cache_key = SportsFanatic.Cache.news_feed_key(date)
+    SportsFanatic.Cache.delete(cache_key)
+    :ok
   end
 
   describe "GET /mlb/news/:date" do
@@ -31,6 +40,10 @@ defmodule SportsFanaticWeb.NewsControllerTest do
       today = Date.utc_today()
       today_str = Date.to_iso8601(today)
       item = create_news_item(%{published_date: today})
+
+      # Invalidate cache again after insert
+      cache_key = SportsFanatic.Cache.news_feed_key(today)
+      SportsFanatic.Cache.delete(cache_key)
 
       conn = get(conn, "/mlb/news/#{today_str}")
       assert html_response(conn, 200) =~ item.title
@@ -48,6 +61,10 @@ defmodule SportsFanaticWeb.NewsControllerTest do
           slug: "valid-slug-#{System.unique_integer([:positive])}"
         })
 
+      # Invalidate cache after insert
+      cache_key = SportsFanatic.Cache.news_feed_key(today)
+      SportsFanatic.Cache.delete(cache_key)
+
       conn = get(conn, "/mlb/news/#{today_str}/#{item.slug}")
       assert html_response(conn, 200) =~ item.title
     end
@@ -55,9 +72,8 @@ defmodule SportsFanaticWeb.NewsControllerTest do
     test "renders 404 for non-existent slug", %{conn: conn} do
       today_str = Date.to_iso8601(Date.utc_today())
 
-      assert_raise Ecto.NoResultsError, fn ->
-        get(conn, "/mlb/news/#{today_str}/nonexistent-news-slug")
-      end
+      conn = get(conn, "/mlb/news/#{today_str}/nonexistent-news-slug")
+      assert html_response(conn, 404)
     end
   end
 end
