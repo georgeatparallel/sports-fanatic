@@ -36,18 +36,23 @@ defmodule SportsFanaticWeb.LineupHTMLTest do
   end
 
   defp lineup_struct(attrs \\ %{}) do
-    Map.merge(
-      %{
-        __struct__: SportsFanatic.Mlb.Lineup,
-        id: "00000000-0000-0000-0000-000000000003",
-        player_nerds_id: 12_345,
-        batting_order: 1,
-        position: "RF",
-        team_code: "NYY",
-        game_date: ~D[2026-05-01]
-      },
-      attrs
-    )
+    team = Map.get(attrs, :_team)
+    player = if team, do: player_struct(team, Map.get(attrs, :_player_attrs, %{})), else: nil
+
+    base = %{
+      __struct__: SportsFanatic.Mlb.Lineup,
+      id: 1,
+      player_nerds_id: 12_345,
+      player_id: if(player, do: player.id),
+      player: player,
+      batting_order: 1,
+      position: "RF",
+      team_code: "NYY",
+      game_date: ~D[2026-05-01]
+    }
+
+    base
+    |> Map.merge(Map.drop(attrs, [:_team, :_player_attrs]))
   end
 
   # ---------------------------------------------------------------------------
@@ -134,16 +139,13 @@ defmodule SportsFanaticWeb.LineupHTMLTest do
   # player_link/1
   # ---------------------------------------------------------------------------
 
-  describe "player_link/1 when player is found in the lookup map" do
+  describe "player_link/1 when player is preloaded on the lineup" do
     test "renders an anchor to the player page under the team slug" do
       team = team_struct()
-      player = player_struct(team)
-      lineup = lineup_struct()
-      players_by_nerds_id = %{12_345 => player}
+      lineup = lineup_struct(%{_team: team})
 
       html =
         render_component(&SportsFanaticWeb.LineupHTML.player_link/1,
-          players_by_nerds_id: players_by_nerds_id,
           lineup: lineup
         )
 
@@ -153,13 +155,10 @@ defmodule SportsFanaticWeb.LineupHTMLTest do
 
     test "applies hover styling class to the link" do
       team = team_struct()
-      player = player_struct(team)
-      lineup = lineup_struct()
-      players_by_nerds_id = %{12_345 => player}
+      lineup = lineup_struct(%{_team: team})
 
       html =
         render_component(&SportsFanaticWeb.LineupHTML.player_link/1,
-          players_by_nerds_id: players_by_nerds_id,
           lineup: lineup
         )
 
@@ -168,13 +167,16 @@ defmodule SportsFanaticWeb.LineupHTMLTest do
 
     test "uses the player's full_name as link text" do
       team = team_struct()
-      player = player_struct(team, %{full_name: "Shohei Ohtani", slug: "shohei-ohtani"})
-      lineup = lineup_struct(%{player_nerds_id: 99_999})
-      players_by_nerds_id = %{99_999 => player}
+
+      lineup =
+        lineup_struct(%{
+          _team: team,
+          _player_attrs: %{full_name: "Shohei Ohtani", slug: "shohei-ohtani"},
+          player_nerds_id: 99_999
+        })
 
       html =
         render_component(&SportsFanaticWeb.LineupHTML.player_link/1,
-          players_by_nerds_id: players_by_nerds_id,
           lineup: lineup
         )
 
@@ -183,14 +185,12 @@ defmodule SportsFanaticWeb.LineupHTMLTest do
     end
   end
 
-  describe "player_link/1 when player is not found in the lookup map" do
+  describe "player_link/1 when player is nil on the lineup" do
     test "renders a span with a fallback Player #ID label" do
-      lineup = lineup_struct(%{player_nerds_id: 99_999})
-      players_by_nerds_id = %{}
+      lineup = lineup_struct(%{player: nil, player_nerds_id: 99_999})
 
       html =
         render_component(&SportsFanaticWeb.LineupHTML.player_link/1,
-          players_by_nerds_id: players_by_nerds_id,
           lineup: lineup
         )
 
@@ -199,13 +199,11 @@ defmodule SportsFanaticWeb.LineupHTMLTest do
       refute html =~ "<a "
     end
 
-    test "does not raise when players_by_nerds_id is an empty map" do
-      lineup = lineup_struct()
-      players_by_nerds_id = %{}
+    test "does not raise when player is nil" do
+      lineup = lineup_struct(%{player: nil})
 
       html =
         render_component(&SportsFanaticWeb.LineupHTML.player_link/1,
-          players_by_nerds_id: players_by_nerds_id,
           lineup: lineup
         )
 
@@ -215,14 +213,11 @@ defmodule SportsFanaticWeb.LineupHTMLTest do
 
   describe "player_link/1 when player has no associated team" do
     test "renders fallback span when player.team is nil" do
-      # Player exists in map but has no team preloaded — treat as missing
       player = player_struct(nil, %{team: nil})
-      lineup = lineup_struct()
-      players_by_nerds_id = %{12_345 => player}
+      lineup = lineup_struct(%{player: player})
 
       html =
         render_component(&SportsFanaticWeb.LineupHTML.player_link/1,
-          players_by_nerds_id: players_by_nerds_id,
           lineup: lineup
         )
 

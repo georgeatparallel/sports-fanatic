@@ -6,8 +6,10 @@ defmodule SportsFanatic.Workers.FetchLineupsWorker do
     max_attempts: 3,
     unique: [period: 60]
 
+  import Ecto.Query
+
   alias SportsFanatic.ExternalApis.FantasyNerds
-  alias SportsFanatic.Mlb.Lineup
+  alias SportsFanatic.Mlb.{Lineup, Player}
   alias SportsFanatic.Repo
   alias SportsFanatic.Workers.GeneratePredictionsWorker
 
@@ -19,7 +21,18 @@ defmodule SportsFanatic.Workers.FetchLineupsWorker do
 
     case FantasyNerds.fetch_lineups(today) do
       {:ok, players} ->
+        # Batch-resolve FantasyNerds player IDs to internal Player UUIDs
+        nerds_ids =
+          players
+          |> Enum.map(& &1.player_id)
+          |> Enum.reject(&is_nil/1)
+          |> Enum.uniq()
+
+        players_by_nerds_id = resolve_players_by_nerds_id(nerds_ids)
+
         Enum.each(players, fn player ->
+          player_id = Map.get(players_by_nerds_id, player.player_id)
+
           %Lineup{}
           |> Lineup.changeset(%{
             game_date: Date.utc_today(),
@@ -27,11 +40,13 @@ defmodule SportsFanatic.Workers.FetchLineupsWorker do
             team_code: player.team_code,
             batting_order: player[:batting_order],
             position: player[:position],
-            confirmed: true
+            confirmed: true,
+            player_id: player_id
           })
           |> Repo.insert(
             on_conflict:
-              {:replace, [:team_code, :batting_order, :position, :confirmed, :updated_at]},
+              {:replace,
+               [:team_code, :batting_order, :position, :confirmed, :player_id, :updated_at]},
             conflict_target: [:game_date, :player_nerds_id]
           )
         end)
@@ -51,5 +66,15 @@ defmodule SportsFanatic.Workers.FetchLineupsWorker do
         Logger.error("Failed to fetch lineups: #{inspect(reason)}")
         {:error, reason}
     end
+  end
+
+  defp resolve_players_by_nerds_id([]), do: %{}
+
+  defp resolve_players_by_nerds_id(nerds_ids) do
+    Player
+    |> where([p], fragment("(? ->> 'nerds_id')::int = ANY(?)", p.external_ids, ^nerds_ids))
+    |> select([p], {fragment("(? ->> 'nerds_id')::int", p.external_ids), p.id})
+    |> Repo.all()
+    |> Map.new()
   end
 end

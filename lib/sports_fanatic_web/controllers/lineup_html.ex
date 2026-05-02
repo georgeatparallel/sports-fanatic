@@ -4,14 +4,13 @@ defmodule SportsFanaticWeb.LineupHTML do
   embed_templates "lineup_html/*"
 
   @doc """
-  Renders a player name as a link if found in the lookup map,
-  or as plain text fallback.
+  Renders a player name as a link if the lineup has a preloaded player
+  with a team, or as plain text fallback showing the FantasyNerds ID.
   """
-  attr :players_by_nerds_id, :map, required: true
   attr :lineup, :map, required: true
 
   def player_link(assigns) do
-    player = Map.get(assigns.players_by_nerds_id, assigns.lineup.player_nerds_id)
+    player = assigns.lineup.player
 
     assigns = assign(assigns, :player, player)
 
