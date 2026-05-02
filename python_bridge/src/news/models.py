@@ -1,11 +1,11 @@
 """Pydantic models for news article analysis."""
 
-from enum import Enum as PyEnum
+from enum import StrEnum
 
 from pydantic import BaseModel, Field
 
 
-class NewsCategory(str, PyEnum):
+class NewsCategory(StrEnum):
     """Categories for MLB news articles."""
 
     INJURY_ELBOW = "injury_elbow"
@@ -20,7 +20,7 @@ class NewsCategory(str, PyEnum):
     NEWS = "news"
 
 
-class NewsSentiment(str, PyEnum):
+class NewsSentiment(StrEnum):
     """Sentiment classification for news articles."""
 
     NEGATIVE = "negative"

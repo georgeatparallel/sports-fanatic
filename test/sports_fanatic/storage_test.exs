@@ -112,7 +112,7 @@ defmodule SportsFanatic.StorageTest do
     end
 
     test "handles integer input by converting to string" do
-      assert Storage.sanitize_key(12345) == "12345"
+      assert Storage.sanitize_key(12_345) == "12345"
     end
 
     test "handles empty string" do

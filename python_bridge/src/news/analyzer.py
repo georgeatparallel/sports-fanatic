@@ -1,6 +1,5 @@
 """News article analysis using Claude with tool_use for structured output."""
 
-import json
 import logging
 
 from src.config import settings
@@ -9,7 +8,10 @@ logger = logging.getLogger(__name__)
 
 CLASSIFY_TOOL = {
     "name": "classify_article",
-    "description": "Classify an MLB news article with category, sentiment, summary, and entity extraction.",
+    "description": (
+        "Classify an MLB news article with category, sentiment, "
+        "summary, and entity extraction."
+    ),
     "input_schema": {
         "type": "object",
         "properties": {

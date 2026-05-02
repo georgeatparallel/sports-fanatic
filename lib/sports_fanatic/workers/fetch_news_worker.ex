@@ -46,7 +46,8 @@ defmodule SportsFanatic.Workers.FetchNewsWorker do
 
     # First pass: filter to only new articles (avoids loading players/teams when nothing is new)
     new_articles =
-      Enum.reduce(news_list, [], fn item, acc ->
+      news_list
+      |> Enum.reduce([], fn item, acc ->
         external_id = to_string(item["id"] || item["newsId"])
 
         if News.exists?("fantasynerds", external_id) do
@@ -60,20 +61,7 @@ defmodule SportsFanatic.Workers.FetchNewsWorker do
     skipped = length(news_list) - length(new_articles)
 
     # Only load players and teams when there are new articles to process
-    {inserted, _} =
-      if new_articles != [] do
-        all_players = Player |> preload(:team) |> Repo.all()
-        all_teams = Repo.all(Team)
-
-        Enum.reduce(new_articles, {0, 0}, fn {item, external_id}, {ins, fail} ->
-          case process_article(item, external_id, all_players, all_teams) do
-            {:ok, _} -> {ins + 1, fail}
-            {:error, _} -> {ins, fail + 1}
-          end
-        end)
-      else
-        {0, 0}
-      end
+    {inserted, _} = process_new_articles(new_articles)
 
     if inserted > 0 do
       News.invalidate_feed_cache(today)
@@ -81,6 +69,20 @@ defmodule SportsFanatic.Workers.FetchNewsWorker do
 
     Logger.info("FetchNewsWorker: inserted=#{inserted} skipped=#{skipped}")
     :ok
+  end
+
+  defp process_new_articles([]), do: {0, 0}
+
+  defp process_new_articles(new_articles) do
+    all_players = Player |> preload(:team) |> Repo.all()
+    all_teams = Repo.all(Team)
+
+    Enum.reduce(new_articles, {0, 0}, fn {item, external_id}, {ins, fail} ->
+      case process_article(item, external_id, all_players, all_teams) do
+        {:ok, _} -> {ins + 1, fail}
+        {:error, _} -> {ins, fail + 1}
+      end
+    end)
   end
 
   defp process_article(item, external_id, all_players, all_teams) do
@@ -145,7 +147,8 @@ defmodule SportsFanatic.Workers.FetchNewsWorker do
   defp match_entities_from_text(text, all_players, all_teams) do
     # Extract potential player names: look for capitalized word pairs
     player_name_candidates =
-      Regex.scan(~r/\b([A-Z][a-z]+(?:\s[A-Z][a-z]+)+)\b/, text)
+      text
+      |> then(&Regex.scan(~r/\b([A-Z][a-z]+(?:\s[A-Z][a-z]+)+)\b/, &1))
       |> Enum.map(fn [full | _] -> full end)
       |> Enum.uniq()
 

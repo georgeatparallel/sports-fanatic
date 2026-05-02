@@ -23,10 +23,11 @@ defmodule SportsFanatic.Storage do
       key = news_article_key(date, external_id)
       bucket = Application.get_env(:sports_fanatic, :news_s3_bucket)
 
-      case ExAws.S3.put_object(bucket, key, Jason.encode!(content),
-             content_type: "application/json"
-           )
-           |> ExAws.request() do
+      result =
+        ExAws.S3.put_object(bucket, key, Jason.encode!(content), content_type: "application/json")
+        |> ExAws.request()
+
+      case result do
         {:ok, _} ->
           {:ok, key}
 

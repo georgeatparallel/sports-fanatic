@@ -64,42 +64,36 @@ defmodule SportsFanatic.News.EntityMatcher do
   defp match_team(name, all_teams) when is_binary(name) do
     downcased = String.downcase(String.trim(name))
 
-    # Exact abbreviation match first
-    exact_abbr =
-      Enum.find(all_teams, fn t ->
-        String.downcase(t.abbreviation || "") == downcased
-      end)
+    find_exact_abbr(downcased, all_teams) ||
+      find_exact_name(downcased, all_teams) ||
+      find_fuzzy_team(downcased, all_teams)
+  end
 
-    if exact_abbr do
-      exact_abbr
-    else
-      # Exact name match
-      exact_name =
-        Enum.find(all_teams, fn t ->
-          String.downcase(t.name || "") == downcased
-        end)
+  defp find_exact_abbr(downcased, all_teams) do
+    Enum.find(all_teams, fn t ->
+      String.downcase(t.abbreviation || "") == downcased
+    end)
+  end
 
-      if exact_name do
-        exact_name
-      else
-        # Fuzzy name match
-        all_teams
-        |> Enum.map(fn t ->
-          name_score = String.jaro_distance(downcased, String.downcase(t.name || ""))
+  defp find_exact_name(downcased, all_teams) do
+    Enum.find(all_teams, fn t ->
+      String.downcase(t.name || "") == downcased
+    end)
+  end
 
-          full_name =
-            String.downcase("#{t.city || ""} #{t.name || ""}" |> String.trim())
-
-          full_score = String.jaro_distance(downcased, full_name)
-          {t, max(name_score, full_score)}
-        end)
-        |> Enum.filter(fn {_t, score} -> score >= @team_threshold end)
-        |> Enum.max_by(fn {_t, score} -> score end, fn -> nil end)
-        |> case do
-          {team, _score} -> team
-          nil -> nil
-        end
-      end
+  defp find_fuzzy_team(downcased, all_teams) do
+    all_teams
+    |> Enum.map(fn t ->
+      name_score = String.jaro_distance(downcased, String.downcase(t.name || ""))
+      full_name = "#{t.city || ""} #{t.name || ""}" |> String.trim() |> String.downcase()
+      full_score = String.jaro_distance(downcased, full_name)
+      {t, max(name_score, full_score)}
+    end)
+    |> Enum.filter(fn {_t, score} -> score >= @team_threshold end)
+    |> Enum.max_by(fn {_t, score} -> score end, fn -> nil end)
+    |> case do
+      {team, _score} -> team
+      nil -> nil
     end
   end
 end
