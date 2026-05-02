@@ -4,7 +4,7 @@ defmodule SportsFanaticWeb.NewsController do
   alias SportsFanatic.News
 
   def today(conn, _params) do
-    date = Date.utc_today()
+    date = News.latest_news_date()
     redirect(conn, to: "/mlb/news/#{Date.to_iso8601(date)}")
   end
 

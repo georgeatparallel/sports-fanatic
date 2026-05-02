@@ -28,6 +28,17 @@ defmodule SportsFanatic.News do
   end
 
   @doc """
+  Returns the most recent date that has news items, or today if none exist.
+  """
+  def latest_news_date do
+    query =
+      NewsItem
+      |> select([n], max(n.published_date))
+
+    Repo.one(query) || Date.utc_today()
+  end
+
+  @doc """
   Creates a news item with on_conflict handling for idempotency.
   Returns {:ok, news_item} or {:error, changeset}.
   """
