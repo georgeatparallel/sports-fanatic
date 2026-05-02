@@ -5,6 +5,7 @@ defmodule SportsFanaticWeb.PlayerController do
   alias SportsFanatic.Content.{NewsItem, ScoutingReport}
   alias SportsFanatic.Mlb.{HrPick, Pick, Player, Team}
   alias SportsFanatic.Repo
+  alias SportsFanatic.Scouting
 
   def index(conn, params) do
     page = String.to_integer(params["page"] || "1")
@@ -85,6 +86,9 @@ defmodule SportsFanaticWeb.PlayerController do
       |> limit(5)
       |> Repo.all()
 
+    # Classified scouting sources
+    scouting_sources = Scouting.classified_sources_for_player(player.id)
+
     canonical = "https://sportsfanatic.com/mlb/players/#{team_slug}/#{player_slug}"
 
     json_ld = %{
@@ -120,7 +124,8 @@ defmodule SportsFanaticWeb.PlayerController do
       scouting: scouting,
       hit_pick: hit_pick,
       hr_pick: hr_pick,
-      news: news
+      news: news,
+      scouting_sources: scouting_sources
     )
   end
 end

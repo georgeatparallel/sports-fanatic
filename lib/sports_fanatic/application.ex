@@ -18,6 +18,8 @@ defmodule SportsFanatic.Application do
       SportsFanatic.FeatureFlags,
       # Oban background job processor
       {Oban, Application.fetch_env!(:sports_fanatic, Oban)},
+      # Scouting pipeline orchestrator
+      {SportsFanatic.Scouting.Pipeline, []},
       # Python Bridge health check
       SportsFanatic.PythonBridge.HealthCheck,
       # Phoenix Endpoint

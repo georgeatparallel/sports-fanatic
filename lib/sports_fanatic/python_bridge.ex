@@ -28,6 +28,14 @@ defmodule SportsFanatic.PythonBridge do
     post("/scouting/search", %{player_name: player_name})
   end
 
+  def search_player_multi(player_name) do
+    post("/scouting/search_multi", %{player_name: player_name})
+  end
+
+  def classify_content(title, text) do
+    post("/scouting/classify", %{title: title, text: text})
+  end
+
   def generate_game_day(game_data) do
     post("/gameday/generate", game_data)
   end

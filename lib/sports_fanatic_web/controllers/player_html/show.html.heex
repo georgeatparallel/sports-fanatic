@@ -54,6 +54,41 @@
 
   <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
     <div class="lg:col-span-2">
+      <%!-- Categorized Scouting Report Sections --%>
+      <%= if assigns[:scouting_sources] && map_size(@scouting_sources) > 0 do %>
+        <section class="mb-8">
+          <h2 class="text-xl font-semibold text-gray-900 mb-3">AI Scouting Intelligence</h2>
+          <div class="space-y-4">
+            <%= for {category, sources} <- @scouting_sources do %>
+              <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-5">
+                <h3 class="font-semibold text-gray-900 mb-2 flex items-center gap-2">
+                  <span class={"inline-block w-2 h-2 rounded-full #{category_color(category)}"}>
+                  </span>
+                  <%= category_label(category) %>
+                  <span class="text-xs text-gray-400 font-normal">
+                    (<%= length(sources) %> sources)
+                  </span>
+                </h3>
+                <ul class="space-y-2">
+                  <%= for source <- Enum.take(sources, 3) do %>
+                    <li class="text-sm text-gray-700 pl-4 border-l-2 border-gray-200">
+                      <p><%= source.content_summary || "Source analyzed" %></p>
+                      <%= if source.key_facts && source.key_facts["facts"] do %>
+                        <ul class="mt-1 space-y-0.5">
+                          <%= for fact <- Enum.take(source.key_facts["facts"], 2) do %>
+                            <li class="text-xs text-gray-500">-- <%= fact %></li>
+                          <% end %>
+                        </ul>
+                      <% end %>
+                    </li>
+                  <% end %>
+                </ul>
+              </div>
+            <% end %>
+          </div>
+        </section>
+      <% end %>
+
       <%= if @player.bio do %>
         <section class="mb-8">
           <h2 class="text-xl font-semibold text-gray-900 mb-3">About</h2>
