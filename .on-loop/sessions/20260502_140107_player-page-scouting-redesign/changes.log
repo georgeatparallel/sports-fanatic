@@ -1,0 +1,14 @@
+# Changes Log - Player Page Scouting Redesign
+
+## New Files
+- priv/repo/migrations/20260502140200_add_content_text_to_player_source_urls.exs
+- lib/sports_fanatic_web/controllers/player_html/sources.html.heex
+
+## Modified Files
+- lib/sports_fanatic/content/player_source_url.ex (added content_text field)
+- lib/sports_fanatic/scouting/pipeline.ex (store content_text from Exa)
+- lib/sports_fanatic/scouting.ex (added sources_for_player_by_category/2, categories_for_player/1)
+- lib/sports_fanatic_web/router.ex (added sources route)
+- lib/sports_fanatic_web/controllers/player_controller.ex (redesigned show, added sources action)
+- lib/sports_fanatic_web/controllers/player_html/show.html.heex (complete rewrite)
+- test/sports_fanatic_web/controllers/player_controller_test.exs (added 9 new tests)

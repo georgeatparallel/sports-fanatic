@@ -51,6 +51,7 @@ defmodule SportsFanaticWeb.Router do
     # Player pages
     get "/mlb/players", PlayerController, :index
     get "/mlb/players/:team_slug/:player_slug", PlayerController, :show
+    get "/mlb/players/:team_slug/:player_slug/sources/:category", PlayerController, :sources
 
     # Team pages
     get "/mlb/teams", TeamController, :index

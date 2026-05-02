@@ -7,6 +7,11 @@ defmodule SportsFanaticWeb.PlayerController do
   alias SportsFanatic.Repo
   alias SportsFanatic.Scouting
 
+  @valid_categories ~w(
+    performance_analysis injury_report trade_rumor prospect_evaluation
+    fantasy_value betting_insight general_news
+  )
+
   def index(conn, params) do
     page = String.to_integer(params["page"] || "1")
     per_page = 50
@@ -49,7 +54,7 @@ defmodule SportsFanaticWeb.PlayerController do
 
     today = Date.utc_today()
 
-    # Latest scouting report preview
+    # Latest scouting report
     scouting =
       ScoutingReport
       |> where([sr], sr.player_id == ^player.id)
@@ -86,8 +91,8 @@ defmodule SportsFanaticWeb.PlayerController do
       |> limit(5)
       |> Repo.all()
 
-    # Classified scouting sources
-    scouting_sources = Scouting.classified_sources_for_player(player.id)
+    # Categories that have source content (for Quick Links)
+    scouting_categories = Scouting.categories_for_player(player.id)
 
     canonical = "https://sportsfanatic.com/mlb/players/#{team_slug}/#{player_slug}"
 
@@ -125,7 +130,63 @@ defmodule SportsFanaticWeb.PlayerController do
       hit_pick: hit_pick,
       hr_pick: hr_pick,
       news: news,
-      scouting_sources: scouting_sources
+      scouting_categories: scouting_categories
+    )
+  end
+
+  def sources(conn, %{
+        "team_slug" => team_slug,
+        "player_slug" => player_slug,
+        "category" => category
+      }) do
+    unless category in @valid_categories do
+      raise Ecto.NoResultsError, queryable: category
+    end
+
+    team = Repo.get_by!(Team, slug: team_slug)
+
+    player =
+      Player
+      |> where([p], p.team_id == ^team.id and p.slug == ^player_slug and p.status == "active")
+      |> Repo.one!()
+
+    sources = Scouting.sources_for_player_by_category(player.id, category)
+
+    canonical =
+      "https://sportsfanatic.com/mlb/players/#{team_slug}/#{player_slug}/sources/#{category}"
+
+    category_label = SportsFanaticWeb.PlayerHTML.category_label(category)
+
+    json_ld = %{
+      "@context" => "https://schema.org",
+      "@type" => "CollectionPage",
+      "name" => "#{player.full_name} - #{category_label} Sources",
+      "description" =>
+        "#{category_label} sources and analysis for #{player.full_name} of the #{team.name}.",
+      "url" => canonical
+    }
+
+    conn
+    |> assign(
+      :page_title,
+      "#{player.full_name} - #{category_label} | Sports Fan Agent"
+    )
+    |> assign(
+      :meta_description,
+      String.slice(
+        "#{category_label} sources and analysis for #{player.full_name} of the #{team.name}.",
+        0,
+        160
+      )
+    )
+    |> assign(:canonical, canonical)
+    |> assign(:json_ld, Jason.encode!(json_ld))
+    |> render(:sources,
+      player: player,
+      team: team,
+      sources: sources,
+      category: category,
+      category_label: category_label
     )
   end
 end

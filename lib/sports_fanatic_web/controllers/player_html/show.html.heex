@@ -54,37 +54,142 @@
 
   <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
     <div class="lg:col-span-2">
-      <%!-- Categorized Scouting Report Sections --%>
-      <%= if assigns[:scouting_sources] && map_size(@scouting_sources) > 0 do %>
-        <section class="mb-8">
-          <h2 class="text-xl font-semibold text-gray-900 mb-3">AI Scouting Intelligence</h2>
-          <div class="space-y-4">
-            <%= for {category, sources} <- @scouting_sources do %>
-              <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-5">
-                <h3 class="font-semibold text-gray-900 mb-2 flex items-center gap-2">
-                  <span class={"inline-block w-2 h-2 rounded-full #{category_color(category)}"}>
-                  </span>
-                  <%= category_label(category) %>
-                  <span class="text-xs text-gray-400 font-normal">
-                    (<%= length(sources) %> sources)
-                  </span>
-                </h3>
-                <ul class="space-y-2">
-                  <%= for source <- Enum.take(sources, 3) do %>
-                    <li class="text-sm text-gray-700 pl-4 border-l-2 border-gray-200">
-                      <p><%= source.content_summary || "Source analyzed" %></p>
-                      <%= if source.key_facts && source.key_facts["facts"] do %>
-                        <ul class="mt-1 space-y-0.5">
-                          <%= for fact <- Enum.take(source.key_facts["facts"], 2) do %>
-                            <li class="text-xs text-gray-500">-- <%= fact %></li>
-                          <% end %>
-                        </ul>
-                      <% end %>
-                    </li>
-                  <% end %>
-                </ul>
+      <%!-- Full Scouting Report (above Player Overview) --%>
+      <%= if @scouting do %>
+        <%= if !SportsFanatic.FeatureFlags.enabled?("subscriptions_enabled") do %>
+          <%!-- Subscriptions disabled: show full report to everyone --%>
+          <section class="mb-8">
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+              <div class="flex items-center gap-4 mb-4">
+                <span class="inline-flex items-center justify-center w-12 h-12 rounded-full bg-blue-100 text-blue-700 text-xl font-bold">
+                  <%= @scouting.overall_grade %>
+                </span>
+                <div>
+                  <h2 class="text-xl font-semibold text-gray-900">Scouting Report</h2>
+                  <p class="text-sm text-gray-500">
+                    Updated <%= Calendar.strftime(@scouting.report_date, "%B %d, %Y") %>
+                  </p>
+                </div>
               </div>
-            <% end %>
+
+              <p class="text-gray-700 leading-relaxed mb-4"><%= @scouting.summary %></p>
+
+              <%= if @scouting.strengths && length(@scouting.strengths) > 0 do %>
+                <div class="mb-4">
+                  <h3 class="text-sm font-semibold text-green-700 uppercase tracking-wide mb-2">
+                    Strengths
+                  </h3>
+                  <ul class="space-y-1">
+                    <%= for strength <- @scouting.strengths do %>
+                      <li class="flex items-start gap-2 text-sm text-gray-700">
+                        <span class="text-green-500 mt-0.5">+</span>
+                        <span><%= strength %></span>
+                      </li>
+                    <% end %>
+                  </ul>
+                </div>
+              <% end %>
+
+              <%= if @scouting.weaknesses && length(@scouting.weaknesses) > 0 do %>
+                <div class="mb-4">
+                  <h3 class="text-sm font-semibold text-red-700 uppercase tracking-wide mb-2">
+                    Weaknesses
+                  </h3>
+                  <ul class="space-y-1">
+                    <%= for weakness <- @scouting.weaknesses do %>
+                      <li class="flex items-start gap-2 text-sm text-gray-700">
+                        <span class="text-red-500 mt-0.5">-</span>
+                        <span><%= weakness %></span>
+                      </li>
+                    <% end %>
+                  </ul>
+                </div>
+              <% end %>
+
+              <%= if @scouting.injury_risk && @scouting.injury_risk != "healthy" do %>
+                <div class="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                  <p class="text-sm text-yellow-800">
+                    <span class="font-semibold">Injury Status:</span>
+                    <%= @scouting.injury_risk %>
+                    <%= if @scouting.injury_detail do %>
+                      -- <%= @scouting.injury_detail %>
+                    <% end %>
+                  </p>
+                </div>
+              <% end %>
+
+              <div class="flex gap-6 pt-4 border-t border-gray-100">
+                <%= if @scouting.hit_probability do %>
+                  <div class="text-center">
+                    <p class="text-2xl font-bold text-blue-600">
+                      <%= Float.round(@scouting.hit_probability * 100, 1) %>%
+                    </p>
+                    <p class="text-xs text-gray-500">Hit Probability</p>
+                  </div>
+                <% end %>
+                <%= if @scouting.hr_probability do %>
+                  <div class="text-center">
+                    <p class="text-2xl font-bold text-purple-600">
+                      <%= Float.round(@scouting.hr_probability * 100, 1) %>%
+                    </p>
+                    <p class="text-xs text-gray-500">HR Probability</p>
+                  </div>
+                <% end %>
+                <div class="text-center">
+                  <p class="text-2xl font-bold text-gray-600">
+                    <%= @scouting.sources_count || 0 %>
+                  </p>
+                  <p class="text-xs text-gray-500">Sources Analyzed</p>
+                </div>
+              </div>
+            </div>
+          </section>
+        <% else %>
+          <%!-- Subscriptions enabled: show preview + CTA --%>
+          <section class="mb-8">
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+              <div class="flex items-center gap-4 mb-4">
+                <span class="inline-flex items-center justify-center w-12 h-12 rounded-full bg-blue-100 text-blue-700 text-xl font-bold">
+                  <%= @scouting.overall_grade %>
+                </span>
+                <div>
+                  <h2 class="text-xl font-semibold text-gray-900">Scouting Report</h2>
+                  <p class="text-sm text-gray-500">
+                    Updated <%= Calendar.strftime(@scouting.report_date, "%B %d, %Y") %>
+                  </p>
+                </div>
+              </div>
+
+              <p class="text-gray-700 leading-relaxed mb-4"><%= @scouting.summary %></p>
+
+              <div class="relative">
+                <div class="absolute inset-0 bg-gradient-to-b from-transparent to-white z-10">
+                </div>
+                <div class="blur-sm opacity-50 pointer-events-none">
+                  <p class="text-sm text-gray-600">
+                    Detailed strengths, weaknesses, injury analysis, and probability breakdowns available with a premium subscription.
+                  </p>
+                </div>
+              </div>
+
+              <SportsFanaticWeb.SEOComponents.subscribe_cta return_to={"/mlb/players/#{@team.slug}/#{@player.slug}"} />
+            </div>
+          </section>
+        <% end %>
+      <% end %>
+
+      <%= if is_nil(@scouting) do %>
+        <section class="mb-8">
+          <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-800">
+            <p class="font-medium">AI Scouting Report</p>
+            <p class="mt-1">
+              A detailed scouting report for <%= @player.full_name %> will be available once generated.
+              <%= if SportsFanatic.FeatureFlags.enabled?("subscriptions_enabled") do %>
+                <a href="/subscribe" class="underline font-medium">
+                  Subscribe for premium daily analysis.
+                </a>
+              <% end %>
+            </p>
           </div>
         </section>
       <% end %>
@@ -149,41 +254,6 @@
           </div>
         </div>
       </section>
-
-      <%= if @scouting do %>
-        <section class="mb-8">
-          <h2 class="text-xl font-semibold text-gray-900 mb-3">Scouting Report Preview</h2>
-          <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <div class="flex items-center gap-3 mb-3">
-              <span class="text-2xl font-bold text-blue-600"><%= @scouting.overall_grade %></span>
-              <span class="text-sm text-gray-500">Overall Grade</span>
-            </div>
-            <p class="text-gray-700"><%= @scouting.summary %></p>
-            <a
-              href={"/mlb/scouting/#{@team.slug}/#{@player.slug}"}
-              class="inline-block mt-4 text-blue-600 hover:text-blue-800 font-medium"
-            >
-              View full scouting report &rarr;
-            </a>
-          </div>
-        </section>
-      <% end %>
-
-      <%= if is_nil(@scouting) do %>
-        <section class="mb-8">
-          <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-800">
-            <p class="font-medium">AI Scouting Report</p>
-            <p class="mt-1">
-              A detailed scouting report for <%= @player.full_name %> will be available once generated.
-              <%= if SportsFanatic.FeatureFlags.enabled?("subscriptions_enabled") do %>
-                <a href="/subscribe" class="underline font-medium">
-                  Subscribe for premium daily analysis.
-                </a>
-              <% end %>
-            </p>
-          </div>
-        </section>
-      <% end %>
 
       <%= if @news && length(@news) > 0 do %>
         <section>
@@ -252,9 +322,19 @@
               href={"/mlb/scouting/#{@team.slug}/#{@player.slug}"}
               class="text-blue-600 hover:text-blue-800"
             >
-              Scouting Report
+              Full Scouting Report
             </a>
           </li>
+          <%= for category <- @scouting_categories do %>
+            <li>
+              <a
+                href={"/mlb/players/#{@team.slug}/#{@player.slug}/sources/#{category}"}
+                class="text-blue-600 hover:text-blue-800"
+              >
+                <%= SportsFanaticWeb.PlayerHTML.category_label(category) %>
+              </a>
+            </li>
+          <% end %>
           <li>
             <a href={"/mlb/teams/#{@team.slug}"} class="text-blue-600 hover:text-blue-800">
               <%= @team.name %> Team Page

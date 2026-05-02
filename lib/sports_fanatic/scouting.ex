@@ -116,4 +116,21 @@ defmodule SportsFanatic.Scouting do
     |> limit(^limit)
     |> Repo.all()
   end
+
+  @doc "Returns source URLs for a player filtered by a single classification."
+  def sources_for_player_by_category(player_id, category) do
+    PlayerSourceUrl
+    |> where([u], u.player_id == ^player_id and u.classification == ^category)
+    |> order_by([u], desc: u.processed_at)
+    |> Repo.all()
+  end
+
+  @doc "Returns a list of distinct classification strings that have sources for a player."
+  def categories_for_player(player_id) do
+    PlayerSourceUrl
+    |> where([u], u.player_id == ^player_id and not is_nil(u.classification))
+    |> select([u], u.classification)
+    |> distinct(true)
+    |> Repo.all()
+  end
 end

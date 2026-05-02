@@ -374,6 +374,7 @@ defmodule SportsFanatic.Scouting.Pipeline do
           classification: classification,
           content_summary: summary,
           key_facts: %{"facts" => facts},
+          content_text: if(text != "", do: text, else: nil),
           processed_at: DateTime.utc_now()
         })
 
@@ -383,6 +384,7 @@ defmodule SportsFanatic.Scouting.Pipeline do
           player_id: player.id,
           url: url,
           source_type: source_type,
+          content_text: if(text != "", do: text, else: nil),
           processed_at: DateTime.utc_now()
         })
     end
