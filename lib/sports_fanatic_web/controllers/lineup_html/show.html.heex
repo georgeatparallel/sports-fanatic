@@ -58,7 +58,7 @@
                     <%= for lineup <- Enum.sort_by(away_lineups, & &1.batting_order) do %>
                       <li class="text-gray-600">
                         <span class="text-gray-400 mr-1"><%= lineup.batting_order %>.</span>
-                        <.player_link players_by_nerds_id={@players_by_nerds_id} lineup={lineup} />
+                        <.player_link lineup={lineup} />
                         <span class="text-gray-400 ml-1"><%= lineup.position %></span>
                       </li>
                     <% end %>
@@ -76,7 +76,7 @@
                     <%= for lineup <- Enum.sort_by(home_lineups, & &1.batting_order) do %>
                       <li class="text-gray-600">
                         <span class="text-gray-400 mr-1"><%= lineup.batting_order %>.</span>
-                        <.player_link players_by_nerds_id={@players_by_nerds_id} lineup={lineup} />
+                        <.player_link lineup={lineup} />
                         <span class="text-gray-400 ml-1"><%= lineup.position %></span>
                       </li>
                     <% end %>

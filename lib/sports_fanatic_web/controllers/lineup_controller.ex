@@ -2,7 +2,7 @@ defmodule SportsFanaticWeb.LineupController do
   use SportsFanaticWeb, :controller
 
   import Ecto.Query
-  alias SportsFanatic.Mlb.{Lineup, Player, ScheduledGame, Team}
+  alias SportsFanatic.Mlb.{Lineup, ScheduledGame, Team}
   alias SportsFanatic.Repo
 
   def show(conn, %{"date" => date_str}) do
@@ -18,6 +18,7 @@ defmodule SportsFanaticWeb.LineupController do
       Lineup
       |> where([l], l.game_date == ^date)
       |> order_by([l], asc: l.team_code, asc: l.batting_order)
+      |> preload(player: :team)
       |> Repo.all()
 
     # Batch resolve teams by MLB ID from scheduled games
@@ -42,27 +43,6 @@ defmodule SportsFanaticWeb.LineupController do
 
     # Group lineups by team_code for lookup via team abbreviation
     lineups_by_team_code = Enum.group_by(lineups, & &1.team_code)
-
-    # Batch resolve players by FantasyNerds ID
-    nerds_ids =
-      lineups
-      |> Enum.map(& &1.player_nerds_id)
-      |> Enum.reject(&is_nil/1)
-      |> Enum.uniq()
-
-    players_by_nerds_id =
-      if nerds_ids != [] do
-        Player
-        |> where([p], fragment("(? ->> 'nerds_id')::int = ANY(?)", p.external_ids, ^nerds_ids))
-        |> preload(:team)
-        |> Repo.all()
-        |> Map.new(fn p ->
-          nerds_id = to_integer(p.external_ids["nerds_id"])
-          {nerds_id, p}
-        end)
-      else
-        %{}
-      end
 
     canonical = "https://sportsfanatic.com/mlb/lineups/#{date_str}"
 
@@ -112,8 +92,7 @@ defmodule SportsFanaticWeb.LineupController do
       date_str: date_str,
       games: games,
       teams_by_mlb_id: teams_by_mlb_id,
-      lineups_by_team_code: lineups_by_team_code,
-      players_by_nerds_id: players_by_nerds_id
+      lineups_by_team_code: lineups_by_team_code
     )
   end
 
