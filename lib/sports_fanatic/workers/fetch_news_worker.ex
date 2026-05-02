@@ -44,19 +44,20 @@ defmodule SportsFanatic.Workers.FetchNewsWorker do
   defp process_news(news_list) do
     today = Date.utc_today()
 
-    # First pass: filter to only new articles (avoids loading players/teams when nothing is new)
-    new_articles =
-      news_list
-      |> Enum.reduce([], fn item, acc ->
-        external_id = extract_external_id(item)
+    # Extract all external_ids in one pass
+    articles_with_ids =
+      Enum.map(news_list, fn item -> {item, extract_external_id(item)} end)
 
-        if News.exists?("fantasynerds", external_id) do
-          acc
-        else
-          [{item, external_id} | acc]
-        end
+    all_external_ids = Enum.map(articles_with_ids, fn {_item, id} -> id end)
+
+    # Single batch query: load all known external_ids for this source
+    known_ids = News.existing_external_ids("fantasynerds", all_external_ids)
+
+    # Filter to only truly new articles
+    new_articles =
+      Enum.filter(articles_with_ids, fn {_item, id} ->
+        not MapSet.member?(known_ids, id)
       end)
-      |> Enum.reverse()
 
     skipped = length(news_list) - length(new_articles)
 
@@ -86,46 +87,56 @@ defmodule SportsFanatic.Workers.FetchNewsWorker do
   end
 
   defp process_article(item, external_id, all_players, all_teams) do
-    title = item["article_headline"] || item["title"] || ""
-    body = item["article_excerpt"] || item["body"] || item["analysis"] || ""
-    author = item["article_author"] || item["author"]
-    source_url = item["article_link"] || item["url"] || item["source_url"]
-    published_date = parse_article_date(item["article_date"]) || Date.utc_today()
-    slug = generate_news_slug(title)
+    fields = extract_article_fields(item)
+    s3_key = upload_to_s3(external_id, item)
+    {category, sentiment, ai_summary} = analyze_with_ai(fields.title, fields.body)
 
-    # Step 1: Upload raw JSON to S3 (non-blocking on failure)
-    s3_key =
-      case Storage.put_news_article(external_id, item) do
-        {:ok, key} -> key
-        {:error, _} -> nil
-      end
-
-    # Step 2: AI enrichment (non-blocking on failure)
-    {category, sentiment, ai_summary} = analyze_with_ai(title, body)
-
-    # Step 3: Entity matching
-    # Extract player/team names from the article text
-    matched_players = match_entities_from_text(title <> " " <> body, all_players, all_teams)
-    {player_ids, team_ids} = matched_players
+    {player_ids, team_ids} =
+      match_entities_from_text(fields.title <> " " <> fields.body, all_players, all_teams)
 
     News.create_news_item(%{
       source: "fantasynerds",
       external_id: external_id,
-      slug: slug,
-      title: title,
-      body: body,
+      slug: fields.slug,
+      title: fields.title,
+      body: fields.body,
       summary: item["summary"],
-      published_date: published_date,
+      published_date: fields.published_date,
       category: category || "news",
       sentiment: sentiment,
       ai_summary: ai_summary,
       s3_key: s3_key,
-      source_url: source_url,
-      author: author,
+      source_url: fields.source_url,
+      author: fields.author,
       ai_processed: ai_summary != nil,
       player_ids: player_ids,
       team_ids: team_ids
     })
+  end
+
+  defp extract_article_fields(item) do
+    title = first_present(item, ~w(article_headline title), "")
+    body = first_present(item, ~w(article_excerpt body analysis), "")
+
+    %{
+      title: title,
+      body: body,
+      author: first_present(item, ~w(article_author author)),
+      source_url: first_present(item, ~w(article_link url source_url)),
+      published_date: parse_article_date(item["article_date"]) || Date.utc_today(),
+      slug: generate_news_slug(title)
+    }
+  end
+
+  defp first_present(map, keys, default \\ nil) do
+    Enum.find_value(keys, default, &map[&1])
+  end
+
+  defp upload_to_s3(external_id, item) do
+    case Storage.put_news_article(external_id, item) do
+      {:ok, key} -> key
+      {:error, _} -> nil
+    end
   end
 
   defp analyze_with_ai(title, body) do
@@ -209,9 +220,8 @@ defmodule SportsFanatic.Workers.FetchNewsWorker do
         to_string(item["newsId"])
 
       true ->
-        :crypto.hash(:sha256, item["article_headline"] || link)
-        |> Base.encode16(case: :lower)
-        |> String.slice(0, 16)
+        hash = :crypto.hash(:sha256, item["article_headline"] || link)
+        hash |> Base.encode16(case: :lower) |> String.slice(0, 16)
     end
   end
 

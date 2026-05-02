@@ -39,27 +39,17 @@ defmodule SportsFanatic.News do
   end
 
   @doc """
-  Creates a news item with on_conflict handling for idempotency.
+  Creates a news item. If a record with the same (source, external_id) already
+  exists, the insert is silently skipped (on_conflict: :nothing). Callers should
+  filter duplicates before calling this function to avoid wasted S3/AI work.
+
   Returns {:ok, news_item} or {:error, changeset}.
   """
   def create_news_item(attrs) do
     %NewsItem{}
     |> NewsItem.changeset(attrs)
     |> Repo.insert(
-      on_conflict:
-        {:replace,
-         [
-           :title,
-           :body,
-           :summary,
-           :category,
-           :sentiment,
-           :ai_summary,
-           :s3_key,
-           :ai_processed,
-           :player_ids,
-           :team_ids
-         ]},
+      on_conflict: :nothing,
       conflict_target: [:source, :external_id],
       returning: true
     )
@@ -72,6 +62,23 @@ defmodule SportsFanatic.News do
     NewsItem
     |> where([n], n.source == ^source and n.external_id == ^external_id)
     |> Repo.exists?()
+  end
+
+  @doc """
+  Returns a MapSet of external_ids that already exist in the database for the
+  given source. Accepts a list of candidate external_ids and filters in the
+  database, so only one query is issued regardless of list size.
+
+  Returns `MapSet.t()` (empty MapSet when the input list is empty).
+  """
+  def existing_external_ids(_source, []), do: MapSet.new()
+
+  def existing_external_ids(source, external_ids) when is_list(external_ids) do
+    NewsItem
+    |> where([n], n.source == ^source and n.external_id in ^external_ids)
+    |> select([n], n.external_id)
+    |> Repo.all()
+    |> MapSet.new()
   end
 
   @doc """
