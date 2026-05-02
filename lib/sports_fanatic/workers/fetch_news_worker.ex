@@ -48,7 +48,7 @@ defmodule SportsFanatic.Workers.FetchNewsWorker do
     new_articles =
       news_list
       |> Enum.reduce([], fn item, acc ->
-        external_id = to_string(item["id"] || item["newsId"])
+        external_id = extract_external_id(item)
 
         if News.exists?("fantasynerds", external_id) do
           acc
@@ -86,8 +86,11 @@ defmodule SportsFanatic.Workers.FetchNewsWorker do
   end
 
   defp process_article(item, external_id, all_players, all_teams) do
-    title = item["title"] || ""
-    body = item["body"] || item["analysis"] || ""
+    title = item["article_headline"] || item["title"] || ""
+    body = item["article_excerpt"] || item["body"] || item["analysis"] || ""
+    author = item["article_author"] || item["author"]
+    source_url = item["article_link"] || item["url"] || item["source_url"]
+    published_date = parse_article_date(item["article_date"]) || Date.utc_today()
     slug = generate_news_slug(title)
 
     # Step 1: Upload raw JSON to S3 (non-blocking on failure)
@@ -112,13 +115,13 @@ defmodule SportsFanatic.Workers.FetchNewsWorker do
       title: title,
       body: body,
       summary: item["summary"],
-      published_date: Date.utc_today(),
+      published_date: published_date,
       category: category || "news",
       sentiment: sentiment,
       ai_summary: ai_summary,
       s3_key: s3_key,
-      source_url: item["url"] || item["source_url"],
-      author: item["author"],
+      source_url: source_url,
+      author: author,
       ai_processed: ai_summary != nil,
       player_ids: player_ids,
       team_ids: team_ids
@@ -181,6 +184,44 @@ defmodule SportsFanatic.Workers.FetchNewsWorker do
       |> Enum.uniq()
 
     {Enum.map(matched_players, & &1.id), all_team_ids}
+  end
+
+  # Derive a stable external ID from the article. The API doesn't provide an explicit ID,
+  # so we extract the numeric suffix from the article_link (e.g. ".../click-news/1508132")
+  # and fall back to a hash of the headline.
+  defp extract_external_id(item) do
+    link = item["article_link"] || ""
+
+    id_from_link =
+      case Regex.run(~r"/(\d+)$", link) do
+        [_, id] -> id
+        _ -> nil
+      end
+
+    cond do
+      id_from_link ->
+        id_from_link
+
+      item["id"] ->
+        to_string(item["id"])
+
+      item["newsId"] ->
+        to_string(item["newsId"])
+
+      true ->
+        :crypto.hash(:sha256, item["article_headline"] || link)
+        |> Base.encode16(case: :lower)
+        |> String.slice(0, 16)
+    end
+  end
+
+  defp parse_article_date(nil), do: nil
+
+  defp parse_article_date(date_str) do
+    case Date.from_iso8601(String.slice(date_str, 0, 10)) do
+      {:ok, date} -> date
+      _ -> nil
+    end
   end
 
   defp generate_news_slug(nil), do: "untitled-#{System.unique_integer([:positive])}"
