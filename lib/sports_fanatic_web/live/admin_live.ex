@@ -174,12 +174,6 @@ defmodule SportsFanaticWeb.AdminLive do
     end
   end
 
-  defp format_changeset_errors(changeset) do
-    changeset
-    |> Ecto.Changeset.traverse_errors(fn {msg, _opts} -> msg end)
-    |> Enum.map_join("; ", fn {field, msgs} -> "#{field}: #{Enum.join(msgs, ", ")}" end)
-  end
-
   def handle_event("delete_flag", %{"key" => key}, socket) do
     FeatureFlags.delete(key)
     {:noreply, assign(socket, flags: FeatureFlags.list_all(), flag_error: nil)}
@@ -203,6 +197,12 @@ defmodule SportsFanaticWeb.AdminLive do
     else
       {:noreply, socket}
     end
+  end
+
+  defp format_changeset_errors(changeset) do
+    changeset
+    |> Ecto.Changeset.traverse_errors(fn {msg, _opts} -> msg end)
+    |> Enum.map_join("; ", fn {field, msgs} -> "#{field}: #{Enum.join(msgs, ", ")}" end)
   end
 
   defp worker_key_from_module(worker_name) do
