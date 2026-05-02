@@ -44,19 +44,20 @@ defmodule SportsFanatic.Workers.FetchNewsWorker do
   defp process_news(news_list) do
     today = Date.utc_today()
 
-    # First pass: filter to only new articles (avoids loading players/teams when nothing is new)
-    new_articles =
-      news_list
-      |> Enum.reduce([], fn item, acc ->
-        external_id = extract_external_id(item)
+    # Extract all external_ids in one pass
+    articles_with_ids =
+      Enum.map(news_list, fn item -> {item, extract_external_id(item)} end)
 
-        if News.exists?("fantasynerds", external_id) do
-          acc
-        else
-          [{item, external_id} | acc]
-        end
+    all_external_ids = Enum.map(articles_with_ids, fn {_item, id} -> id end)
+
+    # Single batch query: load all known external_ids for this source
+    known_ids = News.existing_external_ids("fantasynerds", all_external_ids)
+
+    # Filter to only truly new articles
+    new_articles =
+      Enum.filter(articles_with_ids, fn {_item, id} ->
+        not MapSet.member?(known_ids, id)
       end)
-      |> Enum.reverse()
 
     skipped = length(news_list) - length(new_articles)
 
