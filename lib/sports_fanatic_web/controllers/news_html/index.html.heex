@@ -66,8 +66,19 @@
           </div>
 
           <div class="flex gap-3 mt-3 text-xs text-gray-400">
-            <%= if item["author"] do %>
-              <span><%= item["author"] %></span>
+            <%= if item["source_url"] do %>
+              <a
+                href={item["source_url"]}
+                target="_blank"
+                rel="noopener noreferrer"
+                class="text-blue-500 hover:text-blue-700"
+              >
+                <%= item["author"] || "Read more" %> &rarr;
+              </a>
+            <% else %>
+              <%= if item["author"] do %>
+                <span><%= item["author"] %></span>
+              <% end %>
             <% end %>
           </div>
         </article>
