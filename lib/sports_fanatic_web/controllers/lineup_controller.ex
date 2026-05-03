@@ -2,7 +2,7 @@ defmodule SportsFanaticWeb.LineupController do
   use SportsFanaticWeb, :controller
 
   import Ecto.Query
-  alias SportsFanatic.Mlb.{Lineup, ScheduledGame, Team}
+  alias SportsFanatic.Mlb.{Lineup, Player, ScheduledGame, Team}
   alias SportsFanatic.Repo
 
   def show(conn, %{"date" => date_str}) do
@@ -18,8 +18,8 @@ defmodule SportsFanaticWeb.LineupController do
       Lineup
       |> where([l], l.game_date == ^date)
       |> order_by([l], asc: l.team_code, asc: l.batting_order)
-      |> preload(player: :team)
       |> Repo.all()
+      |> Repo.preload(player: :team)
 
     # Batch resolve teams by MLB ID from scheduled games
     mlb_ids =
