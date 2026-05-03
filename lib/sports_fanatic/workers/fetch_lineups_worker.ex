@@ -72,10 +72,15 @@ defmodule SportsFanatic.Workers.FetchLineupsWorker do
     end
   end
 
+  # FantasyNerds uses different abbreviations than our DB for some teams
+  @team_code_map %{"LA" => "LAD", "ANA" => "LAA", "ARI" => "AZ"}
+
+  defp normalize_team_code(code), do: Map.get(@team_code_map, code, code)
+
   defp resolve_players_by_name(players) do
     team_codes =
       players
-      |> Enum.map(& &1.team_code)
+      |> Enum.map(&normalize_team_code(&1.team_code))
       |> Enum.uniq()
 
     Player
@@ -83,12 +88,19 @@ defmodule SportsFanatic.Workers.FetchLineupsWorker do
     |> where([p, t], t.abbreviation in ^team_codes and p.status == "active")
     |> select([p, t], {p.full_name, t.abbreviation, p.id})
     |> Repo.all()
-    |> Map.new(fn {name, abbr, id} -> {{String.downcase(name), abbr}, id} end)
+    |> Map.new(fn {name, abbr, id} -> {{normalize_name(name), abbr}, id} end)
   end
 
   defp find_player_id(nil, _team_code, _lookup), do: nil
 
   defp find_player_id(name, team_code, lookup) do
-    Map.get(lookup, {String.downcase(name), team_code})
+    Map.get(lookup, {normalize_name(name), normalize_team_code(team_code)})
+  end
+
+  defp normalize_name(name) do
+    name
+    |> String.downcase()
+    |> String.normalize(:nfd)
+    |> String.replace(~r/[\x{0300}-\x{036f}]/u, "")
   end
 end
