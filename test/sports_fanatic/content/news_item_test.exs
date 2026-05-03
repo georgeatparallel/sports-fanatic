@@ -118,8 +118,9 @@ defmodule SportsFanatic.Content.NewsItemTest do
   # ---------------------------------------------------------------------------
 
   describe "changeset/2 category validation" do
-    test "accepts all injury sub-categories" do
+    test "accepts all injury sub-categories (legacy and new severity-based)" do
       injury_categories = ~w(
+        injury_new injury_worsening injury_update injury_recovery injury_cleared
         injury_elbow injury_shoulder injury_oblique injury_back
         injury_knee injury_hamstring injury_other
       )
@@ -131,6 +132,18 @@ defmodule SportsFanatic.Content.NewsItemTest do
         assert changeset.valid?,
                "Expected #{cat} to be valid but got errors: #{inspect(errors_on(changeset))}"
       end
+    end
+
+    test "accepts performance category" do
+      attrs = Map.put(valid_attrs(), :category, "performance")
+      changeset = NewsItem.changeset(%NewsItem{}, attrs)
+      assert changeset.valid?
+    end
+
+    test "accepts transaction category" do
+      attrs = Map.put(valid_attrs(), :category, "transaction")
+      changeset = NewsItem.changeset(%NewsItem{}, attrs)
+      assert changeset.valid?
     end
 
     test "accepts trade category" do
