@@ -23,9 +23,6 @@
               injury_grade={item["injury_grade"]}
             />
             <.sentiment_dot sentiment={item["sentiment"]} />
-            <%= if item["ai_processed"] do %>
-              <span class="text-xs text-purple-500 font-medium">AI</span>
-            <% end %>
           </div>
 
           <h2 class="text-lg font-semibold text-gray-900"><%= item["title"] %></h2>
