@@ -1,0 +1,21 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: sports-fanatic
+
+resources:
+  - ../../base
+
+patches:
+  - path: patches/web-deployment.yaml
+  - path: patches/python-bridge-deployment.yaml
+  - path: patches/hpa.yaml
+  - path: patches/configmap.yaml
+
+images:
+  - name: ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/sports-fanatic-prod/web
+    newName: ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/sports-fanatic-dev/web
+    newTag: latest
+  - name: ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/sports-fanatic-prod/python-bridge
+    newName: ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/sports-fanatic-dev/python-bridge
+    newTag: latest

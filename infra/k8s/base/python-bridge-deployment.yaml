@@ -1,0 +1,55 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: python-bridge
+  namespace: sports-fanatic
+  labels:
+    app: python-bridge
+    app.kubernetes.io/name: python-bridge
+    app.kubernetes.io/part-of: sports-fanatic
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: python-bridge
+  template:
+    metadata:
+      labels:
+        app: python-bridge
+        app.kubernetes.io/name: python-bridge
+        app.kubernetes.io/part-of: sports-fanatic
+    spec:
+      containers:
+        - name: python-bridge
+          image: ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/sports-fanatic-prod/python-bridge:latest
+          ports:
+            - containerPort: 8000
+              protocol: TCP
+          env:
+            - name: HOST
+              value: "0.0.0.0"
+            - name: PORT
+              value: "8000"
+          envFrom:
+            - secretRef:
+                name: sports-fanatic-secrets
+          resources:
+            requests:
+              cpu: 200m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 15
+            periodSeconds: 20
+      restartPolicy: Always

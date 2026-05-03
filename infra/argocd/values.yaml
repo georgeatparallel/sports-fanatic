@@ -1,0 +1,53 @@
+# ArgoCD Helm values for Sports Fanatic deployment
+# Install with: helm install argocd argo/argo-cd -n argocd --create-namespace -f values.yaml
+
+global:
+  domain: argocd.sports-fan-agent.com
+
+server:
+  replicas: 1
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+
+  # Disable TLS on ArgoCD server (ALB handles TLS)
+  extraArgs:
+    - --insecure
+
+controller:
+  replicas: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+repoServer:
+  replicas: 1
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+
+redis:
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi
+
+configs:
+  params:
+    # Allow ArgoCD to manage resources in any namespace
+    application.namespaces: "*"

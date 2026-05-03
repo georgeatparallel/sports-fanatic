@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: python-bridge
+  namespace: sports-fanatic
+  labels:
+    app: python-bridge
+    app.kubernetes.io/name: python-bridge
+    app.kubernetes.io/part-of: sports-fanatic
+spec:
+  # ClusterIP only — python-bridge is NOT exposed externally
+  type: ClusterIP
+  selector:
+    app: python-bridge
+  ports:
+    - port: 8000
+      targetPort: 8000
+      protocol: TCP
+      name: http
