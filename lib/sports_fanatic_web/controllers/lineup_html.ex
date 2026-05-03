@@ -32,6 +32,33 @@ defmodule SportsFanaticWeb.LineupHTML do
   attr :team, :map, default: nil
   attr :name, :string, required: true
 
+  @doc """
+  Renders a probable pitcher name as a link if resolvable, or plain text.
+  """
+  attr :pitcher_name, :string, default: nil
+  attr :pitchers, :map, required: true
+
+  def pitcher_link(assigns) do
+    player = if assigns.pitcher_name, do: Map.get(assigns.pitchers, assigns.pitcher_name)
+    assigns = assign(assigns, :player, player)
+
+    ~H"""
+    <%= if @player && @player.team do %>
+      <a
+        href={"/mlb/players/#{@player.team.slug}/#{@player.slug}"}
+        class="text-blue-600 hover:text-blue-800"
+      >
+        <%= @pitcher_name %>
+      </a>
+    <% else %>
+      <span><%= @pitcher_name || "TBD" %></span>
+    <% end %>
+    """
+  end
+
+  attr :team, :map, default: nil
+  attr :name, :string, required: true
+
   def team_link(assigns) do
     ~H"""
     <%= if @team do %>

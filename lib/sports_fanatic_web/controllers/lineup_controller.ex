@@ -44,6 +44,24 @@ defmodule SportsFanaticWeb.LineupController do
     # Group lineups by team_code for lookup via team abbreviation
     lineups_by_team_code = Enum.group_by(lineups, & &1.team_code)
 
+    # Resolve probable pitchers to player records for linking
+    pitcher_names =
+      games
+      |> Enum.flat_map(fn g -> [g.away_probable_pitcher, g.home_probable_pitcher] end)
+      |> Enum.reject(&is_nil/1)
+      |> Enum.uniq()
+
+    pitchers_by_name =
+      if pitcher_names != [] do
+        Player
+        |> where([p], p.full_name in ^pitcher_names)
+        |> preload(:team)
+        |> Repo.all()
+        |> Map.new(fn p -> {p.full_name, p} end)
+      else
+        %{}
+      end
+
     canonical = "https://sportsfanatic.com/mlb/lineups/#{date_str}"
 
     # Build breadcrumb JSON-LD
@@ -92,7 +110,8 @@ defmodule SportsFanaticWeb.LineupController do
       date_str: date_str,
       games: games,
       teams_by_mlb_id: teams_by_mlb_id,
-      lineups_by_team_code: lineups_by_team_code
+      lineups_by_team_code: lineups_by_team_code,
+      pitchers_by_name: pitchers_by_name
     )
   end
 
