@@ -1,0 +1,19 @@
+# ECR Repository Configuration
+# Used by scripts/make-ecr.sh for building and pushing Docker images
+
+repositories:
+  web:
+    dockerfile: Dockerfile
+    context: .
+    description: "Phoenix web application (Elixir/OTP)"
+  python-bridge:
+    dockerfile: python_bridge/Dockerfile
+    context: ./python_bridge
+    description: "FastAPI microservice bridge (Python)"
+
+# Default settings
+defaults:
+  region: us-east-1
+  # Repository name pattern: {project}-{environment}/{service}
+  # Example: sports-fanatic-prod/web
+  project: sports-fanatic

@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: sports-fanatic-config
+  namespace: sports-fanatic
+data:
+  PHX_HOST: "www.sports-fan-agent.com"
+  PORT: "4000"
+  MIX_ENV: "prod"
+  PHX_SERVER: "true"
+  # VALKEY_URL and PYTHON_BRIDGE_URL are non-secret config
+  VALKEY_URL: "redis://sports-fanatic-prod-valkey.xxxxxx.0001.use1.cache.amazonaws.com:6379"
+  PYTHON_BRIDGE_URL: "http://python-bridge:8000"
+  # S3 config (credentials come from IRSA, not env vars)
+  NEWS_S3_ENABLED: "true"
+  NEWS_S3_BUCKET: "sports-fanatic-news"
+  AWS_REGION: "us-east-1"
