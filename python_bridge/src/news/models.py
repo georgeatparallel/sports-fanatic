@@ -1,7 +1,6 @@
 """Pydantic models for news article analysis."""
 
 from enum import StrEnum
-from typing import Optional
 
 from pydantic import BaseModel, Field
 
@@ -59,11 +58,11 @@ class NewsAnalysis(BaseModel):
         default_factory=list,
         description="MLB team names or abbreviations mentioned",
     )
-    injury_area: Optional[str] = Field(
+    injury_area: str | None = Field(
         default=None,
         description="Body part or injury type label, 1-3 words (only for injury categories)",
     )
-    injury_grade: Optional[str] = Field(
+    injury_grade: str | None = Field(
         default=None,
         description="Severity/timeline grade (only for injury categories)",
     )
