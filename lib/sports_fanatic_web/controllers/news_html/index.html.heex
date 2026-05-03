@@ -24,17 +24,17 @@
             <% end %>
           </div>
 
-          <a href={"/mlb/news/#{@date_str}/#{item["slug"]}"} class="hover:text-blue-600">
-            <h2 class="text-lg font-semibold text-gray-900"><%= item["title"] %></h2>
-          </a>
+          <h2 class="text-lg font-semibold text-gray-900"><%= item["title"] %></h2>
 
           <%= if item["ai_summary"] && item["ai_summary"] != "" do %>
             <p class="text-gray-600 mt-2 text-sm"><%= item["ai_summary"] %></p>
+          <% end %>
+
+          <%= if item["body"] && item["body"] != "" do %>
+            <p class="text-gray-500 mt-2 text-sm"><%= item["body"] %></p>
           <% else %>
-            <%= if item["summary"] do %>
-              <p class="text-gray-600 mt-2 text-sm">
-                <%= String.slice(item["summary"], 0, 250) %>
-              </p>
+            <%= if item["summary"] && item["summary"] != "" do %>
+              <p class="text-gray-500 mt-2 text-sm"><%= item["summary"] %></p>
             <% end %>
           <% end %>
 
