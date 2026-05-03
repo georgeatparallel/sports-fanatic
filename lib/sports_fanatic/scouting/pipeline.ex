@@ -366,7 +366,8 @@ defmodule SportsFanatic.Scouting.Pipeline do
     source_type = source["source_type"] || "news"
 
     case PythonBridge.classify_content(title, text) do
-      {:ok, %{"classification" => classification, "summary" => summary, "key_facts" => facts}} ->
+      {:ok,
+       %{"classification" => classification, "summary" => summary, "key_facts" => facts} = resp} ->
         Scouting.create_source_url(%{
           player_id: player.id,
           url: url,
@@ -374,6 +375,7 @@ defmodule SportsFanatic.Scouting.Pipeline do
           classification: classification,
           content_summary: summary,
           key_facts: %{"facts" => facts},
+          digest: resp["digest"],
           content_text: if(text != "", do: text, else: nil),
           processed_at: DateTime.utc_now()
         })
