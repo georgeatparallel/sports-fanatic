@@ -36,9 +36,14 @@
               <% end %>
               <%= if game.away_probable_pitcher || game.home_probable_pitcher do %>
                 <p>
-                  <.pitcher_link pitcher_name={game.away_probable_pitcher} pitchers={@pitchers_by_name} />
-                  vs
-                  <.pitcher_link pitcher_name={game.home_probable_pitcher} pitchers={@pitchers_by_name} />
+                  <.pitcher_link
+                    pitcher_name={game.away_probable_pitcher}
+                    pitchers={@pitchers_by_name}
+                  /> vs
+                  <.pitcher_link
+                    pitcher_name={game.home_probable_pitcher}
+                    pitchers={@pitchers_by_name}
+                  />
                 </p>
               <% end %>
             </div>

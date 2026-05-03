@@ -17,18 +17,31 @@ CLASSIFY_TOOL = {
             "category": {
                 "type": "string",
                 "enum": [
-                    "injury_elbow",
-                    "injury_shoulder",
-                    "injury_oblique",
-                    "injury_back",
-                    "injury_knee",
-                    "injury_hamstring",
-                    "injury_other",
+                    "injury_new",
+                    "injury_worsening",
+                    "injury_update",
+                    "injury_recovery",
+                    "injury_cleared",
                     "trade",
-                    "hit_by_pitch",
+                    "performance",
+                    "transaction",
                     "news",
                 ],
-                "description": "The primary category of the article.",
+                "description": (
+                    "The primary category of the article. "
+                    "injury_new: just got injured, initial report. "
+                    "injury_worsening: getting worse, needs imaging, "
+                    "setback, moved to IL. "
+                    "injury_update: status unknown, day-to-day, "
+                    "awaiting results. "
+                    "injury_recovery: rehab, progressing, ramp-up. "
+                    "injury_cleared: cleared to play, returning. "
+                    "trade: trade rumors, deals. "
+                    "performance: stats, streaks, milestones. "
+                    "transaction: roster moves, DFA, optioned, "
+                    "called up, signings. "
+                    "news: general news."
+                ),
             },
             "sentiment": {
                 "type": "string",
@@ -54,6 +67,26 @@ CLASSIFY_TOOL = {
     },
 }
 
+SYSTEM_PROMPT = (
+    "You are an MLB news classifier. Analyze the article and classify it accurately.\n\n"
+    "For injury articles, pay close attention to the trajectory and severity:\n"
+    "- Look for keywords: imaging, MRI, X-ray, CT scan, IL (injured list), "
+    "day-to-day, cleared, setback, rehab, surgery, soreness, strain, sprain, "
+    "fracture, inflammation, tightness, discomfort, hit by pitch\n"
+    "- Determine if the situation is NEW (just happened), WORSENING (getting worse, "
+    "needs tests, moved to IL), UPDATE (status unknown, awaiting results), "
+    "RECOVERY (improving, rehab), or CLEARED (good to go, returning)\n"
+    "- 'Requires imaging' or 'scheduled for MRI' = injury_worsening (escalation)\n"
+    "- 'Results still unknown' or 'day-to-day' = injury_update\n"
+    "- 'Cleared to play' or 'activated from IL' = injury_cleared\n"
+    "- 'Rehab assignment' or 'threw bullpen session' = injury_recovery\n\n"
+    "For non-injury articles:\n"
+    "- Roster moves (optioned, called up, DFA, designated, waiver) = transaction\n"
+    "- Stats, records, streaks, milestones, MVP discussion = performance\n"
+    "- Trade rumors, deals, deadline = trade\n"
+    "- Everything else = news"
+)
+
 
 async def analyze_article(headline: str, excerpt: str) -> dict:
     """Analyze an MLB news article using Claude tool_use.
@@ -73,6 +106,7 @@ async def analyze_article(headline: str, excerpt: str) -> dict:
             model="claude-haiku-4-5-20251001",
             max_tokens=256,
             temperature=0.0,
+            system=SYSTEM_PROMPT,
             tools=[CLASSIFY_TOOL],
             tool_choice={"type": "tool", "name": "classify_article"},
             messages=[

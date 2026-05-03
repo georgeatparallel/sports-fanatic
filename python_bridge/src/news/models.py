@@ -6,17 +6,19 @@ from pydantic import BaseModel, Field
 
 
 class NewsCategory(StrEnum):
-    """Categories for MLB news articles."""
+    """Categories for MLB news articles.
 
-    INJURY_ELBOW = "injury_elbow"
-    INJURY_SHOULDER = "injury_shoulder"
-    INJURY_OBLIQUE = "injury_oblique"
-    INJURY_BACK = "injury_back"
-    INJURY_KNEE = "injury_knee"
-    INJURY_HAMSTRING = "injury_hamstring"
-    INJURY_OTHER = "injury_other"
+    Injury categories use severity/trajectory rather than body part.
+    """
+
+    INJURY_NEW = "injury_new"
+    INJURY_WORSENING = "injury_worsening"
+    INJURY_UPDATE = "injury_update"
+    INJURY_RECOVERY = "injury_recovery"
+    INJURY_CLEARED = "injury_cleared"
     TRADE = "trade"
-    HIT_BY_PITCH = "hit_by_pitch"
+    PERFORMANCE = "performance"
+    TRANSACTION = "transaction"
     NEWS = "news"
 
 

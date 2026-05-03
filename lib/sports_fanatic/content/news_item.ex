@@ -55,9 +55,10 @@ defmodule SportsFanatic.Content.NewsItem do
 
   @valid_sentiments ~w(positive neutral negative)
   @valid_categories ~w(
+    injury_new injury_worsening injury_update injury_recovery injury_cleared
     injury_elbow injury_shoulder injury_oblique injury_back
     injury_knee injury_hamstring injury_other
-    trade hit_by_pitch news general
+    trade performance transaction hit_by_pitch news general
   )
 
   def changeset(news_item, attrs) do
