@@ -8,8 +8,100 @@ defmodule SportsFanatic.Scouting do
   import Ecto.Query
 
   alias SportsFanatic.Content.PlayerSourceUrl
+  alias SportsFanatic.Mlb.{Lineup, Player}
   alias SportsFanatic.Repo
   alias SportsFanatic.Scouting.{ScoutingRun, ScoutingRunLog}
+
+  # --- Today's Lineup Players ---
+
+  @doc """
+  Returns players who appear in today's lineups, with their team preloaded.
+
+  Joins mlb.lineups for today's date with public.players via the player_id FK.
+  Falls back to matching via player_nerds_id -> external_ids->>'nerds_id' when
+  player_id is nil. Only returns players with a slug and whose team has a slug.
+
+  Returns an empty list if no lineups exist for today.
+  """
+  def players_in_todays_lineups do
+    players_in_lineups_for_date(Date.utc_today())
+  end
+
+  @doc """
+  Returns players who appear in lineups for the given date, with their team preloaded.
+  """
+  def players_in_lineups_for_date(date) do
+    # Players linked via player_id FK
+    fk_query =
+      from(l in Lineup,
+        where: l.game_date == ^date and not is_nil(l.player_id),
+        join: p in Player,
+        on: p.id == l.player_id,
+        join: t in assoc(p, :team),
+        where: not is_nil(p.slug) and not is_nil(t.slug),
+        select: p.id
+      )
+
+    # Players linked via nerds_id (fallback when player_id is nil)
+    nerds_query =
+      from(l in Lineup,
+        where: l.game_date == ^date and is_nil(l.player_id) and not is_nil(l.player_nerds_id),
+        join: p in Player,
+        on: fragment("(? ->> 'nerds_id')::int = ?", p.external_ids, l.player_nerds_id),
+        join: t in assoc(p, :team),
+        where: not is_nil(p.slug) and not is_nil(t.slug),
+        select: p.id
+      )
+
+    fk_ids = Repo.all(fk_query)
+    nerds_ids = Repo.all(nerds_query)
+    all_ids = Enum.uniq(fk_ids ++ nerds_ids)
+
+    if all_ids == [] do
+      []
+    else
+      Player
+      |> where([p], p.id in ^all_ids)
+      |> preload(:team)
+      |> Repo.all()
+    end
+  end
+
+  @doc """
+  Returns the count of players in today's lineups (without loading full records).
+  """
+  def todays_lineup_player_count do
+    lineup_player_count_for_date(Date.utc_today())
+  end
+
+  @doc """
+  Returns the count of distinct players in lineups for the given date.
+  """
+  def lineup_player_count_for_date(date) do
+    fk_count_query =
+      from(l in Lineup,
+        where: l.game_date == ^date and not is_nil(l.player_id),
+        join: p in Player,
+        on: p.id == l.player_id,
+        join: t in assoc(p, :team),
+        where: not is_nil(p.slug) and not is_nil(t.slug),
+        select: p.id
+      )
+
+    nerds_count_query =
+      from(l in Lineup,
+        where: l.game_date == ^date and is_nil(l.player_id) and not is_nil(l.player_nerds_id),
+        join: p in Player,
+        on: fragment("(? ->> 'nerds_id')::int = ?", p.external_ids, l.player_nerds_id),
+        join: t in assoc(p, :team),
+        where: not is_nil(p.slug) and not is_nil(t.slug),
+        select: p.id
+      )
+
+    fk_ids = Repo.all(fk_count_query)
+    nerds_ids = Repo.all(nerds_count_query)
+    length(Enum.uniq(fk_ids ++ nerds_ids))
+  end
 
   # --- Scouting Runs ---
 

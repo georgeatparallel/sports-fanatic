@@ -16,6 +16,10 @@ defmodule SportsFanatic.Scouting.PipelineTest do
       assert function_exported?(Pipeline, :start_pipeline, 1)
     end
 
+    test "exports start_pipeline/0 (default config)" do
+      assert function_exported?(Pipeline, :start_pipeline, 0)
+    end
+
     test "exports cancel_pipeline/0" do
       assert function_exported?(Pipeline, :cancel_pipeline, 0)
     end
@@ -30,6 +34,14 @@ defmodule SportsFanatic.Scouting.PipelineTest do
 
     test "exports start_link/1" do
       assert function_exported?(Pipeline, :start_link, 1)
+    end
+  end
+
+  describe "Pipeline moduledoc" do
+    test "documents today's lineup focus" do
+      {:docs_v1, _, _, _, %{"en" => moduledoc}, _, _} = Code.fetch_docs(Pipeline)
+      assert moduledoc =~ "today's scheduled lineups"
+      refute moduledoc =~ "all active MLB players"
     end
   end
 end

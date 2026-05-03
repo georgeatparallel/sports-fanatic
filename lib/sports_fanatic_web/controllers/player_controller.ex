@@ -3,7 +3,7 @@ defmodule SportsFanaticWeb.PlayerController do
 
   import Ecto.Query
   alias SportsFanatic.Content.{NewsItem, ScoutingReport}
-  alias SportsFanatic.Mlb.{HrPick, Pick, Player, Team}
+  alias SportsFanatic.Mlb.{HrPick, Lineup, Pick, Player, Team}
   alias SportsFanatic.Repo
   alias SportsFanatic.Scouting
 
@@ -15,7 +15,23 @@ defmodule SportsFanaticWeb.PlayerController do
   def index(conn, params) do
     page = String.to_integer(params["page"] || "1")
     per_page = 50
+    today = Date.utc_today()
 
+    # Fetch today's lineup players with team info
+    lineup_players =
+      from(l in Lineup,
+        where: l.game_date == ^today and not is_nil(l.player_id),
+        join: p in Player,
+        on: p.id == l.player_id,
+        join: t in Team,
+        on: p.team_id == t.id,
+        where: not is_nil(p.slug) and not is_nil(t.slug),
+        order_by: [asc: t.name, asc: l.batting_order],
+        select: %{player: p, team: t, position: l.position, batting_order: l.batting_order}
+      )
+      |> Repo.all()
+
+    # All players (paginated)
     query =
       from(p in Player,
         join: t in Team,
@@ -38,6 +54,8 @@ defmodule SportsFanaticWeb.PlayerController do
     )
     |> render(:index,
       players: players,
+      lineup_players: lineup_players,
+      today: today,
       page: page,
       per_page: per_page,
       total: total
