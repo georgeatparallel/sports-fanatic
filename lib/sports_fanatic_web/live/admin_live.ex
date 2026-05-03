@@ -82,6 +82,7 @@ defmodule SportsFanaticWeb.AdminLive do
     flags = FeatureFlags.list_all()
     pipeline_status = safe_pipeline_status()
     pipeline_runs = Scouting.list_runs(limit: 10)
+    todays_lineup_count = safe_lineup_count()
 
     {:ok,
      assign(socket,
@@ -99,7 +100,8 @@ defmodule SportsFanaticWeb.AdminLive do
        pipeline_player_statuses: %{},
        research_concurrency: 5,
        classification_concurrency: 5,
-       selected_run_id: nil
+       selected_run_id: nil,
+       todays_lineup_count: todays_lineup_count
      )}
   end
 
@@ -224,8 +226,16 @@ defmodule SportsFanaticWeb.AdminLive do
       {:error, :already_running} ->
         {:noreply, put_flash(socket, :error, "Pipeline is already running.")}
 
+      {:error, :no_lineups_today} ->
+        {:noreply,
+         put_flash(
+           socket,
+           :error,
+           "No lineups for today — no games scheduled or lineups not yet fetched."
+         )}
+
       {:error, :no_players} ->
-        {:noreply, put_flash(socket, :error, "No active players found.")}
+        {:noreply, put_flash(socket, :error, "No players found in today's lineups.")}
 
       {:error, reason} ->
         {:noreply, put_flash(socket, :error, "Failed to start pipeline: #{inspect(reason)}")}
@@ -430,6 +440,12 @@ defmodule SportsFanaticWeb.AdminLive do
     end
   end
 
+  defp safe_lineup_count do
+    Scouting.todays_lineup_player_count()
+  rescue
+    _ -> 0
+  end
+
   defp safe_pipeline_status do
     case Process.whereis(SportsFanatic.Scouting.Pipeline) do
       nil -> %{status: :idle, run: nil}
@@ -617,7 +633,21 @@ defmodule SportsFanaticWeb.AdminLive do
         <div class="space-y-6">
           <%!-- Pipeline Controls --%>
           <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <h3 class="text-lg font-semibold text-gray-900 mb-4">Pipeline Controls</h3>
+            <div class="flex items-center justify-between mb-4">
+              <h3 class="text-lg font-semibold text-gray-900">Pipeline Controls</h3>
+              <div class="flex items-center gap-2">
+                <span class="text-sm text-gray-500">Today's lineup players:</span>
+                <span class={[
+                  "inline-flex items-center px-2.5 py-0.5 rounded-full text-sm font-semibold",
+                  if(@todays_lineup_count > 0,
+                    do: "bg-green-100 text-green-800",
+                    else: "bg-yellow-100 text-yellow-800"
+                  )
+                ]}>
+                  <%= @todays_lineup_count %>
+                </span>
+              </div>
+            </div>
 
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
               <div>
@@ -634,7 +664,7 @@ defmodule SportsFanaticWeb.AdminLive do
                   name="value"
                   class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
                 />
-                <p class="mt-1 text-xs text-gray-400">Players researched concurrently via Exa</p>
+                <p class="mt-1 text-xs text-gray-400">Today's lineup players researched via Exa</p>
               </div>
               <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">

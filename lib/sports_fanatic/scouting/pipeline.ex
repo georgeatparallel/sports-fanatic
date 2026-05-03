@@ -2,19 +2,17 @@ defmodule SportsFanatic.Scouting.Pipeline do
   @moduledoc """
   GenServer orchestrating the agentic scouting report pipeline.
 
-  Processes all active MLB players through research, classification,
-  and report generation phases with configurable concurrency.
+  Processes only players in today's scheduled lineups through research,
+  classification, and report generation phases with configurable concurrency.
+  Typically ~60-100 players per day instead of all ~6,165 active players.
 
   Broadcasts progress via Phoenix PubSub on topic "scouting_pipeline".
   """
 
   use GenServer
 
-  import Ecto.Query
-
   alias SportsFanatic.Cache
   alias SportsFanatic.Content.ScoutingReport
-  alias SportsFanatic.Mlb.Player
   alias SportsFanatic.PythonBridge
   alias SportsFanatic.Repo
   alias SportsFanatic.Scouting
@@ -62,19 +60,13 @@ defmodule SportsFanatic.Scouting.Pipeline do
     research_concurrency = Map.get(config, "research_concurrency", 5)
     classification_concurrency = Map.get(config, "classification_concurrency", 5)
 
-    # Load all active players
-    players =
-      Player
-      |> where([p], p.status == "active" and not is_nil(p.slug))
-      |> join(:inner, [p], t in assoc(p, :team))
-      |> where([_p, t], not is_nil(t.slug))
-      |> preload(:team)
-      |> Repo.all()
-
+    # Load only players in today's lineups (not all active players)
+    players = Scouting.players_in_todays_lineups()
     total = length(players)
 
     if total == 0 do
-      {:reply, {:error, :no_players}, state}
+      Logger.info("No lineups for today — skipping scouting pipeline")
+      {:reply, {:error, :no_lineups_today}, state}
     else
       # Create run record
       {:ok, run} =
