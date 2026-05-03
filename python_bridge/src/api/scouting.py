@@ -207,6 +207,7 @@ async def classify_content(request: ScoutingClassifyRequest):
             "classification": "general_news",
             "summary": request.title,
             "key_facts": [],
+            "digest": None,
         }
 
     try:
@@ -218,7 +219,7 @@ async def classify_content(request: ScoutingClassifyRequest):
 
         message = await client.messages.create(
             model="claude-sonnet-4-20250514",
-            max_tokens=500,
+            max_tokens=1200,
             messages=[
                 {
                     "role": "user",
@@ -234,7 +235,13 @@ async def classify_content(request: ScoutingClassifyRequest):
                         '"betting_insight", "general_news"\n'
                         "- summary: 1-2 sentence summary of the content\n"
                         "- key_facts: array of key facts, quotes, or data "
-                        "points extracted (max 5 items)\n\n"
+                        "points extracted (max 5 items)\n"
+                        "- digest: a 2-4 paragraph concise rewrite of the "
+                        "source content. Strip filler and prose, keep all "
+                        "factual substance, statistics, quotes, and key "
+                        "information. Write in a neutral analytical voice. "
+                        "The reader should get the full value of the source "
+                        "without needing to visit the original URL.\n\n"
                         "Return ONLY valid JSON, no other text."
                     ),
                 }
@@ -252,6 +259,7 @@ async def classify_content(request: ScoutingClassifyRequest):
             "classification": result.get("classification", "general_news"),
             "summary": result.get("summary", request.title),
             "key_facts": result.get("key_facts", []),
+            "digest": result.get("digest"),
         }
 
     except Exception as e:
@@ -260,6 +268,7 @@ async def classify_content(request: ScoutingClassifyRequest):
             "classification": "general_news",
             "summary": request.title,
             "key_facts": [],
+            "digest": None,
         }
 
 
