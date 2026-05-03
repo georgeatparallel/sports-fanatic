@@ -198,7 +198,11 @@ defmodule SportsFanaticWeb.PlayerControllerTest do
       assert response =~ "Devers has been on a tear this season"
     end
 
-    test "renders content_summary when no digest available", %{conn: conn, team: team, player: player} do
+    test "renders content_summary when no digest available", %{
+      conn: conn,
+      team: team,
+      player: player
+    } do
       create_source_url(player, %{
         classification: "general_news",
         content_summary: "News about Devers trade rumors"
