@@ -39,7 +39,7 @@ async def generate_scouting(request: ScoutingGenerateRequest):
         combined_text = "\n\n---\n\n".join(request.sources_text[:10])
 
         message = await client.messages.create(
-            model="claude-sonnet-4-20250514",
+            model="claude-haiku-4-5-20251001",
             max_tokens=2000,
             messages=[
                 {
@@ -218,7 +218,7 @@ async def classify_content(request: ScoutingClassifyRequest):
         truncated_text = request.text[:3000] if request.text else ""
 
         message = await client.messages.create(
-            model="claude-sonnet-4-20250514",
+            model="claude-haiku-4-5-20251001",
             max_tokens=1200,
             messages=[
                 {
