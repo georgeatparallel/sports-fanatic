@@ -28,6 +28,10 @@ defmodule SportsFanatic.Content.NewsItem do
     field :author, :string
     field :ai_processed, :boolean, default: false
 
+    # Injury detail fields
+    field :injury_area, :string
+    field :injury_grade, :string
+
     timestamps(type: :utc_datetime, updated_at: false)
   end
 
@@ -50,7 +54,9 @@ defmodule SportsFanatic.Content.NewsItem do
     :s3_key,
     :source_url,
     :author,
-    :ai_processed
+    :ai_processed,
+    :injury_area,
+    :injury_grade
   ]
 
   @valid_sentiments ~w(positive neutral negative)
@@ -61,16 +67,23 @@ defmodule SportsFanatic.Content.NewsItem do
     trade performance transaction hit_by_pitch news general
   )
 
+  @valid_injury_grades ~w(
+    day_to_day 10_day_il 15_day_il 60_day_il season_ending
+    pending_imaging cleared rehab_assignment unknown
+  )
+
   def changeset(news_item, attrs) do
     news_item
     |> cast(attrs, @cast_fields)
     |> validate_required([:source, :slug, :title, :body, :published_date])
     |> validate_inclusion(:sentiment, @valid_sentiments)
     |> validate_inclusion(:category, @valid_categories)
+    |> validate_inclusion(:injury_grade, @valid_injury_grades)
     |> validate_length(:sentiment, max: 20)
     |> validate_length(:s3_key, max: 500)
     |> validate_length(:source_url, max: 1000)
     |> validate_length(:author, max: 200)
+    |> validate_length(:injury_area, max: 50)
     |> unique_constraint([:source, :external_id])
   end
 end

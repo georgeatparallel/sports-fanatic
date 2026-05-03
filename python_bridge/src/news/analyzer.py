@@ -9,7 +9,8 @@ logger = logging.getLogger(__name__)
 CLASSIFY_TOOL = {
     "name": "classify_article",
     "description": (
-        "Classify an MLB news article with category, sentiment, summary, and entity extraction."
+        "Classify an MLB news article with category, sentiment, summary, "
+        "entity extraction, and injury details when applicable."
     ),
     "input_schema": {
         "type": "object",
@@ -62,6 +63,41 @@ CLASSIFY_TOOL = {
                 "items": {"type": "string"},
                 "description": "MLB team names or abbreviations mentioned.",
             },
+            "injury_area": {
+                "type": "string",
+                "description": (
+                    "Short label for the body part or injury type, 1-3 words max. "
+                    "Only set for injury categories. Examples: 'Oblique Strain', "
+                    "'Elbow - UCL', 'Hamstring', 'Shoulder', 'Back', 'Knee - ACL', "
+                    "'Finger Fracture', 'Concussion', 'General Soreness', 'Undisclosed'."
+                ),
+            },
+            "injury_grade": {
+                "type": "string",
+                "enum": [
+                    "day_to_day",
+                    "10_day_il",
+                    "15_day_il",
+                    "60_day_il",
+                    "season_ending",
+                    "pending_imaging",
+                    "cleared",
+                    "rehab_assignment",
+                    "unknown",
+                ],
+                "description": (
+                    "Severity/timeline grade for the injury. Only set for injury categories. "
+                    "day_to_day: minor, could return soon. "
+                    "10_day_il: 10-day injured list. "
+                    "15_day_il: 15-day injured list. "
+                    "60_day_il: 60-day injured list, serious. "
+                    "season_ending: out for the season (surgery, major tear). "
+                    "pending_imaging: awaiting MRI/X-ray results. "
+                    "cleared: cleared to return. "
+                    "rehab_assignment: on rehab in minors. "
+                    "unknown: severity not yet determined."
+                ),
+            },
         },
         "required": ["category", "sentiment", "summary"],
     },
@@ -80,6 +116,18 @@ SYSTEM_PROMPT = (
     "- 'Results still unknown' or 'day-to-day' = injury_update\n"
     "- 'Cleared to play' or 'activated from IL' = injury_cleared\n"
     "- 'Rehab assignment' or 'threw bullpen session' = injury_recovery\n\n"
+    "For ALL injury categories, you MUST also provide:\n"
+    "- injury_area: Short label for the body part or injury type (1-3 words). "
+    "Examples: 'Oblique Strain', 'Elbow - UCL', 'Hamstring', 'Shoulder', 'Back', "
+    "'Knee - ACL', 'Finger Fracture', 'Concussion', 'General Soreness', 'Undisclosed'.\n"
+    "- injury_grade: The severity/timeline. Use 'day_to_day' for minor issues, "
+    "'10_day_il'/'15_day_il'/'60_day_il' when IL placement is mentioned, "
+    "'season_ending' for surgery or season-ending injuries, "
+    "'pending_imaging' when awaiting test results, "
+    "'cleared' when returning to play, "
+    "'rehab_assignment' when on rehab in the minors, "
+    "'unknown' when severity is not yet determined.\n\n"
+    "For non-injury articles, do NOT set injury_area or injury_grade.\n\n"
     "For non-injury articles:\n"
     "- Roster moves (optioned, called up, DFA, designated, waiver) = transaction\n"
     "- Stats, records, streaks, milestones, MVP discussion = performance\n"
@@ -91,7 +139,8 @@ SYSTEM_PROMPT = (
 async def analyze_article(headline: str, excerpt: str) -> dict:
     """Analyze an MLB news article using Claude tool_use.
 
-    Returns a dict with category, sentiment, summary, player_names, team_names.
+    Returns a dict with category, sentiment, summary, player_names, team_names,
+    and optionally injury_area and injury_grade for injury articles.
     Falls back to defaults if the API call fails.
     """
     if not settings.anthropic_api_key:
@@ -132,6 +181,8 @@ async def analyze_article(headline: str, excerpt: str) -> dict:
                     "summary": result.get("summary", ""),
                     "player_names": result.get("player_names", []),
                     "team_names": result.get("team_names", []),
+                    "injury_area": result.get("injury_area"),
+                    "injury_grade": result.get("injury_grade"),
                 }
 
         logger.warning("No tool_use block in Claude response")
@@ -149,4 +200,6 @@ def _default_analysis() -> dict:
         "summary": "",
         "player_names": [],
         "team_names": [],
+        "injury_area": None,
+        "injury_grade": None,
     }

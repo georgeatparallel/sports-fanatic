@@ -193,6 +193,74 @@ defmodule SportsFanatic.Content.NewsItemTest do
   end
 
   # ---------------------------------------------------------------------------
+  # Injury area and grade fields
+  # ---------------------------------------------------------------------------
+
+  describe "changeset/2 injury_area" do
+    test "casts injury_area" do
+      attrs = Map.put(valid_attrs(), :injury_area, "Oblique Strain")
+      changeset = NewsItem.changeset(%NewsItem{}, attrs)
+      assert changeset.valid?
+      assert Ecto.Changeset.get_change(changeset, :injury_area) == "Oblique Strain"
+    end
+
+    test "is valid when injury_area is nil (field is optional)" do
+      attrs = Map.put(valid_attrs(), :injury_area, nil)
+      changeset = NewsItem.changeset(%NewsItem{}, attrs)
+      assert changeset.valid?
+    end
+
+    test "rejects injury_area longer than 50 characters" do
+      attrs = Map.put(valid_attrs(), :injury_area, String.duplicate("a", 51))
+      changeset = NewsItem.changeset(%NewsItem{}, attrs)
+      refute changeset.valid?
+      assert %{injury_area: [_]} = errors_on(changeset)
+    end
+
+    test "accepts injury_area at exactly 50 characters" do
+      attrs = Map.put(valid_attrs(), :injury_area, String.duplicate("a", 50))
+      changeset = NewsItem.changeset(%NewsItem{}, attrs)
+      assert changeset.valid?
+    end
+  end
+
+  describe "changeset/2 injury_grade validation" do
+    test "accepts all valid injury grades" do
+      valid_grades = ~w(
+        day_to_day 10_day_il 15_day_il 60_day_il season_ending
+        pending_imaging cleared rehab_assignment unknown
+      )
+
+      for grade <- valid_grades do
+        attrs = Map.put(valid_attrs(), :injury_grade, grade)
+        changeset = NewsItem.changeset(%NewsItem{}, attrs)
+
+        assert changeset.valid?,
+               "Expected #{grade} to be valid but got errors: #{inspect(errors_on(changeset))}"
+      end
+    end
+
+    test "rejects unknown injury_grade value" do
+      attrs = Map.put(valid_attrs(), :injury_grade, "mild")
+      changeset = NewsItem.changeset(%NewsItem{}, attrs)
+      refute changeset.valid?
+      assert %{injury_grade: [_]} = errors_on(changeset)
+    end
+
+    test "is valid when injury_grade is nil (field is optional)" do
+      attrs = Map.put(valid_attrs(), :injury_grade, nil)
+      changeset = NewsItem.changeset(%NewsItem{}, attrs)
+      assert changeset.valid?
+    end
+
+    test "empty string injury_grade is treated as nil and is valid" do
+      attrs = Map.put(valid_attrs(), :injury_grade, "")
+      changeset = NewsItem.changeset(%NewsItem{}, attrs)
+      assert changeset.valid?
+    end
+  end
+
+  # ---------------------------------------------------------------------------
   # AI enrichment fields
   # ---------------------------------------------------------------------------
 
@@ -277,6 +345,20 @@ defmodule SportsFanatic.Content.NewsItemTest do
         |> Map.put(:source_url, "https://example.com/trade-news")
         |> Map.put(:author, "John Smith")
         |> Map.put(:ai_processed, true)
+
+      changeset = NewsItem.changeset(%NewsItem{}, attrs)
+      assert changeset.valid?
+    end
+
+    test "valid changeset with all AI fields and injury details populated" do
+      attrs =
+        valid_attrs()
+        |> Map.put(:sentiment, "negative")
+        |> Map.put(:category, "injury_new")
+        |> Map.put(:ai_summary, "Player suffered oblique strain.")
+        |> Map.put(:ai_processed, true)
+        |> Map.put(:injury_area, "Oblique Strain")
+        |> Map.put(:injury_grade, "10_day_il")
 
       changeset = NewsItem.changeset(%NewsItem{}, attrs)
       assert changeset.valid?

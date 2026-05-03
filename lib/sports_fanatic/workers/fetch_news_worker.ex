@@ -89,7 +89,7 @@ defmodule SportsFanatic.Workers.FetchNewsWorker do
   defp process_article(item, external_id, all_players, all_teams) do
     fields = extract_article_fields(item)
     s3_key = upload_to_s3(external_id, item)
-    {category, sentiment, ai_summary} = analyze_with_ai(fields.title, fields.body)
+    ai_result = analyze_with_ai(fields.title, fields.body)
 
     {player_ids, team_ids} =
       match_entities_from_text(fields.title <> " " <> fields.body, all_players, all_teams)
@@ -102,15 +102,17 @@ defmodule SportsFanatic.Workers.FetchNewsWorker do
       body: fields.body,
       summary: item["summary"],
       published_date: fields.published_date,
-      category: category || "news",
-      sentiment: sentiment,
-      ai_summary: ai_summary,
+      category: ai_result.category || "news",
+      sentiment: ai_result.sentiment,
+      ai_summary: ai_result.ai_summary,
       s3_key: s3_key,
       source_url: fields.source_url,
       author: fields.author,
-      ai_processed: ai_summary != nil,
+      ai_processed: ai_result.ai_summary != nil,
       player_ids: player_ids,
-      team_ids: team_ids
+      team_ids: team_ids,
+      injury_area: ai_result.injury_area,
+      injury_grade: ai_result.injury_grade
     })
   end
 
@@ -143,18 +145,21 @@ defmodule SportsFanatic.Workers.FetchNewsWorker do
     excerpt = String.slice(body, 0, 500)
 
     case PythonBridge.analyze_news(title, excerpt) do
-      {:ok, %{"category" => cat, "sentiment" => sent, "summary" => summary}} ->
-        {cat, sent, summary}
-
-      {:ok, %{"category" => cat, "sentiment" => sent}} ->
-        {cat, sent, nil}
+      {:ok, result} when is_map(result) ->
+        %{
+          category: result["category"],
+          sentiment: result["sentiment"],
+          ai_summary: result["summary"],
+          injury_area: result["injury_area"],
+          injury_grade: result["injury_grade"]
+        }
 
       {:error, reason} ->
         Logger.warning("FetchNewsWorker: AI analysis failed: #{inspect(reason)}")
-        {nil, nil, nil}
+        %{category: nil, sentiment: nil, ai_summary: nil, injury_area: nil, injury_grade: nil}
 
       _ ->
-        {nil, nil, nil}
+        %{category: nil, sentiment: nil, ai_summary: nil, injury_area: nil, injury_grade: nil}
     end
   end
 

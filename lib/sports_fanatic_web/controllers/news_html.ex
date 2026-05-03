@@ -4,15 +4,26 @@ defmodule SportsFanaticWeb.NewsHTML do
   embed_templates "news_html/*"
 
   attr :category, :string, default: nil
+  attr :injury_area, :string, default: nil
+  attr :injury_grade, :string, default: nil
 
   def category_badge(assigns) do
     {label, color_classes} = category_display(assigns.category)
-    assigns = assign(assigns, label: label, color_classes: color_classes)
+
+    injury_detail =
+      injury_detail_label(assigns.category, assigns.injury_area, assigns.injury_grade)
+
+    assigns =
+      assign(assigns, label: label, color_classes: color_classes, injury_detail: injury_detail)
 
     ~H"""
     <%= if @label do %>
       <span class={"inline-flex items-center px-2 py-0.5 rounded text-xs font-medium #{@color_classes}"}>
-        <%= @label %>
+        <%= if @injury_detail do %>
+          <%= @injury_detail %>
+        <% else %>
+          <%= @label %>
+        <% end %>
       </span>
     <% end %>
     """
@@ -34,6 +45,34 @@ defmodule SportsFanaticWeb.NewsHTML do
     <% end %>
     """
   end
+
+  # Build a combined injury detail label like "Oblique Strain . 10-Day IL"
+  defp injury_detail_label(category, injury_area, injury_grade)
+       when is_binary(category) and binary_part(category, 0, 7) == "injury_" do
+    area_part = if injury_area && injury_area != "", do: injury_area, else: nil
+    grade_part = format_injury_grade(injury_grade)
+
+    case {area_part, grade_part} do
+      {nil, nil} -> nil
+      {area, nil} -> area
+      {nil, grade} -> grade
+      {area, grade} -> "#{area} \u00B7 #{grade}"
+    end
+  end
+
+  defp injury_detail_label(_category, _injury_area, _injury_grade), do: nil
+
+  defp format_injury_grade(nil), do: nil
+  defp format_injury_grade("day_to_day"), do: "Day-to-Day"
+  defp format_injury_grade("10_day_il"), do: "10-Day IL"
+  defp format_injury_grade("15_day_il"), do: "15-Day IL"
+  defp format_injury_grade("60_day_il"), do: "60-Day IL"
+  defp format_injury_grade("season_ending"), do: "Season-Ending"
+  defp format_injury_grade("pending_imaging"), do: "Pending Imaging"
+  defp format_injury_grade("cleared"), do: "Cleared"
+  defp format_injury_grade("rehab_assignment"), do: "Rehab Assignment"
+  defp format_injury_grade("unknown"), do: "Unknown"
+  defp format_injury_grade(_), do: nil
 
   defp category_display(nil), do: {nil, ""}
 

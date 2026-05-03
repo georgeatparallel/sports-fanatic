@@ -1,6 +1,7 @@
 """Pydantic models for news article analysis."""
 
 from enum import StrEnum
+from typing import Optional
 
 from pydantic import BaseModel, Field
 
@@ -30,6 +31,20 @@ class NewsSentiment(StrEnum):
     POSITIVE = "positive"
 
 
+class InjuryGrade(StrEnum):
+    """Severity/timeline grade for injury articles."""
+
+    DAY_TO_DAY = "day_to_day"
+    TEN_DAY_IL = "10_day_il"
+    FIFTEEN_DAY_IL = "15_day_il"
+    SIXTY_DAY_IL = "60_day_il"
+    SEASON_ENDING = "season_ending"
+    PENDING_IMAGING = "pending_imaging"
+    CLEARED = "cleared"
+    REHAB_ASSIGNMENT = "rehab_assignment"
+    UNKNOWN = "unknown"
+
+
 class NewsAnalysis(BaseModel):
     """Structured result from AI news analysis."""
 
@@ -43,4 +58,12 @@ class NewsAnalysis(BaseModel):
     team_names: list[str] = Field(
         default_factory=list,
         description="MLB team names or abbreviations mentioned",
+    )
+    injury_area: Optional[str] = Field(
+        default=None,
+        description="Body part or injury type label, 1-3 words (only for injury categories)",
+    )
+    injury_grade: Optional[str] = Field(
+        default=None,
+        description="Severity/timeline grade (only for injury categories)",
     )

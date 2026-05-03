@@ -93,13 +93,16 @@ defmodule SportsFanatic.Workers.ReclassifyNewsWorker do
     excerpt = String.slice(article.body || "", 0, 500)
 
     case PythonBridge.analyze_news(article.title, excerpt) do
-      {:ok, %{"category" => new_category, "sentiment" => sentiment, "summary" => summary}} ->
+      {:ok,
+       %{"category" => new_category, "sentiment" => sentiment, "summary" => summary} = result} ->
         changeset =
           NewsItem.changeset(article, %{
             category: new_category,
             sentiment: sentiment,
             ai_summary: summary,
-            ai_processed: true
+            ai_processed: true,
+            injury_area: result["injury_area"],
+            injury_grade: result["injury_grade"]
           })
 
         case Repo.update(changeset) do

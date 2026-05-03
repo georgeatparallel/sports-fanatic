@@ -178,6 +178,8 @@ defmodule SportsFanatic.News do
         "source_url" => item.source_url,
         "author" => item.author,
         "ai_processed" => item.ai_processed,
+        "injury_area" => item.injury_area,
+        "injury_grade" => item.injury_grade,
         "published_date" => Date.to_iso8601(item.published_date),
         "inserted_at" => DateTime.to_iso8601(item.inserted_at),
         "players" => resolved_players,

@@ -17,7 +17,11 @@
       <%= for item <- @feed do %>
         <article class="bg-white rounded-lg shadow-sm border border-gray-100 p-5">
           <div class="flex items-center gap-2 mb-2">
-            <.category_badge category={item["category"]} />
+            <.category_badge
+              category={item["category"]}
+              injury_area={item["injury_area"]}
+              injury_grade={item["injury_grade"]}
+            />
             <.sentiment_dot sentiment={item["sentiment"]} />
             <%= if item["ai_processed"] do %>
               <span class="text-xs text-purple-500 font-medium">AI</span>
