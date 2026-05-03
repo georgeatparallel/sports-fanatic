@@ -2,6 +2,7 @@ defmodule SportsFanatic.Mlb.Player do
   use Ecto.Schema
   import Ecto.Changeset
 
+  @schema_prefix "public"
   @primary_key {:id, :binary_id, autogenerate: true}
   @foreign_key_type :binary_id
 
