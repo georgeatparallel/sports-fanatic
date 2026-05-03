@@ -18,7 +18,7 @@ defmodule SportsFanaticWeb.PlayerController do
     today = Date.utc_today()
 
     # Fetch today's lineup players with team info
-    lineup_players =
+    lineup_query =
       from(l in Lineup,
         where: l.game_date == ^today and not is_nil(l.player_id),
         join: p in Player,
@@ -29,7 +29,8 @@ defmodule SportsFanaticWeb.PlayerController do
         order_by: [asc: t.name, asc: l.batting_order],
         select: %{player: p, team: t, position: l.position, batting_order: l.batting_order}
       )
-      |> Repo.all()
+
+    lineup_players = Repo.all(lineup_query)
 
     # All players (paginated)
     query =
