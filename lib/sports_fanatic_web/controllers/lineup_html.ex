@@ -26,13 +26,6 @@ defmodule SportsFanaticWeb.LineupHTML do
   end
 
   @doc """
-  Renders a team name as a link if a team record is available,
-  or as plain text fallback.
-  """
-  attr :team, :map, default: nil
-  attr :name, :string, required: true
-
-  @doc """
   Renders a probable pitcher name as a link if resolvable, or plain text.
   """
   attr :pitcher_name, :string, default: nil
