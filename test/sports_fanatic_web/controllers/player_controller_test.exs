@@ -184,33 +184,29 @@ defmodule SportsFanaticWeb.PlayerControllerTest do
       assert response =~ "No injury report sources available"
     end
 
-    test "renders source with content_text", %{conn: conn, team: team, player: player} do
+    test "renders source with digest", %{conn: conn, team: team, player: player} do
       create_source_url(player, %{
         classification: "performance_analysis",
         content_summary: "Performance breakdown",
-        content_text: "Full article text about Devers performance this season."
+        digest: "Devers has been on a tear this season, batting well above league average."
       })
 
       conn =
         get(conn, "/mlb/players/#{team.slug}/#{player.slug}/sources/performance_analysis")
 
       response = html_response(conn, 200)
-      assert response =~ "Performance breakdown"
-      assert response =~ "View full source content"
-      assert response =~ "Full article text about Devers"
+      assert response =~ "Devers has been on a tear this season"
     end
 
-    test "renders key facts from sources", %{conn: conn, team: team, player: player} do
+    test "renders content_summary when no digest available", %{conn: conn, team: team, player: player} do
       create_source_url(player, %{
         classification: "general_news",
-        content_summary: "News about Devers",
-        key_facts: %{"facts" => ["Batting .310 this season", "3-game hitting streak"]}
+        content_summary: "News about Devers trade rumors"
       })
 
       conn = get(conn, "/mlb/players/#{team.slug}/#{player.slug}/sources/general_news")
       response = html_response(conn, 200)
-      assert response =~ "Batting .310 this season"
-      assert response =~ "3-game hitting streak"
+      assert response =~ "News about Devers trade rumors"
     end
 
     test "returns 404 for invalid category", %{conn: conn, team: team, player: player} do
