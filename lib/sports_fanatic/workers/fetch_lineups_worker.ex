@@ -21,23 +21,18 @@ defmodule SportsFanatic.Workers.FetchLineupsWorker do
 
     case FantasyNerds.fetch_lineups(today) do
       {:ok, players} ->
-        # Batch-resolve FantasyNerds player IDs to internal Player UUIDs
-        nerds_ids =
-          players
-          |> Enum.map(& &1.player_id)
-          |> Enum.reject(&is_nil/1)
-          |> Enum.uniq()
-
-        players_by_nerds_id = resolve_players_by_nerds_id(nerds_ids)
+        # Build name-based lookup: {lowercase_full_name, team_code} => player_id
+        players_by_name = resolve_players_by_name(players)
 
         Enum.each(players, fn player ->
-          player_id = Map.get(players_by_nerds_id, player.player_id)
+          name = player[:player_name]
+          player_id = find_player_id(name, player.team_code, players_by_name)
 
           %Lineup{}
           |> Lineup.changeset(%{
             game_date: Date.utc_today(),
             player_nerds_id: player.player_id,
-            player_name: player[:player_name],
+            player_name: name,
             team_code: player.team_code,
             batting_order: player[:batting_order],
             position: player[:position],
@@ -77,13 +72,23 @@ defmodule SportsFanatic.Workers.FetchLineupsWorker do
     end
   end
 
-  defp resolve_players_by_nerds_id([]), do: %{}
+  defp resolve_players_by_name(players) do
+    team_codes =
+      players
+      |> Enum.map(& &1.team_code)
+      |> Enum.uniq()
 
-  defp resolve_players_by_nerds_id(nerds_ids) do
     Player
-    |> where([p], fragment("(? ->> 'nerds_id')::int = ANY(?)", p.external_ids, ^nerds_ids))
-    |> select([p], {fragment("(? ->> 'nerds_id')::int", p.external_ids), p.id})
+    |> join(:inner, [p], t in assoc(p, :team))
+    |> where([p, t], t.abbreviation in ^team_codes and p.status == "active")
+    |> select([p, t], {p.full_name, t.abbreviation, p.id})
     |> Repo.all()
-    |> Map.new()
+    |> Map.new(fn {name, abbr, id} -> {{String.downcase(name), abbr}, id} end)
+  end
+
+  defp find_player_id(nil, _team_code, _lookup), do: nil
+
+  defp find_player_id(name, team_code, lookup) do
+    Map.get(lookup, {String.downcase(name), team_code})
   end
 end

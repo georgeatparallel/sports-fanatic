@@ -39,12 +39,13 @@ defmodule SportsFanatic.ExternalApis.FantasyNerds do
 
       side_data
       |> Map.get("lineup", [])
-      |> Enum.map(fn player ->
+      |> Enum.with_index(1)
+      |> Enum.map(fn {player, index} ->
         %{
           player_id: player["playerId"],
-          player_name: player["playerName"],
+          player_name: player["name"],
           team_code: team_code,
-          batting_order: player["battingOrder"],
+          batting_order: player["battingOrder"] || index,
           position: player["position"]
         }
       end)
