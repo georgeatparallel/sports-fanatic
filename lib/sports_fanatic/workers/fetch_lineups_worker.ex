@@ -85,7 +85,7 @@ defmodule SportsFanatic.Workers.FetchLineupsWorker do
 
     Player
     |> join(:inner, [p], t in assoc(p, :team))
-    |> where([p, t], t.abbreviation in ^team_codes and p.status == "active")
+    |> where([p, t], t.abbreviation in ^team_codes)
     |> select([p, t], {p.full_name, t.abbreviation, p.id})
     |> Repo.all()
     |> Map.new(fn {name, abbr, id} -> {{normalize_name(name), abbr}, id} end)
@@ -102,5 +102,6 @@ defmodule SportsFanatic.Workers.FetchLineupsWorker do
     |> String.downcase()
     |> String.normalize(:nfd)
     |> String.replace(~r/[\x{0300}-\x{036f}]/u, "")
+    |> String.replace(".", "")
   end
 end
