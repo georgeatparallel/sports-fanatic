@@ -20,19 +20,24 @@ resource "aws_security_group" "rds" {
   description = "Security group for RDS PostgreSQL"
   vpc_id      = var.vpc_id
 
+  ingress {
+    from_port       = 5432
+    to_port         = 5432
+    protocol        = "tcp"
+    security_groups = [var.eks_security_group_id]
+    description     = "PostgreSQL from EKS nodes"
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
   tags = {
     Name = "${var.name_prefix}-rds-sg"
   }
-}
-
-resource "aws_security_group_rule" "rds_ingress" {
-  type                     = "ingress"
-  from_port                = 5432
-  to_port                  = 5432
-  protocol                 = "tcp"
-  source_security_group_id = var.eks_security_group_id
-  security_group_id        = aws_security_group.rds.id
-  description              = "PostgreSQL from EKS nodes"
 }
 
 # RDS Instance

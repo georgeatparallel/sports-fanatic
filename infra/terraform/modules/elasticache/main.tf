@@ -14,19 +14,24 @@ resource "aws_security_group" "elasticache" {
   description = "Security group for ElastiCache Valkey"
   vpc_id      = var.vpc_id
 
+  ingress {
+    from_port       = 6379
+    to_port         = 6379
+    protocol        = "tcp"
+    security_groups = [var.eks_security_group_id]
+    description     = "Redis/Valkey from EKS nodes"
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
   tags = {
     Name = "${var.name_prefix}-cache-sg"
   }
-}
-
-resource "aws_security_group_rule" "cache_ingress" {
-  type                     = "ingress"
-  from_port                = 6379
-  to_port                  = 6379
-  protocol                 = "tcp"
-  source_security_group_id = var.eks_security_group_id
-  security_group_id        = aws_security_group.elasticache.id
-  description              = "Redis/Valkey from EKS nodes"
 }
 
 # ElastiCache Cluster (Valkey-compatible Redis)
