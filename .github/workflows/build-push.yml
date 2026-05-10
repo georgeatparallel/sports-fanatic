@@ -1,0 +1,76 @@
+name: Build & Push to ECR
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment'
+        required: true
+        default: 'prod'
+        type: choice
+        options:
+          - prod
+          - dev
+
+env:
+  AWS_REGION: us-east-1
+  ECR_WEB_REPO: sports-fanatic-prod/web
+  ECR_PYTHON_REPO: sports-fanatic-prod/python-bridge
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: ecr-login
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push web image
+        env:
+          ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -f Dockerfile \
+            -t $ECR_REGISTRY/$ECR_WEB_REPO:$IMAGE_TAG \
+            -t $ECR_REGISTRY/$ECR_WEB_REPO:latest .
+          docker push $ECR_REGISTRY/$ECR_WEB_REPO:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_WEB_REPO:latest
+
+      - name: Build and push python-bridge image
+        env:
+          ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -f python_bridge/Dockerfile \
+            -t $ECR_REGISTRY/$ECR_PYTHON_REPO:$IMAGE_TAG \
+            -t $ECR_REGISTRY/$ECR_PYTHON_REPO:latest \
+            python_bridge/
+          docker push $ECR_REGISTRY/$ECR_PYTHON_REPO:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_PYTHON_REPO:latest
+
+      - name: Update kustomize image tags
+        env:
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          sed -i "s/newTag: .*/newTag: ${IMAGE_TAG}/" infra/k8s/overlays/prod/kustomization.yaml
+
+      - name: Commit and push tag update
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add infra/k8s/overlays/prod/kustomization.yaml
+          git diff --staged --quiet || git commit -m "deploy(prod): update image tags to ${GITHUB_SHA::7}"
+          git push
