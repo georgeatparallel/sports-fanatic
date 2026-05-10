@@ -5,7 +5,7 @@ domain_name  = "sports-fan-agent.com"
 
 # VPC
 vpc_cidr           = "10.0.0.0/16"
-availability_zones = ["us-east-1a", "us-east-1b", "us-east-1c"]
+availability_zones = ["us-east-1b", "us-east-1c", "us-east-1d"]
 
 # EKS — production for ~100 users
 eks_cluster_version    = "1.29"
