@@ -8,7 +8,7 @@ vpc_cidr           = "10.0.0.0/16"
 availability_zones = ["us-east-1b", "us-east-1c", "us-east-1d"]
 
 # EKS — production for ~100 users
-eks_cluster_version    = "1.29"
+eks_cluster_version    = "1.31"
 eks_node_instance_type = "t3.medium"
 eks_node_desired_count = 2
 eks_node_min_count     = 2
