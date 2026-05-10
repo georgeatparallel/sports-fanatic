@@ -13,9 +13,9 @@ patches:
   - path: patches/configmap.yaml
 
 images:
-  - name: ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/sports-fanatic-prod/web
-    newName: ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/sports-fanatic-dev/web
+  - name: 852421754386.dkr.ecr.us-east-1.amazonaws.com/sports-fanatic-prod/web
+    newName: 852421754386.dkr.ecr.us-east-1.amazonaws.com/sports-fanatic-dev/web
     newTag: latest
-  - name: ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/sports-fanatic-prod/python-bridge
-    newName: ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/sports-fanatic-dev/python-bridge
+  - name: 852421754386.dkr.ecr.us-east-1.amazonaws.com/sports-fanatic-prod/python-bridge
+    newName: 852421754386.dkr.ecr.us-east-1.amazonaws.com/sports-fanatic-dev/python-bridge
     newTag: latest

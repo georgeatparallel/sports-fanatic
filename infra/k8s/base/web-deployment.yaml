@@ -22,7 +22,7 @@ spec:
       serviceAccountName: web
       containers:
         - name: web
-          image: ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/sports-fanatic-prod/web:latest
+          image: 852421754386.dkr.ecr.us-east-1.amazonaws.com/sports-fanatic-prod/web:latest
           ports:
             - containerPort: 4000
               protocol: TCP

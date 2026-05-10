@@ -11,7 +11,7 @@ patches:
   - path: patches/hpa.yaml
 
 images:
-  - name: ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/sports-fanatic-prod/web
+  - name: 852421754386.dkr.ecr.us-east-1.amazonaws.com/sports-fanatic-prod/web
     newTag: f18b310
-  - name: ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/sports-fanatic-prod/python-bridge
+  - name: 852421754386.dkr.ecr.us-east-1.amazonaws.com/sports-fanatic-prod/python-bridge
     newTag: f18b310

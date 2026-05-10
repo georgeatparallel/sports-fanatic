@@ -21,7 +21,7 @@ spec:
     spec:
       containers:
         - name: python-bridge
-          image: ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/sports-fanatic-prod/python-bridge:latest
+          image: 852421754386.dkr.ecr.us-east-1.amazonaws.com/sports-fanatic-prod/python-bridge:latest
           ports:
             - containerPort: 8000
               protocol: TCP
