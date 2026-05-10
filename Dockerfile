@@ -16,14 +16,14 @@ COPY config/config.exs config/prod.exs config/runtime.exs config/
 
 RUN mix local.hex --force && \
     mix local.rebar --force && \
-    mix deps.get --only prod && \
-    mix deps.compile
+    mix deps.get --only prod
 
 COPY lib lib
 COPY priv priv
 COPY assets assets
 
-RUN mix assets.deploy && \
+RUN mix deps.compile && \
+    mix assets.deploy && \
     mix compile && \
     mix phx.gen.release && \
     mix release
