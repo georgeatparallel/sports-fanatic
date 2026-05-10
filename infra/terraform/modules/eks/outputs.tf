@@ -15,7 +15,7 @@ output "cluster_ca_certificate" {
 
 output "node_security_group_id" {
   description = "Security group ID for EKS nodes"
-  value       = aws_eks_node_group.main.resources[0].remote_access_security_group_id != null ? aws_eks_node_group.main.resources[0].remote_access_security_group_id : aws_security_group.cluster.id
+  value       = aws_eks_cluster.main.vpc_config[0].cluster_security_group_id
 }
 
 output "oidc_provider_arn" {
