@@ -12,6 +12,6 @@ patches:
 
 images:
   - name: ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/sports-fanatic-prod/web
-    newTag: latest
+    newTag: f18b310
   - name: ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/sports-fanatic-prod/python-bridge
-    newTag: latest
+    newTag: f18b310
