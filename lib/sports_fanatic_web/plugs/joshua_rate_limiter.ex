@@ -63,20 +63,14 @@ defmodule SportsFanaticWeb.Plugs.JoshuaRateLimiter do
 
   defp check_rate(ip, now) do
     case :ets.lookup(@table, ip) do
-      [{^ip, attempts, window_start}] ->
-        if now - window_start > @window_seconds do
-          # Window expired, reset
-          :ets.delete(@table, ip)
-          :ok
-        else
-          if attempts >= @max_attempts do
-            :rate_limited
-          else
-            :ok
-          end
-        end
+      [{^ip, _attempts, window_start}] when now - window_start > @window_seconds ->
+        :ets.delete(@table, ip)
+        :ok
 
-      [] ->
+      [{^ip, attempts, _window_start}] when attempts >= @max_attempts ->
+        :rate_limited
+
+      _ ->
         :ok
     end
   end
