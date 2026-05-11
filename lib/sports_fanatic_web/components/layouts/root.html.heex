@@ -85,12 +85,6 @@
               >
                 Game Day
               </a>
-              <a
-                href="/admin"
-                class="text-gray-600 hover:text-gray-900 hover:bg-gray-100 text-sm font-medium px-3 py-2 rounded-lg transition"
-              >
-                Admin
-              </a>
             </div>
           </div>
           <div class="flex items-center gap-3">
@@ -183,12 +177,6 @@
             class="block text-gray-600 hover:text-gray-900 hover:bg-gray-50 text-sm font-medium px-3 py-2 rounded-lg"
           >
             Game Day
-          </a>
-          <a
-            href="/admin"
-            class="block text-gray-600 hover:text-gray-900 hover:bg-gray-50 text-sm font-medium px-3 py-2 rounded-lg"
-          >
-            Admin
           </a>
           <%= if !assigns[:current_user] && SportsFanatic.FeatureFlags.enabled?("subscriptions_enabled") do %>
             <a

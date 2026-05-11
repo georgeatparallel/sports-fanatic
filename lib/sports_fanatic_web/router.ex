@@ -29,6 +29,14 @@ defmodule SportsFanaticWeb.Router do
     plug SportsFanaticWeb.Plugs.RequireAdmin
   end
 
+  pipeline :require_joshua do
+    plug SportsFanaticWeb.Plugs.RequireJoshua
+  end
+
+  pipeline :joshua_rate_limit do
+    plug SportsFanaticWeb.Plugs.JoshuaRateLimiter
+  end
+
   pipeline :stripe_webhook do
     plug :accepts, ["json"]
     plug SportsFanaticWeb.Plugs.CacheRawBody
@@ -122,9 +130,23 @@ defmodule SportsFanaticWeb.Router do
     live "/archive/game-day", ArchiveGameDayLive
   end
 
-  # --- Admin Routes ---
+  # --- Joshua Auth Routes (admin gate) ---
+  scope "/joshua", SportsFanaticWeb do
+    pipe_through :browser
+
+    get "/", JoshuaController, :login_form
+    delete "/logout", JoshuaController, :logout
+  end
+
+  scope "/joshua", SportsFanaticWeb do
+    pipe_through [:browser, :joshua_rate_limit]
+
+    post "/login", JoshuaController, :login
+  end
+
+  # --- Admin Routes (protected by Joshua auth) ---
   scope "/admin", SportsFanaticWeb do
-    pipe_through [:browser]
+    pipe_through [:browser, :require_joshua]
 
     live_session :admin do
       live "/", AdminLive

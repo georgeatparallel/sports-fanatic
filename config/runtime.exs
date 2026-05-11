@@ -20,6 +20,10 @@ if System.get_env("PHX_SERVER") do
   config :sports_fanatic, SportsFanaticWeb.Endpoint, server: true
 end
 
+# Joshua admin gate credentials
+config :sports_fanatic, :joshua_username, System.get_env("JOSHUA_USERNAME")
+config :sports_fanatic, :joshua_password, System.get_env("JOSHUA_PASSWORD")
+
 # Valkey/Redis configuration
 config :sports_fanatic, :valkey_url, System.get_env("VALKEY_URL") || "redis://localhost:6379"
 
