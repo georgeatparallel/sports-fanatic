@@ -1,35 +1,87 @@
 defmodule SportsFanaticWeb.SitemapController do
   use SportsFanaticWeb, :controller
 
-  alias SportsFanatic.Content.Sitemap
+  import Ecto.Query
+
+  alias SportsFanatic.Mlb.{Player, Team}
   alias SportsFanatic.Repo
 
-  def index(conn, _params) do
-    sitemap = Repo.get_by(Sitemap, sitemap_type: "index")
+  @domain "https://www.sports-fan-agent.com"
 
-    if sitemap do
-      conn
-      |> put_resp_content_type("application/xml")
-      |> send_resp(200, sitemap.xml_content)
-    else
-      conn
-      |> put_resp_content_type("application/xml")
-      |> send_resp(200, default_index_xml())
-    end
+  def index(conn, _params) do
+    xml = """
+    <?xml version="1.0" encoding="UTF-8"?>
+    <sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+      <sitemap><loc>#{@domain}/sitemaps/players</loc></sitemap>
+      <sitemap><loc>#{@domain}/sitemaps/teams</loc></sitemap>
+      <sitemap><loc>#{@domain}/sitemaps/pages</loc></sitemap>
+    </sitemapindex>
+    """
+
+    conn
+    |> put_resp_content_type("application/xml")
+    |> send_resp(200, xml)
   end
 
-  def show(conn, %{"type" => type}) do
-    sitemap = Repo.get_by(Sitemap, sitemap_type: type)
+  def show(conn, %{"type" => "players"}) do
+    players =
+      Player
+      |> join(:inner, [p], t in Team, on: p.team_id == t.id)
+      |> where([p, t], not is_nil(p.slug) and not is_nil(t.slug))
+      |> select([p, t], {t.slug, p.slug})
+      |> Repo.all()
 
-    if sitemap do
-      conn
-      |> put_resp_content_type("application/xml")
-      |> send_resp(200, sitemap.xml_content)
-    else
-      conn
-      |> put_resp_content_type("application/xml")
-      |> send_resp(200, empty_sitemap_xml())
-    end
+    urls =
+      Enum.map(players, fn {team_slug, player_slug} ->
+        "  <url><loc>#{@domain}/mlb/players/#{team_slug}/#{player_slug}</loc><changefreq>daily</changefreq></url>"
+      end)
+
+    xml = wrap_urlset(urls)
+
+    conn
+    |> put_resp_content_type("application/xml")
+    |> send_resp(200, xml)
+  end
+
+  def show(conn, %{"type" => "teams"}) do
+    teams =
+      Team
+      |> where([t], not is_nil(t.slug))
+      |> select([t], t.slug)
+      |> Repo.all()
+
+    urls =
+      Enum.map(teams, fn slug ->
+        "  <url><loc>#{@domain}/mlb/teams/#{slug}</loc><changefreq>daily</changefreq></url>"
+      end)
+
+    xml = wrap_urlset(urls)
+
+    conn
+    |> put_resp_content_type("application/xml")
+    |> send_resp(200, xml)
+  end
+
+  def show(conn, %{"type" => "pages"}) do
+    urls = [
+      "  <url><loc>#{@domain}/</loc><changefreq>hourly</changefreq><priority>1.0</priority></url>",
+      "  <url><loc>#{@domain}/mlb/teams</loc><changefreq>daily</changefreq><priority>0.9</priority></url>",
+      "  <url><loc>#{@domain}/mlb/players</loc><changefreq>daily</changefreq><priority>0.9</priority></url>",
+      "  <url><loc>#{@domain}/mlb/lineups</loc><changefreq>daily</changefreq><priority>0.9</priority></url>",
+      "  <url><loc>#{@domain}/mlb/news</loc><changefreq>hourly</changefreq><priority>0.9</priority></url>"
+    ]
+
+    xml = wrap_urlset(urls)
+
+    conn
+    |> put_resp_content_type("application/xml")
+    |> send_resp(200, xml)
+  end
+
+  def show(conn, _params) do
+    conn
+    |> put_resp_content_type("application/xml")
+    |> send_resp(200, wrap_urlset([]))
   end
 
   def robots(conn, _params) do
@@ -38,12 +90,10 @@ defmodule SportsFanaticWeb.SitemapController do
     Allow: /
     Allow: /mlb/
     Disallow: /premium/
-    Disallow: /account/
-    Disallow: /api/
-    Disallow: /dev/
     Disallow: /admin
+    Disallow: /joshua
 
-    Sitemap: https://sportsfanatic.com/sitemap.xml
+    Sitemap: #{@domain}/sitemap.xml
     """
 
     conn
@@ -51,24 +101,11 @@ defmodule SportsFanaticWeb.SitemapController do
     |> send_resp(200, robots_txt)
   end
 
-  defp default_index_xml do
-    """
-    <?xml version="1.0" encoding="UTF-8"?>
-    <sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-      <sitemap><loc>https://sportsfanatic.com/sitemap-players.xml</loc></sitemap>
-      <sitemap><loc>https://sportsfanatic.com/sitemap-teams.xml</loc></sitemap>
-      <sitemap><loc>https://sportsfanatic.com/sitemap-lineups.xml</loc></sitemap>
-      <sitemap><loc>https://sportsfanatic.com/sitemap-news.xml</loc></sitemap>
-      <sitemap><loc>https://sportsfanatic.com/sitemap-scouting.xml</loc></sitemap>
-      <sitemap><loc>https://sportsfanatic.com/sitemap-gameday.xml</loc></sitemap>
-    </sitemapindex>
-    """
-  end
-
-  defp empty_sitemap_xml do
+  defp wrap_urlset(urls) do
     """
     <?xml version="1.0" encoding="UTF-8"?>
     <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+    #{Enum.join(urls, "\n")}
     </urlset>
     """
   end
