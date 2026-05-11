@@ -13,8 +13,8 @@ defmodule SportsFanatic.PythonBridge.CircuitBreaker do
 
   use GenServer
 
-  @failure_threshold 3
-  @cooldown_ms 5 * 60 * 1_000
+  @failure_threshold 50
+  @cooldown_ms 30 * 1_000
 
   def start_link(opts \\ []) do
     GenServer.start_link(__MODULE__, opts, name: __MODULE__)
