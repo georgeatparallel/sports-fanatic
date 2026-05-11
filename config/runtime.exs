@@ -20,6 +20,10 @@ if System.get_env("PHX_SERVER") do
   config :sports_fanatic, SportsFanaticWeb.Endpoint, server: true
 end
 
+# Joshua admin gate credentials
+config :sports_fanatic, :joshua_username, System.get_env("JOSHUA_USERNAME")
+config :sports_fanatic, :joshua_password, System.get_env("JOSHUA_PASSWORD")
+
 # Valkey/Redis configuration
 config :sports_fanatic, :valkey_url, System.get_env("VALKEY_URL") || "redis://localhost:6379"
 
@@ -62,12 +66,21 @@ if config_env() == :prod do
 
   maybe_ipv6 = if System.get_env("ECTO_IPV6") in ~w(true 1), do: [:inet6], else: []
 
-  config :sports_fanatic, SportsFanatic.Repo,
-    ssl: true,
-    ssl_opts: [verify: :verify_none],
-    url: database_url,
-    pool_size: String.to_integer(System.get_env("POOL_SIZE") || "10"),
-    socket_options: maybe_ipv6
+  db_ssl = System.get_env("DATABASE_SSL", "false") == "true"
+
+  ssl_config =
+    if db_ssl do
+      [ssl: true, ssl_opts: [verify: :verify_none]]
+    else
+      []
+    end
+
+  config :sports_fanatic, SportsFanatic.Repo, [
+    {:url, database_url},
+    {:pool_size, String.to_integer(System.get_env("POOL_SIZE") || "10")},
+    {:socket_options, maybe_ipv6}
+    | ssl_config
+  ]
 
   # The secret key base is used to sign/encrypt cookies and other secrets.
   # A default value is used in config/dev.exs and config/test.exs but you
