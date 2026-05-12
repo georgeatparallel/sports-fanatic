@@ -1,11 +1,20 @@
 <SportsFanaticWeb.SEOComponents.breadcrumbs items={[
   %{label: "Home", href: "/"},
   %{label: "Baseball", href: "/mlb/teams"},
-  %{label: "Lineups", href: "/mlb/lineups/#{SportsFanatic.DateHelper.today() |> Date.to_iso8601()}"},
+  %{
+    label: "Lineups",
+    href: "/mlb/lineups/#{SportsFanatic.DateHelper.today() |> Date.to_iso8601()}"
+  },
   %{label: Calendar.strftime(@date, "%B %d, %Y")}
 ]} />
 
 <section class="max-w-6xl mx-auto px-4 py-8">
+  <SportsFanaticWeb.SEOComponents.date_nav
+    prev_date={@prev_date}
+    next_date={@next_date}
+    base_path="/mlb/lineups"
+  />
+
   <h1 class="text-3xl font-bold text-gray-900 mb-6">
     MLB Lineups - <%= Calendar.strftime(@date, "%B %d, %Y") %>
   </h1>
@@ -96,18 +105,9 @@
     </div>
   <% end %>
 
-  <nav class="mt-8 flex justify-between" aria-label="Date navigation">
-    <a
-      href={"/mlb/lineups/#{Date.add(@date, -1) |> Date.to_iso8601()}"}
-      class="text-blue-600 hover:text-blue-800"
-    >
-      &larr; Previous Day
-    </a>
-    <a
-      href={"/mlb/lineups/#{Date.add(@date, 1) |> Date.to_iso8601()}"}
-      class="text-blue-600 hover:text-blue-800"
-    >
-      Next Day &rarr;
-    </a>
-  </nav>
+  <SportsFanaticWeb.SEOComponents.date_nav
+    prev_date={@prev_date}
+    next_date={@next_date}
+    base_path="/mlb/lineups"
+  />
 </section>

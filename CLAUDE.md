@@ -79,7 +79,8 @@ lib/sports_fanatic/
   content/            ScoutingReport, GameDayMagazine, NewsItem, Sitemap schemas
   external_apis/      FantasyNerds HTTP client
   mlb/                Sport, Team, Player, Venue, Game, ScheduledGame, Lineup, Pick, HrPick
-  news.ex             News context — cached feed reads, entity-resolved list, get_cached_feed/1
+  news.ex             News context — cached feed reads, entity-resolved list, get_cached_feed/1,
+                       nearest_news_date_before/1, nearest_news_date_after/1
   news/               entity_matcher.ex — fuzzy player/team matching (jaro_distance, threshold 0.85)
   python_bridge.ex    HTTP client for Python bridge with circuit breaker integration
   python_bridge/      CircuitBreaker GenServer + HealthCheck GenServer
@@ -90,7 +91,7 @@ lib/sports_fanatic/
                        generate_player_seo, warm_cache, generate_sitemap, cleanup)
 
 lib/sports_fanatic_web/
-  components/         seo_components.ex — json_ld/2, breadcrumbs/1, subscribe_cta/1
+  components/         seo_components.ex — json_ld/2, breadcrumbs/1, subscribe_cta/1, date_nav/1
   controllers/        Page, Player, Team, Lineup, News, Scouting, GameDay, Sitemap,
                        Auth, Subscription, StripeWebhook controllers + HTML modules
   live/               DashboardLive, ScoutingLive, GameDayLive, GameDayIndexLive,
@@ -116,13 +117,13 @@ python_bridge/src/
 ## Routing Conventions
 
 ```
-/                         PageController :home
+/                         PageController :home  (renders home.html.heex directly — no redirect)
 /mlb/players              PlayerController :index
 /mlb/players/:team/:player PlayerController :show
 /mlb/teams                TeamController :index
 /mlb/teams/:team          TeamController :show
 /mlb/lineups/:date        LineupController :show
-/mlb/news                 NewsController :today  (redirects to today's date)
+/mlb/news                 NewsController :today  (renders inline at the latest news date — no redirect, URL stays /mlb/news)
 /mlb/news/:date           NewsController :index
 /mlb/news/:date/:slug     NewsController :show
 /mlb/scouting/:team/:player ScoutingController :show   (public preview)
@@ -153,6 +154,37 @@ python_bridge/src/
 **Sitemap route note**: The router uses `/sitemaps/:type` (not `/sitemap-:type.xml`) because Phoenix does not support hyphens before dynamic segments.
 
 **Breadcrumb convention**: MLB-section pages use a four-level breadcrumb: `Home / Baseball / <Section> / <Detail>`. "Baseball" always links to `/mlb/teams`. The same hierarchy appears in both the visible `breadcrumbs/1` component and the JSON-LD `BreadcrumbList` structured data. Example for lineups: `Home → Baseball (/mlb/teams) → Lineups (/mlb/lineups/<today>) → <date>`.
+
+**Lineups nav link**: The Lineups link in the root layout nav (desktop and mobile) is currently commented out. The `/mlb/lineups/:date` route is still fully functional and accessible via direct URL — the nav entry is hidden, not removed.
+
+---
+
+## Date Navigation
+
+News and lineup pages display data-aware previous/next date navigation at the top and bottom of the page.
+
+**Component**: `date_nav/1` in `SportsFanaticWeb.SEOComponents`
+
+```heex
+<.date_nav prev_date={@prev_date} next_date={@next_date} base_path="/mlb/news" />
+```
+
+Attributes:
+- `prev_date` — `%Date{}` or `nil`. When nil, the prev arrow is suppressed.
+- `next_date` — `%Date{}` or `nil`. When nil, the next arrow is suppressed.
+- `base_path` — path prefix; links resolve to `{base_path}/{YYYY-MM-DD}`.
+
+**News date lookup** (`SportsFanatic.News`):
+- `nearest_news_date_before/1` — MAX aggregate on `news_items.published_date` where date is before the given date.
+- `nearest_news_date_after/1` — MIN aggregate on `news_items.published_date` where date is after the given date.
+- `next_date` for news is capped at today's Eastern time date — future dates are never linked.
+
+**Lineup date lookup** (private functions in `LineupController`):
+- `nearest_lineup_date_before/1` — queries `mlb.lineups` for the nearest preceding date with data.
+- `nearest_lineup_date_after/1` — queries `mlb.lineups` for the nearest following date with data.
+- No future-date cap for lineups — scheduled games legitimately exist in the future.
+
+Both controllers assign `@prev_date` and `@next_date` and pass them to `date_nav/1` in the template.
 
 ---
 
@@ -257,7 +289,7 @@ To manually enqueue a worker in IEx:
 
 ## Testing Strategy
 
-- **Pure unit tests** (`mix test.unit`): Schema changesets, `Slug.slugify/1`, `has_active_subscription?/1`, cache key builders, circuit breaker state machine. No PostgreSQL required.
+- **Pure unit tests** (`mix test.unit`): Schema changesets, `Slug.slugify/1`, `has_active_subscription?/1`, cache key builders, circuit breaker state machine, `date_nav/1` component (84 tests total). No PostgreSQL required.
 - **Integration tests** (`mix test`): Accounts context, billing webhook handlers, controllers, auth plugs. Require PostgreSQL.
 - Test data uses `SportsFanatic.DataCase` (SQL sandbox) for DB tests.
 - No Mox dependency. Worker tests verify Oban job structure, not external API calls.

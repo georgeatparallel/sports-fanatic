@@ -125,7 +125,8 @@ defmodule SportsFanatic.Workers.FetchNewsWorker do
       body: body,
       author: first_present(item, ~w(article_author author)),
       source_url: first_present(item, ~w(article_link url source_url)),
-      published_date: parse_article_date(item["article_date"]) || SportsFanatic.DateHelper.today(),
+      published_date:
+        parse_article_date(item["article_date"]) || SportsFanatic.DateHelper.today(),
       slug: generate_news_slug(title)
     }
   end

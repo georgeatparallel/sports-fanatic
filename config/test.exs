@@ -8,7 +8,8 @@ import Config
 config :sports_fanatic, SportsFanatic.Repo,
   username: "postgres",
   password: "postgres",
-  hostname: "localhost",
+  hostname: System.get_env("PGHOST", "localhost"),
+  port: String.to_integer(System.get_env("PGPORT", "5432")),
   database: "sports_fanatic_test#{System.get_env("MIX_TEST_PARTITION")}",
   pool: Ecto.Adapters.SQL.Sandbox,
   pool_size: 10

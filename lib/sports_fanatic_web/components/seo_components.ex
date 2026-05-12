@@ -70,6 +70,37 @@ defmodule SportsFanaticWeb.SEOComponents do
     """
   end
 
+  attr :prev_date, Date, default: nil
+  attr :next_date, Date, default: nil
+  attr :base_path, :string, required: true
+
+  def date_nav(assigns) do
+    ~H"""
+    <nav class="flex justify-between items-center py-3" aria-label="Date navigation">
+      <%= if @prev_date do %>
+        <a
+          href={"#{@base_path}/#{Date.to_iso8601(@prev_date)}"}
+          class="text-blue-600 hover:text-blue-800 font-medium text-sm"
+        >
+          &larr; <%= Calendar.strftime(@prev_date, "%b %d") %>
+        </a>
+      <% else %>
+        <span></span>
+      <% end %>
+      <%= if @next_date do %>
+        <a
+          href={"#{@base_path}/#{Date.to_iso8601(@next_date)}"}
+          class="text-blue-600 hover:text-blue-800 font-medium text-sm"
+        >
+          <%= Calendar.strftime(@next_date, "%b %d") %> &rarr;
+        </a>
+      <% else %>
+        <span></span>
+      <% end %>
+    </nav>
+    """
+  end
+
   attr :return_to, :string, default: "/subscribe"
 
   def subscribe_cta(assigns) do
