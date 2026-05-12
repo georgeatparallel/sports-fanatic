@@ -7,8 +7,8 @@ defmodule SportsFanaticWeb.NewsLive do
 
   use SportsFanaticWeb, :live_view
 
-  alias SportsFanatic.News
   alias SportsFanatic.DateHelper
+  alias SportsFanatic.News
 
   import SportsFanaticWeb.NewsHTML, only: [category_badge: 1, sentiment_dot: 1]
 
@@ -45,12 +45,12 @@ defmodule SportsFanaticWeb.NewsLive do
   defp load_feed(socket, date, viewing_today) do
     {:ok, feed} = News.get_cached_feed(date)
     prev_date = News.nearest_news_date_before(date)
-    next_date = News.nearest_news_date_after(date)
     today = socket.assigns.today
+    raw_next = News.nearest_news_date_after(date)
 
     # Cap next_date at today
     next_date =
-      if next_date && Date.compare(next_date, today) == :gt, do: nil, else: next_date
+      if raw_next && Date.compare(raw_next, today) != :gt, do: raw_next, else: nil
 
     if connected?(socket) do
       # Unsubscribe from previous date-specific topic if navigating between dates

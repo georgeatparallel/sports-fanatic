@@ -3,8 +3,8 @@ defmodule SportsFanaticWeb.PageController do
 
   import Ecto.Query
 
-  alias SportsFanatic.Mlb.{ScheduledGame, Team}
   alias SportsFanatic.Content.NewsItem
+  alias SportsFanatic.Mlb.{ScheduledGame, Team}
   alias SportsFanatic.Repo
 
   def health(conn, _params) do
