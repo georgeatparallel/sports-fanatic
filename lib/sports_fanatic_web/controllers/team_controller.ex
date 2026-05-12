@@ -34,7 +34,7 @@ defmodule SportsFanaticWeb.TeamController do
       |> where(
         [sg],
         (sg.away_mlb_id == ^mlb_id or sg.home_mlb_id == ^mlb_id) and
-          sg.game_date >= ^Date.utc_today()
+          sg.game_date >= ^SportsFanatic.DateHelper.today()
       )
       |> order_by([sg], sg.game_date)
       |> limit(10)

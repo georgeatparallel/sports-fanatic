@@ -42,7 +42,7 @@ defmodule SportsFanatic.Workers.FetchNewsWorker do
   end
 
   defp process_news(news_list) do
-    today = Date.utc_today()
+    today = SportsFanatic.DateHelper.today()
 
     # Extract all external_ids in one pass
     articles_with_ids =
@@ -125,7 +125,7 @@ defmodule SportsFanatic.Workers.FetchNewsWorker do
       body: body,
       author: first_present(item, ~w(article_author author)),
       source_url: first_present(item, ~w(article_link url source_url)),
-      published_date: parse_article_date(item["article_date"]) || Date.utc_today(),
+      published_date: parse_article_date(item["article_date"]) || SportsFanatic.DateHelper.today(),
       slug: generate_news_slug(title)
     }
   end

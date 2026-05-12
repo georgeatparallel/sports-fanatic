@@ -17,7 +17,7 @@ defmodule SportsFanatic.Workers.GenerateGameDayWorker do
 
   @impl Oban.Worker
   def perform(%Oban.Job{}) do
-    today = Date.utc_today()
+    today = SportsFanatic.DateHelper.today()
 
     games =
       ScheduledGame

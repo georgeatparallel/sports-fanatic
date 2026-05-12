@@ -38,7 +38,7 @@ defmodule SportsFanatic.Workers.WarmCacheWorker do
     end)
 
     # Warm today's lineup page
-    today = Date.utc_today() |> Date.to_iso8601()
+    today = SportsFanatic.DateHelper.today() |> Date.to_iso8601()
     Cache.del(Cache.lineup_page_key(today))
 
     Logger.info("Cache warmed for #{length(teams)} teams, #{length(players)} players")

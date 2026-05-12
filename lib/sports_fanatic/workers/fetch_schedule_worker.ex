@@ -14,7 +14,7 @@ defmodule SportsFanatic.Workers.FetchScheduleWorker do
 
   @impl Oban.Worker
   def perform(%Oban.Job{}) do
-    today = Date.utc_today() |> Date.to_iso8601()
+    today = SportsFanatic.DateHelper.today() |> Date.to_iso8601()
 
     # The Python bridge wraps MLB Stats API for schedule data
     case PythonBridge.fetch_schedule(today) do

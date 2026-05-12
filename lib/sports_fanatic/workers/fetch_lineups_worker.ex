@@ -17,7 +17,7 @@ defmodule SportsFanatic.Workers.FetchLineupsWorker do
 
   @impl Oban.Worker
   def perform(%Oban.Job{}) do
-    today = Date.utc_today() |> Date.to_iso8601()
+    today = SportsFanatic.DateHelper.today() |> Date.to_iso8601()
 
     case FantasyNerds.fetch_lineups(today) do
       {:ok, players} ->
@@ -30,7 +30,7 @@ defmodule SportsFanatic.Workers.FetchLineupsWorker do
 
           %Lineup{}
           |> Lineup.changeset(%{
-            game_date: Date.utc_today(),
+            game_date: SportsFanatic.DateHelper.today(),
             player_nerds_id: player.player_id,
             player_name: name,
             team_code: player.team_code,

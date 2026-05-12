@@ -1,7 +1,7 @@
 <SportsFanaticWeb.SEOComponents.breadcrumbs items={[
   %{label: "Home", href: "/"},
   %{label: "Baseball", href: "/mlb/teams"},
-  %{label: "Lineups", href: "/mlb/lineups/#{Date.utc_today() |> Date.to_iso8601()}"},
+  %{label: "Lineups", href: "/mlb/lineups/#{SportsFanatic.DateHelper.today() |> Date.to_iso8601()}"},
   %{label: Calendar.strftime(@date, "%B %d, %Y")}
 ]} />
 

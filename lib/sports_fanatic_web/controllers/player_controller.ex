@@ -15,7 +15,7 @@ defmodule SportsFanaticWeb.PlayerController do
   def index(conn, params) do
     page = String.to_integer(params["page"] || "1")
     per_page = 50
-    today = Date.utc_today()
+    today = SportsFanatic.DateHelper.today()
 
     # Fetch today's lineup players with team info
     lineup_query =
@@ -71,7 +71,7 @@ defmodule SportsFanaticWeb.PlayerController do
       |> where([p], p.team_id == ^team.id and p.slug == ^player_slug and p.status == "active")
       |> Repo.one!()
 
-    today = Date.utc_today()
+    today = SportsFanatic.DateHelper.today()
 
     # Latest scouting report
     scouting =

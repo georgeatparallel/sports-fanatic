@@ -7,7 +7,7 @@ defmodule SportsFanaticWeb.DashboardLive do
 
   @impl true
   def mount(_params, _session, socket) do
-    today = Date.utc_today()
+    today = SportsFanatic.DateHelper.today()
 
     games =
       ScheduledGame

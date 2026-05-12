@@ -87,7 +87,7 @@ defmodule SportsFanaticWeb.LineupController do
             "position" => 3,
             "name" => "Lineups",
             "item" =>
-              "https://sportsfanatic.com/mlb/lineups/#{Date.utc_today() |> Date.to_iso8601()}"
+              "https://sportsfanatic.com/mlb/lineups/#{SportsFanatic.DateHelper.today() |> Date.to_iso8601()}"
           },
           %{
             "@type" => "ListItem",

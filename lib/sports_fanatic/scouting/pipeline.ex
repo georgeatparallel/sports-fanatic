@@ -385,7 +385,7 @@ defmodule SportsFanatic.Scouting.Pipeline do
   end
 
   defp generate_report(player) do
-    today = Date.utc_today()
+    today = SportsFanatic.DateHelper.today()
     sources_by_category = Scouting.classified_sources_for_player(player.id)
 
     if sources_by_category == %{} do

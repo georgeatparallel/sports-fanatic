@@ -35,7 +35,7 @@ defmodule SportsFanatic.News do
       NewsItem
       |> select([n], max(n.published_date))
 
-    Repo.one(query) || Date.utc_today()
+    Repo.one(query) || SportsFanatic.DateHelper.today()
   end
 
   @doc """

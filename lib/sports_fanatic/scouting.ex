@@ -24,7 +24,7 @@ defmodule SportsFanatic.Scouting do
   Returns an empty list if no lineups exist for today.
   """
   def players_in_todays_lineups do
-    players_in_lineups_for_date(Date.utc_today())
+    players_in_lineups_for_date(SportsFanatic.DateHelper.today())
   end
 
   @doc """
@@ -71,7 +71,7 @@ defmodule SportsFanatic.Scouting do
   Returns the count of players in today's lineups (without loading full records).
   """
   def todays_lineup_player_count do
-    lineup_player_count_for_date(Date.utc_today())
+    lineup_player_count_for_date(SportsFanatic.DateHelper.today())
   end
 
   @doc """

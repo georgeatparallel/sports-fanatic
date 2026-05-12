@@ -16,7 +16,7 @@ defmodule SportsFanatic.Workers.GenerateScoutingWorker do
 
   @impl Oban.Worker
   def perform(%Oban.Job{}) do
-    today = Date.utc_today()
+    today = SportsFanatic.DateHelper.today()
 
     # Get players in today's lineups
     players =
