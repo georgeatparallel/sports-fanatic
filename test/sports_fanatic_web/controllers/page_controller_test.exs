@@ -1,8 +1,8 @@
 defmodule SportsFanaticWeb.PageControllerTest do
   use SportsFanaticWeb.ConnCase, async: true
 
-  test "GET / redirects to /mlb/news", %{conn: conn} do
+  test "GET / renders homepage with 200 status", %{conn: conn} do
     conn = get(conn, ~p"/")
-    assert redirected_to(conn) == "/mlb/news"
+    assert html_response(conn, 200)
   end
 end
