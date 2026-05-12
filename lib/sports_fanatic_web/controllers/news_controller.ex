@@ -3,89 +3,9 @@ defmodule SportsFanaticWeb.NewsController do
 
   alias SportsFanatic.News
 
-  def today(conn, _params) do
-    date = News.latest_news_date()
-    date_str = Date.to_iso8601(date)
-
-    {:ok, feed} = News.get_cached_feed(date)
-
+  def redirect_today(conn, _params) do
     today = SportsFanatic.DateHelper.today()
-    prev_date = News.nearest_news_date_before(date)
-    next_date = News.nearest_news_date_after(date)
-    next_date = if next_date && Date.compare(next_date, today) == :gt, do: nil, else: next_date
-
-    canonical = "https://sportsfanatic.com/mlb/news/#{date_str}"
-    formatted_date = Calendar.strftime(date, "%B %d, %Y")
-
-    json_ld =
-      Jason.encode!(%{
-        "@context" => "https://schema.org",
-        "@type" => "CollectionPage",
-        "name" => "MLB News for #{formatted_date}",
-        "url" => canonical,
-        "publisher" => %{
-          "@type" => "Organization",
-          "name" => "Sports Fan Agent"
-        }
-      })
-
-    conn
-    |> assign(:page_title, "MLB News for #{formatted_date} | Sports Fan Agent")
-    |> assign(
-      :meta_description,
-      "Latest MLB news, injuries, trades, and player updates for #{formatted_date}."
-    )
-    |> assign(:canonical_url, canonical)
-    |> assign(:json_ld, json_ld)
-    |> render(:index,
-      date: date,
-      date_str: date_str,
-      feed: feed,
-      prev_date: prev_date,
-      next_date: next_date
-    )
-  end
-
-  def index(conn, %{"date" => date_str}) do
-    date = Date.from_iso8601!(date_str)
-
-    {:ok, feed} = News.get_cached_feed(date)
-
-    today = SportsFanatic.DateHelper.today()
-    prev_date = News.nearest_news_date_before(date)
-    next_date = News.nearest_news_date_after(date)
-    next_date = if next_date && Date.compare(next_date, today) == :gt, do: nil, else: next_date
-
-    canonical = "https://sportsfanatic.com/mlb/news/#{date_str}"
-    formatted_date = Calendar.strftime(date, "%B %d, %Y")
-
-    json_ld =
-      Jason.encode!(%{
-        "@context" => "https://schema.org",
-        "@type" => "CollectionPage",
-        "name" => "MLB News for #{formatted_date}",
-        "url" => canonical,
-        "publisher" => %{
-          "@type" => "Organization",
-          "name" => "Sports Fan Agent"
-        }
-      })
-
-    conn
-    |> assign(:page_title, "MLB News for #{formatted_date} | Sports Fan Agent")
-    |> assign(
-      :meta_description,
-      "Latest MLB news, injuries, trades, and player updates for #{formatted_date}."
-    )
-    |> assign(:canonical_url, canonical)
-    |> assign(:json_ld, json_ld)
-    |> render(:index,
-      date: date,
-      date_str: date_str,
-      feed: feed,
-      prev_date: prev_date,
-      next_date: next_date
-    )
+    redirect(conn, to: "/mlb/news/#{Date.to_iso8601(today)}")
   end
 
   def show(conn, %{"date" => date_str, "slug" => slug}) do

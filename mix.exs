@@ -13,6 +13,10 @@ defmodule SportsFanatic.MixProject do
     ]
   end
 
+  def cli do
+    [preferred_envs: ["test.unit": :test]]
+  end
+
   # Configuration for the OTP application.
   #
   # Type `mix help compile.app` for more information.
@@ -78,15 +82,29 @@ defmodule SportsFanatic.MixProject do
   #
   # See the documentation for `Mix` for more info on aliases.
   defp aliases do
+    unit_test_files = ~w(
+      test/sports_fanatic/mlb
+      test/sports_fanatic/accounts/user_test.exs
+      test/sports_fanatic/cache_test.exs
+      test/sports_fanatic/python_bridge
+      test/sports_fanatic/news/entity_matcher_test.exs
+      test/sports_fanatic/content/news_item_test.exs
+      test/sports_fanatic/storage_test.exs
+      test/sports_fanatic/feature_flags_test.exs
+      test/sports_fanatic_web/controllers/lineup_html_test.exs
+      test/sports_fanatic_web/controllers/news_html_test.exs
+      test/sports_fanatic_web/components/seo_components_test.exs
+    )
+
     [
       setup: ["deps.get", "ecto.setup", "assets.setup", "assets.build"],
       "ecto.setup": ["ecto.create", "ecto.migrate", "run priv/repo/seeds.exs"],
       "ecto.reset": ["ecto.drop", "ecto.setup"],
       test: ["ecto.create --quiet", "ecto.migrate --quiet", "test"],
-      # Run only unit tests that do not require a database connection
-      "test.unit": [
-        "test test/sports_fanatic/mlb test/sports_fanatic/accounts/user_test.exs test/sports_fanatic/cache_test.exs test/sports_fanatic/python_bridge test/sports_fanatic/news/entity_matcher_test.exs test/sports_fanatic/content/news_item_test.exs test/sports_fanatic/storage_test.exs test/sports_fanatic/feature_flags_test.exs test/sports_fanatic_web/controllers/lineup_html_test.exs test/sports_fanatic_web/controllers/news_html_test.exs test/sports_fanatic_web/components/seo_components_test.exs"
-      ],
+      # Run only unit tests that do not require a database connection.
+      # Uses a function alias to call Mix.Tasks.Test directly, bypassing the
+      # "test" alias above which would trigger ecto.create.
+      "test.unit": fn _args -> Mix.Tasks.Test.run(unit_test_files) end,
       "assets.setup": ["tailwind.install --if-missing", "esbuild.install --if-missing"],
       "assets.build": ["tailwind default", "esbuild default"],
       "assets.deploy": ["tailwind default --minify", "esbuild default --minify", "phx.digest"]

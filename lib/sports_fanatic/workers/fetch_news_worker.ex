@@ -66,6 +66,20 @@ defmodule SportsFanatic.Workers.FetchNewsWorker do
 
     if inserted > 0 do
       News.invalidate_feed_cache(today)
+
+      date_str = Date.to_iso8601(today)
+
+      Phoenix.PubSub.broadcast(
+        SportsFanatic.PubSub,
+        "news:feed:#{date_str}",
+        {:news_updated, today}
+      )
+
+      Phoenix.PubSub.broadcast(
+        SportsFanatic.PubSub,
+        "news:feed",
+        {:news_updated, today}
+      )
     end
 
     Logger.info("FetchNewsWorker: inserted=#{inserted} skipped=#{skipped}")

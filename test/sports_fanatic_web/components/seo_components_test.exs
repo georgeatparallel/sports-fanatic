@@ -236,6 +236,129 @@ defmodule SportsFanaticWeb.SEOComponentsTest do
   end
 
   # ---------------------------------------------------------------------------
+  # date_nav/1 — link_type attribute (:href vs :patch)
+  # ---------------------------------------------------------------------------
+
+  describe "date_nav/1 with link_type={:patch}" do
+    test "prev link renders as a LiveView patch anchor (data-phx-link attribute)" do
+      html =
+        render_component(&SportsFanaticWeb.SEOComponents.date_nav/1,
+          prev_date: ~D[2026-05-09],
+          next_date: nil,
+          base_path: "/mlb/news",
+          link_type: :patch
+        )
+
+      assert html =~ ~s(data-phx-link="patch")
+    end
+
+    test "next link renders as a LiveView patch anchor (data-phx-link attribute)" do
+      html =
+        render_component(&SportsFanaticWeb.SEOComponents.date_nav/1,
+          prev_date: nil,
+          next_date: ~D[2026-05-11],
+          base_path: "/mlb/news",
+          link_type: :patch
+        )
+
+      assert html =~ ~s(data-phx-link="patch")
+    end
+
+    test "both prev and next links render as patch anchors when both dates present" do
+      html =
+        render_component(&SportsFanaticWeb.SEOComponents.date_nav/1,
+          prev_date: ~D[2026-05-09],
+          next_date: ~D[2026-05-11],
+          base_path: "/mlb/news",
+          link_type: :patch
+        )
+
+      occurrences = html |> String.split(~s(data-phx-link="patch")) |> length()
+      assert occurrences == 3
+    end
+
+    test "patch link still contains the correct ISO date path" do
+      html =
+        render_component(&SportsFanaticWeb.SEOComponents.date_nav/1,
+          prev_date: ~D[2026-05-09],
+          next_date: nil,
+          base_path: "/mlb/news",
+          link_type: :patch
+        )
+
+      assert html =~ "/mlb/news/2026-05-09"
+    end
+
+    test "patch link still renders an href attribute alongside data-phx-link" do
+      html =
+        render_component(&SportsFanaticWeb.SEOComponents.date_nav/1,
+          prev_date: ~D[2026-05-09],
+          next_date: nil,
+          base_path: "/mlb/news",
+          link_type: :patch
+        )
+
+      # Phoenix LiveView .link patch renders both href and data-phx-link on the anchor
+      assert html =~ ~s(href="/mlb/news/2026-05-09")
+      assert html =~ ~s(data-phx-link="patch")
+    end
+  end
+
+  describe "date_nav/1 with link_type={:href} (explicit)" do
+    test "prev link renders a plain anchor with href" do
+      html =
+        render_component(&SportsFanaticWeb.SEOComponents.date_nav/1,
+          prev_date: ~D[2026-05-09],
+          next_date: nil,
+          base_path: "/mlb/news",
+          link_type: :href
+        )
+
+      assert html =~ ~s(href="/mlb/news/2026-05-09")
+    end
+
+    test "next link renders a plain anchor with href" do
+      html =
+        render_component(&SportsFanaticWeb.SEOComponents.date_nav/1,
+          prev_date: nil,
+          next_date: ~D[2026-05-11],
+          base_path: "/mlb/news",
+          link_type: :href
+        )
+
+      assert html =~ ~s(href="/mlb/news/2026-05-11")
+    end
+
+    test "href link does not render data-phx-link attribute" do
+      html =
+        render_component(&SportsFanaticWeb.SEOComponents.date_nav/1,
+          prev_date: ~D[2026-05-09],
+          next_date: ~D[2026-05-11],
+          base_path: "/mlb/news",
+          link_type: :href
+        )
+
+      refute html =~ "data-phx-link"
+    end
+  end
+
+  describe "date_nav/1 default link_type is :href" do
+    test "omitting link_type renders plain anchor with href (backward compat)" do
+      html =
+        render_component(&SportsFanaticWeb.SEOComponents.date_nav/1,
+          prev_date: ~D[2026-05-09],
+          next_date: ~D[2026-05-11],
+          base_path: "/mlb/news"
+        )
+
+      # Default must produce plain anchors, no LiveView-specific attributes
+      assert html =~ ~s(href="/mlb/news/2026-05-09")
+      assert html =~ ~s(href="/mlb/news/2026-05-11")
+      refute html =~ "data-phx-link"
+    end
+  end
+
+  # ---------------------------------------------------------------------------
   # date_nav/1 — base_path variations
   # ---------------------------------------------------------------------------
 

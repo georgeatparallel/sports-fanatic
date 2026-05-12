@@ -47,6 +47,10 @@ Two-layer MLB platform:
 
 ```
 Browser → Phoenix Router
+           ├── /mlb/news, /mlb/news/:date → NewsLive (LiveView, WebSocket)
+           │     ├── (connected) subscribes to Phoenix PubSub "news:feed:{date}" + "news:feed"
+           │     └── reads Valkey cache → (miss) → PostgreSQL
+           ├── /mlb/news/today → NewsController :redirect_today → 302 /mlb/news/<current ET date>
            ├── /mlb/* → SEO Controllers → (Valkey cache hit) → HTML response
            │                            → (cache miss) → PostgreSQL → render → cache → HTML
            ├── /premium/* → LiveView (subscription-gated, WebSocket)
@@ -54,7 +58,8 @@ Browser → Phoenix Router
 
 Oban workers (background)
   FetchSchedule / FetchLineups → PostgreSQL
-  FetchNews (every 1 min) → S3 (raw JSON) → Python Bridge /news/analyze → PostgreSQL → Valkey invalidate
+  FetchNews (every 1 min) → S3 (raw JSON) → Python Bridge /news/analyze → PostgreSQL
+                           → Valkey invalidate → Phoenix PubSub broadcast → NewsLive updates
   GeneratePredictions → Python Bridge (FastAPI :8000)
   GenerateScouting / GenerateGameDay → Python Bridge → Claude API → PostgreSQL
   WarmCache → Valkey
@@ -94,7 +99,8 @@ lib/sports_fanatic_web/
   components/         seo_components.ex — json_ld/2, breadcrumbs/1, subscribe_cta/1, date_nav/1
   controllers/        Page, Player, Team, Lineup, News, Scouting, GameDay, Sitemap,
                        Auth, Subscription, StripeWebhook controllers + HTML modules
-  live/               DashboardLive, ScoutingLive, GameDayLive, GameDayIndexLive,
+  live/               NewsLive — public news feed with PubSub live updates + day-transition timer
+                       DashboardLive, ScoutingLive, GameDayLive, GameDayIndexLive,
                        ArchiveScoutingLive, ArchiveGameDayLive, AdminLive
   plugs/              FetchCurrentUser, RequireAuthenticated, RequireAdmin, SubscriptionGate,
                        VerifyStripeWebhook, CacheRawBody
@@ -123,8 +129,9 @@ python_bridge/src/
 /mlb/teams                TeamController :index
 /mlb/teams/:team          TeamController :show
 /mlb/lineups/:date        LineupController :show
-/mlb/news                 NewsController :today  (renders inline at the latest news date — no redirect, URL stays /mlb/news)
-/mlb/news/:date           NewsController :index
+/mlb/news                 NewsLive :today  (LiveView; renders today's feed inline, URL stays /mlb/news, live updates via PubSub)
+/mlb/news/today           NewsController :redirect_today  (302 redirect to /mlb/news/<current ET date>)
+/mlb/news/:date           NewsLive :index  (LiveView; live updates via PubSub, patch-based date nav)
 /mlb/news/:date/:slug     NewsController :show
 /mlb/scouting/:team/:player ScoutingController :show   (public preview)
 /mlb/game-day/:date/:slug GameDayController :show      (public preview)
@@ -166,25 +173,30 @@ News and lineup pages display data-aware previous/next date navigation at the to
 **Component**: `date_nav/1` in `SportsFanaticWeb.SEOComponents`
 
 ```heex
+<%# Controller template (full-page navigation) %>
 <.date_nav prev_date={@prev_date} next_date={@next_date} base_path="/mlb/news" />
+
+<%# LiveView template (patch navigation — keeps WebSocket alive) %>
+<.date_nav prev_date={@prev_date} next_date={@next_date} base_path="/mlb/news" link_type={:patch} />
 ```
 
 Attributes:
 - `prev_date` — `%Date{}` or `nil`. When nil, the prev arrow is suppressed.
 - `next_date` — `%Date{}` or `nil`. When nil, the next arrow is suppressed.
 - `base_path` — path prefix; links resolve to `{base_path}/{YYYY-MM-DD}`.
+- `link_type` — `:href` (default) renders a plain `<a>` tag. `:patch` renders `<.link patch=...>` for LiveView patch navigation that calls `handle_params` without remounting.
 
 **News date lookup** (`SportsFanatic.News`):
 - `nearest_news_date_before/1` — MAX aggregate on `news_items.published_date` where date is before the given date.
 - `nearest_news_date_after/1` — MIN aggregate on `news_items.published_date` where date is after the given date.
-- `next_date` for news is capped at today's Eastern time date — future dates are never linked.
+- `next_date` for news is capped at today's Eastern time date — future dates are never linked. `NewsLive` recalculates this cap on every `:tick` so the "next" arrow appears automatically after midnight.
 
 **Lineup date lookup** (private functions in `LineupController`):
 - `nearest_lineup_date_before/1` — queries `mlb.lineups` for the nearest preceding date with data.
 - `nearest_lineup_date_after/1` — queries `mlb.lineups` for the nearest following date with data.
 - No future-date cap for lineups — scheduled games legitimately exist in the future.
 
-Both controllers assign `@prev_date` and `@next_date` and pass them to `date_nav/1` in the template.
+News pages (`NewsLive`) and lineup pages (`LineupController`) both assign `@prev_date` and `@next_date` and pass them to `date_nav/1` in the template. News uses `link_type={:patch}`; lineups use the default `:href`.
 
 ---
 
