@@ -12,6 +12,6 @@ patches:
 
 images:
   - name: 852421754386.dkr.ecr.us-east-1.amazonaws.com/sports-fanatic-prod/web
-    newTag: 4821b6e3c1410ed4df0e00182cf48847d997acce
+    newTag: 3e3d520436096b2d01f2289a14d8622d99f54e4a
   - name: 852421754386.dkr.ecr.us-east-1.amazonaws.com/sports-fanatic-prod/python-bridge
-    newTag: 4821b6e3c1410ed4df0e00182cf48847d997acce
+    newTag: 3e3d520436096b2d01f2289a14d8622d99f54e4a
