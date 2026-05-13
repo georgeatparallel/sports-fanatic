@@ -97,6 +97,9 @@ defmodule SportsFanaticWeb.LineupController do
         ]
       })
 
+    prev_date = nearest_lineup_date_before(date)
+    next_date = nearest_lineup_date_after(date)
+
     conn
     |> assign(:page_title, "MLB Lineups for #{format_date(date)} | Sports Fan Agent")
     |> assign(
@@ -111,8 +114,24 @@ defmodule SportsFanaticWeb.LineupController do
       games: games,
       teams_by_mlb_id: teams_by_mlb_id,
       lineups_by_team_code: lineups_by_team_code,
-      pitchers_by_name: pitchers_by_name
+      pitchers_by_name: pitchers_by_name,
+      prev_date: prev_date,
+      next_date: next_date
     )
+  end
+
+  defp nearest_lineup_date_before(date) do
+    ScheduledGame
+    |> where([sg], sg.game_date < ^date)
+    |> select([sg], max(sg.game_date))
+    |> Repo.one()
+  end
+
+  defp nearest_lineup_date_after(date) do
+    ScheduledGame
+    |> where([sg], sg.game_date > ^date)
+    |> select([sg], min(sg.game_date))
+    |> Repo.one()
   end
 
   defp format_date(date) do

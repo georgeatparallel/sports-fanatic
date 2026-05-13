@@ -12,6 +12,7 @@ defmodule SportsFanatic.Workers.FetchLineupsWorkerTest do
 
   describe "Oban.Worker behavior" do
     test "worker is a valid Oban.Worker" do
+      Code.ensure_loaded!(FetchLineupsWorker)
       assert function_exported?(FetchLineupsWorker, :perform, 1)
     end
 

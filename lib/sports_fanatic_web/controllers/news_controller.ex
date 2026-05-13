@@ -3,44 +3,9 @@ defmodule SportsFanaticWeb.NewsController do
 
   alias SportsFanatic.News
 
-  def today(conn, _params) do
-    date = News.latest_news_date()
-    redirect(conn, to: "/mlb/news/#{Date.to_iso8601(date)}")
-  end
-
-  def index(conn, %{"date" => date_str}) do
-    date = Date.from_iso8601!(date_str)
-
-    {:ok, feed} = News.get_cached_feed(date)
-
-    canonical = "https://sportsfanatic.com/mlb/news/#{date_str}"
-    formatted_date = Calendar.strftime(date, "%B %d, %Y")
-
-    json_ld =
-      Jason.encode!(%{
-        "@context" => "https://schema.org",
-        "@type" => "CollectionPage",
-        "name" => "MLB News for #{formatted_date}",
-        "url" => canonical,
-        "publisher" => %{
-          "@type" => "Organization",
-          "name" => "Sports Fan Agent"
-        }
-      })
-
-    conn
-    |> assign(:page_title, "MLB News for #{formatted_date} | Sports Fan Agent")
-    |> assign(
-      :meta_description,
-      "Latest MLB news, injuries, trades, and player updates for #{formatted_date}."
-    )
-    |> assign(:canonical_url, canonical)
-    |> assign(:json_ld, json_ld)
-    |> render(:index,
-      date: date,
-      date_str: date_str,
-      feed: feed
-    )
+  def redirect_today(conn, _params) do
+    today = SportsFanatic.DateHelper.today()
+    redirect(conn, to: "/mlb/news/#{Date.to_iso8601(today)}")
   end
 
   def show(conn, %{"date" => date_str, "slug" => slug}) do

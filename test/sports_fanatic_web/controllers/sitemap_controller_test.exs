@@ -21,14 +21,14 @@ defmodule SportsFanaticWeb.SitemapControllerTest do
       Repo.insert!(%Sitemap{
         sitemap_type: "index",
         xml_content:
-          "<?xml version=\"1.0\"?><sitemapindex xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\"><sitemap><loc>https://sportsfanatic.com/sitemaps/players</loc></sitemap></sitemapindex>",
+          "<?xml version=\"1.0\"?><sitemapindex xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\"><sitemap><loc>https://www.sports-fan-agent.com/sitemaps/players</loc></sitemap></sitemapindex>",
         page_count: 1
       })
 
       conn = get(conn, "/sitemap.xml")
       body = response(conn, 200)
       assert body =~ "sitemapindex"
-      assert body =~ "sportsfanatic.com"
+      assert body =~ "sports-fan-agent.com"
     end
   end
 
@@ -89,11 +89,11 @@ defmodule SportsFanaticWeb.SitemapControllerTest do
       assert body =~ "Sitemap:"
     end
 
-    test "disallows /account/ and /api/ paths", %{conn: conn} do
+    test "disallows /admin and /joshua paths", %{conn: conn} do
       conn = get(conn, "/robots.txt")
       body = response(conn, 200)
-      assert body =~ "Disallow: /account/"
-      assert body =~ "Disallow: /api/"
+      assert body =~ "Disallow: /admin"
+      assert body =~ "Disallow: /joshua"
     end
   end
 end

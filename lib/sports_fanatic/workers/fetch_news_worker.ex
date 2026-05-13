@@ -66,6 +66,20 @@ defmodule SportsFanatic.Workers.FetchNewsWorker do
 
     if inserted > 0 do
       News.invalidate_feed_cache(today)
+
+      date_str = Date.to_iso8601(today)
+
+      Phoenix.PubSub.broadcast(
+        SportsFanatic.PubSub,
+        "news:feed:#{date_str}",
+        {:news_updated, today}
+      )
+
+      Phoenix.PubSub.broadcast(
+        SportsFanatic.PubSub,
+        "news:feed",
+        {:news_updated, today}
+      )
     end
 
     Logger.info("FetchNewsWorker: inserted=#{inserted} skipped=#{skipped}")
@@ -125,7 +139,8 @@ defmodule SportsFanatic.Workers.FetchNewsWorker do
       body: body,
       author: first_present(item, ~w(article_author author)),
       source_url: first_present(item, ~w(article_link url source_url)),
-      published_date: parse_article_date(item["article_date"]) || SportsFanatic.DateHelper.today(),
+      published_date:
+        parse_article_date(item["article_date"]) || SportsFanatic.DateHelper.today(),
       slug: generate_news_slug(title)
     }
   end

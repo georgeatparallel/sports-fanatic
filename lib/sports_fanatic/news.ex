@@ -39,6 +39,26 @@ defmodule SportsFanatic.News do
   end
 
   @doc """
+  Returns the nearest date before `date` that has news items, or nil.
+  """
+  def nearest_news_date_before(%Date{} = date) do
+    NewsItem
+    |> where([n], n.published_date < ^date)
+    |> select([n], max(n.published_date))
+    |> Repo.one()
+  end
+
+  @doc """
+  Returns the nearest date after `date` that has news items, or nil.
+  """
+  def nearest_news_date_after(%Date{} = date) do
+    NewsItem
+    |> where([n], n.published_date > ^date)
+    |> select([n], min(n.published_date))
+    |> Repo.one()
+  end
+
+  @doc """
   Creates a news item. If a record with the same (source, external_id) already
   exists, the insert is silently skipped (on_conflict: :nothing). Callers should
   filter duplicates before calling this function to avoid wasted S3/AI work.

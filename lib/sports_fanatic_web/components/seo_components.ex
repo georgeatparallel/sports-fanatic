@@ -70,6 +70,61 @@ defmodule SportsFanaticWeb.SEOComponents do
     """
   end
 
+  attr :prev_date, Date, default: nil
+  attr :next_date, Date, default: nil
+  attr :base_path, :string, required: true
+  attr :link_type, :atom, default: :href, values: [:href, :patch]
+
+  def date_nav(assigns) do
+    ~H"""
+    <nav class="flex justify-between items-center py-3" aria-label="Date navigation">
+      <%= if @prev_date do %>
+        <.date_nav_link
+          path={"#{@base_path}/#{Date.to_iso8601(@prev_date)}"}
+          link_type={@link_type}
+          class="text-blue-600 hover:text-blue-800 font-medium text-sm"
+        >
+          &larr; <%= Calendar.strftime(@prev_date, "%b %d") %>
+        </.date_nav_link>
+      <% else %>
+        <span></span>
+      <% end %>
+      <%= if @next_date do %>
+        <.date_nav_link
+          path={"#{@base_path}/#{Date.to_iso8601(@next_date)}"}
+          link_type={@link_type}
+          class="text-blue-600 hover:text-blue-800 font-medium text-sm"
+        >
+          <%= Calendar.strftime(@next_date, "%b %d") %> &rarr;
+        </.date_nav_link>
+      <% else %>
+        <span></span>
+      <% end %>
+    </nav>
+    """
+  end
+
+  attr :path, :string, required: true
+  attr :link_type, :atom, required: true
+  attr :class, :string, default: ""
+  slot :inner_block, required: true
+
+  defp date_nav_link(%{link_type: :patch} = assigns) do
+    ~H"""
+    <.link patch={@path} class={@class}>
+      <%= render_slot(@inner_block) %>
+    </.link>
+    """
+  end
+
+  defp date_nav_link(%{link_type: :href} = assigns) do
+    ~H"""
+    <a href={@path} class={@class}>
+      <%= render_slot(@inner_block) %>
+    </a>
+    """
+  end
+
   attr :return_to, :string, default: "/subscribe"
 
   def subscribe_cta(assigns) do

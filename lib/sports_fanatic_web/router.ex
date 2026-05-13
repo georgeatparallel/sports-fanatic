@@ -54,7 +54,7 @@ defmodule SportsFanaticWeb.Router do
   scope "/", SportsFanaticWeb do
     pipe_through :browser
 
-    get "/", PageController, :home
+    live "/", NewsLive, :home
 
     # Player pages
     get "/mlb/players", PlayerController, :index
@@ -69,8 +69,9 @@ defmodule SportsFanaticWeb.Router do
     get "/mlb/lineups/:date", LineupController, :show
 
     # News pages
-    get "/mlb/news", NewsController, :today
-    get "/mlb/news/:date", NewsController, :index
+    live "/mlb/news", NewsLive, :today
+    get "/mlb/news/today", NewsController, :redirect_today
+    live "/mlb/news/:date", NewsLive, :index
     get "/mlb/news/:date/:slug", NewsController, :show
 
     # Scouting preview (truncated, public)

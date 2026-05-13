@@ -6,6 +6,12 @@
 ]} />
 
 <section class="max-w-4xl mx-auto px-4 py-8">
+  <SportsFanaticWeb.SEOComponents.date_nav
+    prev_date={@prev_date}
+    next_date={@next_date}
+    base_path="/mlb/news"
+  />
+
   <h1 class="text-3xl font-bold text-gray-900 mb-6">
     MLB News &mdash; <%= Calendar.strftime(@date, "%B %d, %Y") %>
   </h1>
@@ -59,4 +65,10 @@
       <% end %>
     </div>
   <% end %>
+
+  <SportsFanaticWeb.SEOComponents.date_nav
+    prev_date={@prev_date}
+    next_date={@next_date}
+    base_path="/mlb/news"
+  />
 </section>
