@@ -25,6 +25,11 @@ defmodule SportsFanaticWeb.NewsLive do
     {:noreply, apply_action(socket, socket.assigns.live_action, params)}
   end
 
+  defp apply_action(socket, :home, _params) do
+    today = socket.assigns.today
+    load_feed(socket, today, true)
+  end
+
   defp apply_action(socket, :today, _params) do
     today = socket.assigns.today
     load_feed(socket, today, true)
