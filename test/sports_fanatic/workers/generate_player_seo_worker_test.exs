@@ -30,6 +30,7 @@ defmodule SportsFanatic.Workers.GeneratePlayerSeoWorkerTest do
 
   describe "Oban.Worker behavior" do
     test "worker is a valid Oban.Worker" do
+      Code.ensure_loaded!(GeneratePlayerSeoWorker)
       assert function_exported?(GeneratePlayerSeoWorker, :perform, 1)
     end
 

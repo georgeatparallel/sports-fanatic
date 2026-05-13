@@ -5,6 +5,7 @@ defmodule SportsFanatic.Workers.ScoutingPipelineWorkerTest do
 
   describe "Oban.Worker behavior" do
     test "worker is a valid Oban.Worker" do
+      Code.ensure_loaded!(ScoutingPipelineWorker)
       assert function_exported?(ScoutingPipelineWorker, :perform, 1)
     end
 
