@@ -9,36 +9,24 @@
   <%!-- Sticky Command Input --%>
   <div class="sticky top-0 z-10 bg-white shadow-sm border-b border-gray-200 pb-3 mb-6 -mx-4 px-4 pt-2">
     <form phx-submit="submit_command" class="relative">
-      <%= if @current_user do %>
-        <textarea
-          name="input"
-          value={@command_input}
-          rows="2"
-          phx-keydown="submit_command"
-          phx-key="Enter"
-          placeholder="Type /settings-apply &quot;your description&quot; to create an agent, or search the feed..."
-          class="w-full rounded-lg border border-gray-300 px-4 py-2 text-sm resize-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-          phx-debounce="300"
-        >
-        </textarea>
-      <% else %>
-        <textarea
-          rows="2"
-          disabled
-          placeholder="Log in to use agent commands"
-          class="w-full rounded-lg border border-gray-200 bg-gray-50 px-4 py-2 text-sm resize-none text-gray-400 cursor-not-allowed"
-        >
-        </textarea>
-      <% end %>
+      <textarea
+        name="input"
+        value={@command_input}
+        rows="2"
+        phx-keydown="submit_command"
+        phx-key="Enter"
+        placeholder={if @current_user, do: "Type /settings-apply \"your description\" to create an agent, or search the feed...", else: "Search the feed, or log in to use agent commands..."}
+        class="w-full rounded-lg border border-gray-300 px-4 py-2 text-sm resize-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+        phx-debounce="300"
+      >
+      </textarea>
       <div class="flex items-center justify-between mt-1">
         <span class="text-xs text-gray-400">
           Enter to submit, Shift+Enter for newline
         </span>
-        <%= if @current_user do %>
-          <button type="submit" class="text-xs text-blue-600 hover:text-blue-800 font-medium">
-            Submit
-          </button>
-        <% end %>
+        <button type="submit" class="text-xs text-blue-600 hover:text-blue-800 font-medium">
+          Submit
+        </button>
       </div>
     </form>
 

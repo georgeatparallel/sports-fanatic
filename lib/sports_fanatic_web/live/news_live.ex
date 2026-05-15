@@ -159,20 +159,21 @@ defmodule SportsFanaticWeb.NewsLive do
     input = String.trim(input)
 
     cond do
-      is_nil(socket.assigns.current_user) ->
-        {:noreply, put_flash(socket, :error, "Please log in to use agent commands.")}
-
       input == "" ->
         {:noreply, socket}
 
       String.starts_with?(input, "/settings-clear") ->
-        handle_settings_clear(socket)
+        if socket.assigns.current_user,
+          do: handle_settings_clear(socket),
+          else: {:noreply, put_flash(socket, :error, "Please log in to use agent commands.")}
 
       String.starts_with?(input, "/settings-apply") ->
-        handle_settings_apply(input, socket)
+        if socket.assigns.current_user,
+          do: handle_settings_apply(input, socket),
+          else: {:noreply, put_flash(socket, :error, "Please log in to use agent commands.")}
 
       true ->
-        # Plain text search
+        # Plain text search — available to all users
         handle_search(input, socket)
     end
   end

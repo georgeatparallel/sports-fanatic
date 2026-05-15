@@ -49,7 +49,7 @@ An LLM-powered agent system lets authenticated users define natural language "se
 
 ### Command Input
 
-The command input is a sticky `<textarea>` rendered at the top of `NewsLive` on `/mlb/news`, `/mlb/news/:date`, and `/`. Unauthenticated users see the input in a disabled state with a login prompt. Authenticated users can type:
+The command input is a sticky `<textarea>` rendered at the top of `NewsLive` on `/mlb/news`, `/mlb/news/:date`, and `/`. The input is always enabled for all users — unauthenticated users can search the feed; slash commands (`/settings-*`) require login and show a flash error if attempted without auth. Commands:
 
 | Command | Description |
 |---------|-------------|
