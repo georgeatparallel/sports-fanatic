@@ -89,8 +89,13 @@ defmodule SportsFanatic.MixProject do
       test/sports_fanatic/python_bridge
       test/sports_fanatic/news/entity_matcher_test.exs
       test/sports_fanatic/content/news_item_test.exs
+      test/sports_fanatic/content/news_item_domain_tags_test.exs
       test/sports_fanatic/storage_test.exs
       test/sports_fanatic/feature_flags_test.exs
+      test/sports_fanatic/agents/news_agent_setting_test.exs
+      test/sports_fanatic/agents/news_agent_result_test.exs
+      test/sports_fanatic/workers/parse_setting_worker_test.exs
+      test/sports_fanatic/workers/run_news_agents_worker_test.exs
       test/sports_fanatic_web/controllers/lineup_html_test.exs
       test/sports_fanatic_web/controllers/news_html_test.exs
       test/sports_fanatic_web/components/seo_components_test.exs

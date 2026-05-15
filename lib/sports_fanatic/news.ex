@@ -181,7 +181,8 @@ defmodule SportsFanatic.News do
             "id" => t.id,
             "name" => t.name,
             "slug" => t.slug,
-            "abbreviation" => t.abbreviation
+            "abbreviation" => t.abbreviation,
+            "league" => t.league
           }
         end)
 
@@ -202,6 +203,7 @@ defmodule SportsFanatic.News do
         "injury_grade" => item.injury_grade,
         "published_date" => Date.to_iso8601(item.published_date),
         "inserted_at" => DateTime.to_iso8601(item.inserted_at),
+        "domain_tags" => item.domain_tags || [],
         "players" => resolved_players,
         "teams" => resolved_teams
       }

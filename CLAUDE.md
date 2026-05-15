@@ -43,12 +43,66 @@ Two-layer MLB platform:
 
 ---
 
+## Agents System
+
+An LLM-powered agent system lets authenticated users define natural language "settings" (agent tasks) via a sticky command input box on the news feed. Settings are parsed by Claude Haiku into structured search/filter criteria, executed daily at 9am ET, and displayed in an "Agents" tab alongside the existing news feed.
+
+### Command Input
+
+The command input is a sticky `<textarea>` rendered at the top of `NewsLive` on `/mlb/news`, `/mlb/news/:date`, and `/`. Unauthenticated users see the input in a disabled state with a login prompt. Authenticated users can type:
+
+| Command | Description |
+|---------|-------------|
+| `/settings-apply "<prompt>"` | Creates or updates an agent setting from a natural language description |
+| `/settings-clear` | Removes all active settings for the current user |
+| (plain text) | Client-side substring filter on the current feed (debounced 300ms); ephemeral, not persisted |
+
+**Constraints**: Maximum 500 characters per prompt. Maximum 20 active settings per user. Maximum 5 `/settings-apply` commands per user per hour (rate-limited at the context layer).
+
+### Settings Lifecycle
+
+1. User submits `/settings-apply "track hr streaks from Aaron Judge"`.
+2. `Agents.create_setting/2` inserts a row in `accounts.news_agent_settings` with `status: pending`.
+3. `ParseSettingWorker` is enqueued immediately and calls `POST /agents/parse-setting` on the Python Bridge.
+4. Claude Haiku parses the prompt into structured criteria (players, teams, leagues, stat filters, categories, domain tags).
+5. The setting is updated to `status: active` with `parsed_criteria` populated.
+6. `ParseSettingWorker` broadcasts `{:setting_updated, setting}` on PubSub topic `"agent:settings:{user_id}"` so the Agents tab refreshes in real time.
+
+### Daily Execution
+
+`RunNewsAgentsWorker` runs at 9:00 AM ET daily (cron `0 13 * * *`). It:
+- Checks the `news_agents_enabled` feature flag; exits early if disabled.
+- Fetches all users with `active` settings.
+- For each user, calls `Agents.run_all_agents/0` which queries `content.news_items` using ILIKE text matching against player and team names from `parsed_criteria` (Phase 1 simplification).
+- Stores results in `accounts.news_agent_results` with matched article IDs and an explanation.
+- Updates each setting's `last_run_at` and `status`.
+
+Premium subscribers can trigger immediate execution via the "Run Now" button in the Agents tab, which enqueues `RunNewsAgentsWorker` on demand.
+
+### Agents Tab in AdminLive
+
+`/admin` includes an "Agents" tab with:
+- Toggle to enable/disable agent execution globally (`news_agents_enabled` feature flag).
+- Cron schedule display and override field (default: `0 13 * * *`).
+- Read-only table of all users' active settings.
+- "Run All Agents" button for manual triggering.
+
+### Entity Display in News Feed
+
+Player and team associations resolved by `EntityMatcher` are now visible in news article cards:
+- Player names render as links to `/mlb/players/:team/:player`.
+- Team names render with team abbreviation badges and links to `/mlb/teams/:team`.
+- League badges (AL/NL) are derived from `team.league` added to feed data in `News.build_feed/1`.
+
+---
+
 ## Architecture Summary
 
 ```
 Browser → Phoenix Router
            ├── /mlb/news, /mlb/news/:date → NewsLive (LiveView, WebSocket)
            │     ├── (connected) subscribes to Phoenix PubSub "news:feed:{date}" + "news:feed"
+           │     │                                              + "agent:settings:{user_id}"
            │     └── reads Valkey cache → (miss) → PostgreSQL
            ├── /mlb/news/today → NewsController :redirect_today → 302 /mlb/news/<current ET date>
            ├── /mlb/* → SEO Controllers → (Valkey cache hit) → HTML response
@@ -60,6 +114,12 @@ Oban workers (background)
   FetchSchedule / FetchLineups → PostgreSQL
   FetchNews (every 1 min) → S3 (raw JSON) → Python Bridge /news/analyze → PostgreSQL
                            → Valkey invalidate → Phoenix PubSub broadcast → NewsLive updates
+  ParseSettingWorker (async, per-setting) → Python Bridge /agents/parse-setting → Claude Haiku
+                                          → PostgreSQL UPDATE setting status=active
+                                          → PubSub broadcast agent:settings:{user_id}
+  RunNewsAgentsWorker (daily 9am ET) → Agents context → PostgreSQL (match news_items)
+                                     → Python Bridge /agents/execute (Phase 2)
+                                     → PostgreSQL INSERT news_agent_results
   GeneratePredictions → Python Bridge (FastAPI :8000)
   GenerateScouting / GenerateGameDay → Python Bridge → Claude API → PostgreSQL
   WarmCache → Valkey
@@ -78,30 +138,41 @@ Python Bridge (python_bridge/ → Docker service on internal network)
 lib/sports_fanatic/
   accounts/           User, Session Ecto schemas
   accounts.ex         Accounts context (register, authenticate, session CRUD)
+  agents.ex           Agents context — create_setting/2, list_user_settings/1, delete_setting/2,
+                       run_all_agents/0; enforces max 20 settings/user and 5/user/hour rate limit
+  agents/             news_agent_setting.ex — Ecto schema (id, user_id, raw_prompt, parsed_criteria JSONB,
+                         status, last_run_at, last_result JSONB, error_message)
+                       news_agent_result.ex — Ecto schema (id, user_id, setting_id, matched_news_item_ids UUID[],
+                         exa_results JSONB, explanation, run_date)
   billing/            Subscription schema
   billing.ex          Stripe webhook handlers (checkout, invoice, subscription events)
   cache.ex            Valkey wrapper — get/set/delete/invalidate_pattern + TTL constants
-  content/            ScoutingReport, GameDayMagazine, NewsItem, Sitemap schemas
+  content/            ScoutingReport, GameDayMagazine, NewsItem (+ domain_tags field), Sitemap schemas
   external_apis/      FantasyNerds HTTP client
   mlb/                Sport, Team, Player, Venue, Game, ScheduledGame, Lineup, Pick, HrPick
   news.ex             News context — cached feed reads, entity-resolved list, get_cached_feed/1,
                        nearest_news_date_before/1, nearest_news_date_after/1
+                       Feed data now includes domain_tags and team.league for badge display
   news/               entity_matcher.ex — fuzzy player/team matching (jaro_distance, threshold 0.85)
   python_bridge.ex    HTTP client for Python bridge with circuit breaker integration
+                       Added: parse_setting/2, execute_agents/2
   python_bridge/      CircuitBreaker GenServer + HealthCheck GenServer
   storage.ex          S3 storage module — put_object/3, get_object/2, news_article_key/2 (date-partitioned)
                        Deps: ex_aws ~> 2.5, ex_aws_s3 ~> 2.5, sweet_xml ~> 0.7 (added to mix.exs)
-  workers/            10 Oban workers (fetch_lineups, fetch_schedule, fetch_news,
+  workers/            12 Oban workers (fetch_lineups, fetch_schedule, fetch_news,
                        generate_predictions, generate_scouting, generate_game_day,
-                       generate_player_seo, warm_cache, generate_sitemap, cleanup)
+                       generate_player_seo, warm_cache, generate_sitemap, cleanup,
+                       parse_setting, run_news_agents)
 
 lib/sports_fanatic_web/
   components/         seo_components.ex — json_ld/2, breadcrumbs/1, subscribe_cta/1, date_nav/1
   controllers/        Page, Player, Team, Lineup, News, Scouting, GameDay, Sitemap,
                        Auth, Subscription, StripeWebhook controllers + HTML modules
-  live/               NewsLive — public news feed with PubSub live updates + day-transition timer
+  live/               NewsLive — public news feed + agent command input + Feed/Agents tabs +
+                         client-side search; subscribes to agent:settings:{user_id} PubSub topic
                        DashboardLive, ScoutingLive, GameDayLive, GameDayIndexLive,
-                       ArchiveScoutingLive, ArchiveGameDayLive, AdminLive
+                       ArchiveScoutingLive, ArchiveGameDayLive,
+                       AdminLive (+ Agents tab: feature flag, user settings, Run All trigger)
   plugs/              FetchCurrentUser, RequireAuthenticated, RequireAdmin, SubscriptionGate,
                        VerifyStripeWebhook, CacheRawBody
   router.ex           Route definitions — see Routing section below
@@ -110,12 +181,17 @@ python_bridge/src/
   api/predict.py      POST /predict/hit, /predict/hr
   api/scouting.py     POST /scouting/search (Exa), /scouting/generate (Claude)
   api/gameday.py      POST /gameday/generate (Claude)
-  api/news.py         POST /news/analyze — Claude tool_use classification (category, sentiment, summary)
-  news/analyzer.py    analyze_article() with classify_article tool definition
-  news/models.py      Pydantic models: NewsCategory enum, NewsSentiment enum, NewsAnalysis
+  api/news.py         POST /news/analyze — Claude tool_use classification (category, sentiment, summary,
+                       domain_tags)
+  api/agents.py       POST /agents/parse-setting, POST /agents/execute (Phase 2 stub)
+  agents/__init__.py  Empty module init
+  agents/parser.py    parse_setting() — Claude Haiku tool_use parser; returns structured criteria JSON;
+                       includes prompt injection guardrails; rejects prompts > 500 chars
+  news/analyzer.py    analyze_article() with classify_article tool definition (+ domain_tags output)
+  news/models.py      Pydantic models: NewsCategory enum, NewsSentiment enum, NewsAnalysis (+ domain_tags)
   simulation/engine.py  Monte Carlo engine, NumPy-vectorized, 10k trials
   config.py           Settings from environment variables
-  main.py             FastAPI app, routers registered, /health endpoint
+  main.py             FastAPI app, routers registered (+ agents router), /health endpoint
 ```
 
 ---
@@ -159,6 +235,21 @@ python_bridge/src/
 ```
 
 **Sitemap route note**: The router uses `/sitemaps/:type` (not `/sitemap-:type.xml`) because Phoenix does not support hyphens before dynamic segments.
+
+**NewsLive events** (`handle_event` callbacks added for the agent command input):
+
+| Event | Payload | Auth required | Description |
+|-------|---------|---------------|-------------|
+| `submit_command` | `%{"input" => text}` | Yes | Parses slash command and dispatches; plain text triggers client-side search |
+| `delete_setting` | `%{"id" => setting_id}` | Yes | Deletes the user's agent setting |
+| `switch_news_tab` | `%{"tab" => "feed" \| "agents"}` | No | Toggles between Feed and Agents tab (assigns only, no URL change) |
+| `search_feed` | `%{"query" => text}` | No | Client-side substring filter on `@feed`; debounced 300ms via `phx-debounce` |
+| `run_setting_now` | `%{"id" => setting_id}` | Premium | Enqueues immediate agent execution (premium subscribers only) |
+
+**PubSub topics** used by `NewsLive`:
+- `"news:feed:{date}"` — existing; new articles broadcast to all subscribers for a date
+- `"news:feed"` — existing; global news broadcast
+- `"agent:settings:{user_id}"` — new; `ParseSettingWorker` broadcasts `{:setting_updated, setting}` after LLM parsing completes, so the Agents tab refreshes automatically
 
 **Breadcrumb convention**: MLB-section pages use a four-level breadcrumb: `Home / Baseball / <Section> / <Detail>`. "Baseball" always links to `/mlb/teams`. The same hierarchy appears in both the visible `breadcrumbs/1` component and the JSON-LD `BreadcrumbList` structured data. Example for lineups: `Home → Baseball (/mlb/teams) → Lineups (/mlb/lineups/<today>) → <date>`.
 
@@ -228,11 +319,46 @@ Six PostgreSQL schemas. Migrations are in `priv/repo/migrations/`, init SQL in `
 | `public` | sports, teams, players, venues | Core MLB entities |
 | `mlb` | games, scheduled_games, lineups, player_boxscores, player_season_stats, picks, hr_picks, game_weather, park_hr_factors | Game data and predictions |
 | `content` | scouting_reports, game_day_magazines, news_items, sitemaps | AI-generated content |
-| `accounts` | users, subscriptions, sessions | Auth and billing |
+| `accounts` | users, subscriptions, sessions, news_agent_settings, news_agent_results | Auth, billing, and agent settings |
 | `system` | pipeline_runs, pipeline_steps, cache_invalidations | Operations |
 | `scouting` | (from sports-fan-agent, retained) | |
 
 All UUIDs use `gen_random_uuid()`. `slug` fields follow the pattern `lowercase-hyphenated-name`.
+
+**`accounts.news_agent_settings`** (new): Stores each user's natural language agent task.
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | UUID PK | |
+| `user_id` | UUID FK | `accounts.users`, ON DELETE CASCADE |
+| `raw_prompt` | TEXT | Original natural language, max 500 chars |
+| `parsed_criteria` | JSONB | LLM-structured output; null until parsing completes |
+| `status` | VARCHAR(20) | `pending`, `active`, `running`, `completed`, `failed`, `expired` |
+| `last_run_at` | TIMESTAMPTZ | |
+| `last_result` | JSONB | |
+| `error_message` | TEXT | Generic user-safe message only (internal errors are logged) |
+| `created_at` / `updated_at` | TIMESTAMPTZ | |
+
+Indexes: `user_id`, `status`.
+
+**`accounts.news_agent_results`** (new): One row per daily agent execution result, per setting.
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | UUID PK | |
+| `user_id` | UUID FK | `accounts.users`, ON DELETE CASCADE |
+| `setting_id` | UUID FK | `accounts.news_agent_settings`, ON DELETE CASCADE |
+| `matched_news_item_ids` | UUID[] | References to `content.news_items` |
+| `exa_results` | JSONB | External articles from Exa.ai (Phase 2) |
+| `explanation` | TEXT | Human-readable explanation from LLM |
+| `run_date` | DATE | |
+| `created_at` | TIMESTAMPTZ | |
+
+Indexes: `(user_id, setting_id)`, `run_date`.
+
+**`content.news_items`** (altered): Added `domain_tags TEXT[] DEFAULT '{}'` with a GIN index. Populated by `FetchNewsWorker` from the enhanced `/news/analyze` response. Values are baseball-domain tags such as `"streak"`, `"home-run"`, `"trade-deadline"`, `"walk-off"`, `"no-hitter"`, `"save"`, `"closer"`, `"bullpen"`, `"rotation"`, `"prospect"`, `"call-up"`, `"slump"`.
+
+Migration: `priv/repo/migrations/20260515190000_create_news_agent_tables.exs`
 
 ---
 
@@ -264,6 +390,8 @@ Use `SportsFanatic.Cache.get/1`, `put/3`, `delete/1`, `invalidate_pattern/1`.
 
 Key builders: `Cache.news_feed_key/1` accepts a `%Date{}` or ISO-8601 string.
 
+Agent settings and results are not cached in Valkey — they are read directly from PostgreSQL per user on each LiveView mount and on `agent:settings:{user_id}` PubSub messages.
+
 ---
 
 ## Python Bridge
@@ -274,7 +402,9 @@ Available endpoints (called via `PythonBridge.*` functions):
 - `POST /predict/hit`, `POST /predict/hr` — ML game predictions
 - `POST /scouting/search`, `POST /scouting/generate` — AI scouting reports
 - `POST /gameday/generate` — AI Game Day Magazine generation
-- `POST /news/analyze` — Claude tool_use classification; returns `{category, sentiment, summary}` for a news headline + excerpt. Called by `FetchNewsWorker` via `PythonBridge.analyze_news/2`. If the circuit breaker is open, articles are stored with `ai_processed: false` for later backfill.
+- `POST /news/analyze` — Claude tool_use classification; returns `{category, sentiment, summary, domain_tags}` for a news headline + excerpt. Called by `FetchNewsWorker` via `PythonBridge.analyze_news/2`. If the circuit breaker is open, articles are stored with `ai_processed: false` for later backfill.
+- `POST /agents/parse-setting` — Claude Haiku tool_use parser; accepts `{raw_prompt, context}` and returns structured criteria including `target_players`, `target_teams`, `target_leagues`, `stat_filters`, `categories`, `domain_tags`, `requires_exa_search`, `exa_query`, `confidence`, `interpretation`. Called by `ParseSettingWorker` via `PythonBridge.parse_setting/2`. Rejects prompts over 500 characters. Includes prompt injection guardrails in the system prompt.
+- `POST /agents/execute` — Phase 2 stub; currently returns empty results. Will support Exa.ai search and batched user execution in Phase 2. Called by `RunNewsAgentsWorker` via `PythonBridge.execute_agents/2`.
 
 In production, the `python-bridge` service should not expose port 8000 to the host. The `docker-compose.yml` currently exposes it — remove the `ports` entry for production (SEC-007).
 
@@ -291,10 +421,16 @@ Scheduled cron entries:
 - `GeneratePlayerSeoWorker` — 4:00 AM UTC daily
 - `GeneratePredictionsWorker` — 9:30 AM UTC daily
 - `WarmCacheWorker` — every 15 minutes
+- `RunNewsAgentsWorker` — `0 13 * * *` (9:00 AM ET during EDT = 13:00 UTC). Gated by `news_agents_enabled` feature flag. Processes each user with active settings sequentially; failures for one user do not block others. Schedule override is configurable via the Joshua admin Agents tab.
+
+Non-scheduled workers (enqueued on demand):
+- `ParseSettingWorker` — enqueued by `Agents.create_setting/2` immediately after INSERT. Calls `/agents/parse-setting` on the Python Bridge and updates the setting's `parsed_criteria` and `status`. Broadcasts `{:setting_updated, setting}` on `"agent:settings:{user_id}"` PubSub on completion. Error messages stored are generic (internal error details are logged via `Logger.error`).
 
 To manually enqueue a worker in IEx:
 ```elixir
 %{} |> SportsFanatic.Workers.FetchLineupsWorker.new() |> Oban.insert()
+%{} |> SportsFanatic.Workers.RunNewsAgentsWorker.new() |> Oban.insert()
+%{"setting_id" => "uuid"} |> SportsFanatic.Workers.ParseSettingWorker.new() |> Oban.insert()
 ```
 
 ---
@@ -339,6 +475,9 @@ The root layout (`root.html.heex`) renders these automatically. JSON-LD must com
 | SEC-007 | MEDIUM | Python bridge port 8000 exposed to host in `docker-compose.yml`. |
 | CODE-001 | LOW | `Slug` module is not namespaced (`defmodule Slug` in `team.ex`). Works correctly but should be `SportsFanatic.Slug`. |
 | CODE-002 | LOW | `Billing.handle_checkout_completed/1` checks wrong path for trial detection. Trial status should come from `customer.subscription.updated` webhook with `status: "trialing"`. |
+| AGENTS-001 | LOW | `RunNewsAgentsWorker` matches players/teams via ILIKE text search on `parsed_criteria` JSON values. Phase 2 should resolve to `player_ids`/`team_ids` via `EntityMatcher` for accurate matching. |
+| AGENTS-002 | LOW | `POST /agents/execute` on the Python Bridge is a stub returning empty results. Phase 2 activates Exa.ai search and batched multi-user execution. |
+| AGENTS-003 | LOW | Domain tags are not backfilled for news articles classified before the `domain_tags` column was added. A one-shot backfill worker should be run post-deployment to re-classify those articles. |
 
 Full security audit is in `.on-loop/agent-notes/security.md`.
 
@@ -368,6 +507,28 @@ Full security audit is in `.on-loop/agent-notes/security.md`.
 ```bash
 docker compose --profile dev up stripe-cli
 # stripe-cli forwards events from Stripe to http://web:4000/webhooks/stripe
+```
+
+**Enable/disable agent execution:**
+- Toggle `news_agents_enabled` via the Joshua admin Agents tab at `/admin`.
+- Or set it directly in IEx: the flag is checked at runtime in `RunNewsAgentsWorker` before any DB queries.
+
+**Manually run agents for all users:**
+```elixir
+# IEx
+%{} |> SportsFanatic.Workers.RunNewsAgentsWorker.new() |> Oban.insert()
+```
+
+**Add a new agent skill (Phase 2):**
+1. Add `{:jido, "~> 2.2"}` to `mix.exs` (currently omitted — Phase 2 only).
+2. Create a skill module under `lib/sports_fanatic/agents/skills/`.
+3. Register the skill in `SportsFanatic.Agents.NewsAgent`.
+4. Add corresponding Python Bridge endpoint if external tool use is required.
+
+**Backfill domain_tags for existing articles:**
+```elixir
+# Enqueue a one-shot backfill — implement as a temporary Oban worker that queries
+# news_items WHERE domain_tags = '{}' and re-calls PythonBridge.analyze_news/2
 ```
 
 ---

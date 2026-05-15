@@ -98,6 +98,18 @@ CLASSIFY_TOOL = {
                     "unknown: severity not yet determined."
                 ),
             },
+            "domain_tags": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": (
+                    "Baseball-domain concept tags for the article. Use lowercase hyphenated tags. "
+                    "Examples: streak, home-run, trade-deadline, walk-off, no-hitter, "
+                    "save, closer, bullpen, rotation, prospect, call-up, slump, "
+                    "injury, comeback, milestone, record, all-star, free-agency, "
+                    "arbitration, spring-training, postseason, world-series, "
+                    "perfect-game, grand-slam, stolen-base, pitching-duel."
+                ),
+            },
         },
         "required": ["category", "sentiment", "summary"],
     },
@@ -132,7 +144,12 @@ SYSTEM_PROMPT = (
     "- Roster moves (optioned, called up, DFA, designated, waiver) = transaction\n"
     "- Stats, records, streaks, milestones, MVP discussion = performance\n"
     "- Trade rumors, deals, deadline = trade\n"
-    "- Everything else = news"
+    "- Everything else = news\n\n"
+    "For ALL articles, provide domain_tags — lowercase hyphenated baseball concept tags.\n"
+    "Examples: streak, home-run, trade-deadline, walk-off, no-hitter, save, closer, "
+    "bullpen, rotation, prospect, call-up, slump, injury, comeback, milestone, record, "
+    "all-star, free-agency, stolen-base, pitching-duel, grand-slam.\n"
+    "Include 1-5 relevant tags per article."
 )
 
 
@@ -183,6 +200,7 @@ async def analyze_article(headline: str, excerpt: str) -> dict:
                     "team_names": result.get("team_names", []),
                     "injury_area": result.get("injury_area"),
                     "injury_grade": result.get("injury_grade"),
+                    "domain_tags": result.get("domain_tags", []),
                 }
 
         logger.warning("No tool_use block in Claude response")
@@ -202,4 +220,5 @@ def _default_analysis() -> dict:
         "team_names": [],
         "injury_area": None,
         "injury_grade": None,
+        "domain_tags": [],
     }

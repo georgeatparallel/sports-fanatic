@@ -75,7 +75,8 @@ config :sports_fanatic, Oban,
        {"0 3 * * *", SportsFanatic.Workers.CleanupWorker},
        {"0 4 * * *", SportsFanatic.Workers.GeneratePlayerSeoWorker},
        {"30 9 * * *", SportsFanatic.Workers.GeneratePredictionsWorker},
-       {"*/15 * * * *", SportsFanatic.Workers.WarmCacheWorker}
+       {"*/15 * * * *", SportsFanatic.Workers.WarmCacheWorker},
+       {"0 13 * * *", SportsFanatic.Workers.RunNewsAgentsWorker}
      ]}
   ],
   queues: [data_fetch: 5, content_generation: 3, cache: 2, system: 1, default: 10]

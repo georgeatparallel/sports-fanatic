@@ -126,7 +126,8 @@ defmodule SportsFanatic.Workers.FetchNewsWorker do
       player_ids: player_ids,
       team_ids: team_ids,
       injury_area: ai_result.injury_area,
-      injury_grade: ai_result.injury_grade
+      injury_grade: ai_result.injury_grade,
+      domain_tags: ai_result.domain_tags
     })
   end
 
@@ -166,15 +167,31 @@ defmodule SportsFanatic.Workers.FetchNewsWorker do
           sentiment: result["sentiment"],
           ai_summary: result["summary"],
           injury_area: result["injury_area"],
-          injury_grade: result["injury_grade"]
+          injury_grade: result["injury_grade"],
+          domain_tags: result["domain_tags"] || []
         }
 
       {:error, reason} ->
         Logger.warning("FetchNewsWorker: AI analysis failed: #{inspect(reason)}")
-        %{category: nil, sentiment: nil, ai_summary: nil, injury_area: nil, injury_grade: nil}
+
+        %{
+          category: nil,
+          sentiment: nil,
+          ai_summary: nil,
+          injury_area: nil,
+          injury_grade: nil,
+          domain_tags: []
+        }
 
       _ ->
-        %{category: nil, sentiment: nil, ai_summary: nil, injury_area: nil, injury_grade: nil}
+        %{
+          category: nil,
+          sentiment: nil,
+          ai_summary: nil,
+          injury_area: nil,
+          injury_grade: nil,
+          domain_tags: []
+        }
     end
   end
 

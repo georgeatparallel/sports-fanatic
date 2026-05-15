@@ -32,6 +32,9 @@ defmodule SportsFanatic.Content.NewsItem do
     field :injury_area, :string
     field :injury_grade, :string
 
+    # Domain tags for agent matching
+    field :domain_tags, {:array, :string}, default: []
+
     timestamps(type: :utc_datetime, updated_at: false)
   end
 
@@ -56,7 +59,8 @@ defmodule SportsFanatic.Content.NewsItem do
     :author,
     :ai_processed,
     :injury_area,
-    :injury_grade
+    :injury_grade,
+    :domain_tags
   ]
 
   @valid_sentiments ~w(positive neutral negative)

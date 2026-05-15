@@ -60,6 +60,16 @@ defmodule SportsFanatic.PythonBridge do
     post("/news/analyze", %{headline: headline, excerpt: excerpt})
   end
 
+  @doc "Parse a natural language agent setting into structured criteria."
+  def parse_setting(raw_prompt, context \\ %{}) do
+    post("/agents/parse-setting", %{raw_prompt: raw_prompt, context: context})
+  end
+
+  @doc "Execute agent settings against news data (Phase 2 stub)."
+  def execute_agents(settings, date_range) do
+    post("/agents/execute", %{settings: settings, date_range: date_range})
+  end
+
   def health_check do
     base_url = base_url()
 

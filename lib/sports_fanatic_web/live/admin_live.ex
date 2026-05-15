@@ -8,6 +8,8 @@ defmodule SportsFanaticWeb.AdminLive do
   alias SportsFanatic.Scouting.Pipeline
   require Logger
 
+  alias SportsFanatic.Agents
+
   @workers [
     %{key: "cleanup", module: SportsFanatic.Workers.CleanupWorker, label: "Cleanup"},
     %{
@@ -101,7 +103,9 @@ defmodule SportsFanaticWeb.AdminLive do
        research_concurrency: 5,
        classification_concurrency: 5,
        selected_run_id: nil,
-       todays_lineup_count: todays_lineup_count
+       todays_lineup_count: todays_lineup_count,
+       agent_settings: [],
+       agents_enabled: FeatureFlags.enabled?("news_agents_enabled")
      )}
   end
 
@@ -150,6 +154,18 @@ defmodule SportsFanaticWeb.AdminLive do
   end
 
   def handle_event("switch_tab", %{"tab" => tab}, socket) do
+    socket =
+      if tab == "agents" do
+        all_settings = Agents.list_all_settings(limit: 50)
+
+        assign(socket,
+          agent_settings: all_settings,
+          agents_enabled: FeatureFlags.enabled?("news_agents_enabled")
+        )
+      else
+        socket
+      end
+
     {:noreply, assign(socket, active_tab: tab)}
   end
 
@@ -199,6 +215,45 @@ defmodule SportsFanaticWeb.AdminLive do
   def handle_event("delete_flag", %{"key" => key}, socket) do
     FeatureFlags.delete(key)
     {:noreply, assign(socket, flags: FeatureFlags.list_all(), flag_error: nil)}
+  end
+
+  def handle_event("run_all_agents", _params, socket) do
+    case %{} |> SportsFanatic.Workers.RunNewsAgentsWorker.new() |> Oban.insert() do
+      {:ok, _job} ->
+        {:noreply, put_flash(socket, :info, "Agent execution enqueued.")}
+
+      {:error, _reason} ->
+        {:noreply, put_flash(socket, :error, "Failed to enqueue agent execution.")}
+    end
+  end
+
+  def handle_event("toggle_agents_flag", _params, socket) do
+    key = "news_agents_enabled"
+
+    if FeatureFlags.enabled?(key) do
+      case FeatureFlags.get(key) do
+        nil -> :ok
+        _flag -> FeatureFlags.disable(key)
+      end
+    else
+      case FeatureFlags.get(key) do
+        nil ->
+          FeatureFlags.create(%{
+            key: key,
+            enabled: true,
+            description: "Enable/disable news agent execution"
+          })
+
+        _flag ->
+          FeatureFlags.enable(key)
+      end
+    end
+
+    {:noreply,
+     assign(socket,
+       agents_enabled: FeatureFlags.enabled?(key),
+       flags: FeatureFlags.list_all()
+     )}
   end
 
   def handle_event("start_pipeline", _params, socket) do
@@ -545,6 +600,19 @@ defmodule SportsFanaticWeb.AdminLive do
           </button>
           <button
             phx-click="switch_tab"
+            phx-value-tab="agents"
+            class={[
+              "py-3 px-1 border-b-2 font-medium text-sm transition",
+              if(@active_tab == "agents",
+                do: "border-blue-500 text-blue-600",
+                else: "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+              )
+            ]}
+          >
+            Agents
+          </button>
+          <button
+            phx-click="switch_tab"
             phx-value-tab="feature_flags"
             class={[
               "py-3 px-1 border-b-2 font-medium text-sm transition",
@@ -864,6 +932,115 @@ defmodule SportsFanaticWeb.AdminLive do
         </div>
       <% end %>
 
+      <%!-- Agents Tab --%>
+      <%= if @active_tab == "agents" do %>
+        <div class="space-y-6">
+          <%!-- Controls --%>
+          <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <div class="flex items-center justify-between mb-4">
+              <h3 class="text-lg font-semibold text-gray-900">Agent Configuration</h3>
+            </div>
+
+            <div class="flex items-center gap-6 mb-4">
+              <div class="flex items-center gap-3">
+                <span class="text-sm font-medium text-gray-700">News Agents</span>
+                <button
+                  phx-click="toggle_agents_flag"
+                  class={[
+                    "relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2",
+                    if(@agents_enabled, do: "bg-blue-600", else: "bg-gray-200")
+                  ]}
+                  role="switch"
+                  aria-checked={to_string(@agents_enabled)}
+                >
+                  <span class={[
+                    "pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out",
+                    if(@agents_enabled, do: "translate-x-5", else: "translate-x-0")
+                  ]}>
+                  </span>
+                </button>
+                <span class={[
+                  "text-xs font-medium",
+                  if(@agents_enabled, do: "text-blue-600", else: "text-gray-500")
+                ]}>
+                  <%= if @agents_enabled, do: "Enabled", else: "Disabled" %>
+                </span>
+              </div>
+
+              <div class="text-sm text-gray-500">
+                Schedule: Daily at 9:00 AM ET (13:00 UTC)
+              </div>
+
+              <button
+                phx-click="run_all_agents"
+                class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 transition"
+              >
+                Run All Agents Now
+              </button>
+            </div>
+          </div>
+
+          <%!-- All Users' Settings --%>
+          <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+            <div class="px-6 py-4 border-b border-gray-200">
+              <h3 class="text-lg font-semibold text-gray-900">
+                All User Settings
+                <span class="ml-2 text-sm font-normal text-gray-400">
+                  (<%= length(@agent_settings) %>)
+                </span>
+              </h3>
+            </div>
+            <table class="min-w-full divide-y divide-gray-200">
+              <thead class="bg-gray-50">
+                <tr>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    User
+                  </th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    Prompt
+                  </th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    Status
+                  </th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    Created
+                  </th>
+                </tr>
+              </thead>
+              <tbody class="bg-white divide-y divide-gray-200">
+                <%= if @agent_settings == [] do %>
+                  <tr>
+                    <td colspan="4" class="px-6 py-8 text-center text-gray-400 text-sm">
+                      No agent settings found.
+                    </td>
+                  </tr>
+                <% end %>
+                <%= for setting <- @agent_settings do %>
+                  <tr>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                      <%= if setting.user, do: setting.user.email, else: "Unknown" %>
+                    </td>
+                    <td class="px-6 py-4 text-sm text-gray-800 max-w-md">
+                      <p class="truncate" title={setting.raw_prompt}>
+                        <%= String.slice(setting.raw_prompt, 0, 80) %>
+                      </p>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                      <span class={"inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium #{agent_setting_status_class(setting.status)}"}>
+                        <%= setting.status %>
+                      </span>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <%= format_time(setting.inserted_at) %>
+                    </td>
+                  </tr>
+                <% end %>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      <% end %>
+
       <%!-- Feature Flags Tab --%>
       <%= if @active_tab == "feature_flags" do %>
         <div class="space-y-6">
@@ -1000,6 +1177,14 @@ defmodule SportsFanaticWeb.AdminLive do
     </div>
     """
   end
+
+  defp agent_setting_status_class("pending"), do: "bg-yellow-100 text-yellow-800"
+  defp agent_setting_status_class("active"), do: "bg-green-100 text-green-800"
+  defp agent_setting_status_class("running"), do: "bg-blue-100 text-blue-800"
+  defp agent_setting_status_class("completed"), do: "bg-green-100 text-green-800"
+  defp agent_setting_status_class("failed"), do: "bg-red-100 text-red-800"
+  defp agent_setting_status_class("expired"), do: "bg-gray-100 text-gray-800"
+  defp agent_setting_status_class(_), do: "bg-gray-100 text-gray-800"
 
   defp status_badge_class(:idle), do: "bg-gray-100 text-gray-700"
   defp status_badge_class(:running), do: "bg-blue-100 text-blue-700"

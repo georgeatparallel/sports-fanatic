@@ -66,3 +66,7 @@ class NewsAnalysis(BaseModel):
         default=None,
         description="Severity/timeline grade (only for injury categories)",
     )
+    domain_tags: list[str] = Field(
+        default_factory=list,
+        description="Baseball-domain concept tags (e.g., streak, home-run, trade-deadline)",
+    )

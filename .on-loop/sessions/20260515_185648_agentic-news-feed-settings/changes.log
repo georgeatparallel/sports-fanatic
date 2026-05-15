@@ -1,0 +1,39 @@
+[2026-05-15T23:10:47Z] architect: Wrote specification to agent-notes/architect.md -- Agentic News Feed with Command Input & Skills Architecture (10 FRs, 7 NFRs, 4 ADRs, 3 phases, 2 new DB tables, 1 altered table)
+[2026-05-15T23:20:00Z] coding CREATE priv/repo/migrations/20260515190000_create_news_agent_tables.exs -- Migration for accounts.news_agent_settings, accounts.news_agent_results tables and content.news_items domain_tags column
+[2026-05-15T23:20:01Z] coding CREATE lib/sports_fanatic/agents/news_agent_setting.ex -- Ecto schema for news agent settings with create/update changesets
+[2026-05-15T23:20:02Z] coding CREATE lib/sports_fanatic/agents/news_agent_result.ex -- Ecto schema for news agent execution results
+[2026-05-15T23:20:03Z] coding CREATE lib/sports_fanatic/agents.ex -- Agents context with CRUD, user isolation, rate limiting (max 20 settings/user)
+[2026-05-15T23:20:04Z] coding MODIFY lib/sports_fanatic/content/news_item.ex -- Added domain_tags field to schema and cast fields
+[2026-05-15T23:20:05Z] coding MODIFY lib/sports_fanatic/python_bridge.ex -- Added parse_setting/2 and execute_agents/2 functions
+[2026-05-15T23:20:06Z] coding CREATE python_bridge/src/agents/__init__.py -- Empty init for agents module
+[2026-05-15T23:20:07Z] coding CREATE python_bridge/src/agents/parser.py -- Claude Haiku tool_use parser for natural language settings with prompt injection guardrails
+[2026-05-15T23:20:08Z] coding CREATE python_bridge/src/api/agents.py -- FastAPI router with POST /agents/parse-setting and POST /agents/execute endpoints
+[2026-05-15T23:20:09Z] coding MODIFY python_bridge/src/main.py -- Register agents router
+[2026-05-15T23:20:10Z] coding MODIFY python_bridge/src/news/analyzer.py -- Added domain_tags to CLASSIFY_TOOL schema, system prompt, and response extraction
+[2026-05-15T23:20:11Z] coding MODIFY python_bridge/src/news/models.py -- Added domain_tags field to NewsAnalysis Pydantic model
+[2026-05-15T23:20:12Z] coding CREATE lib/sports_fanatic/workers/parse_setting_worker.ex -- Async LLM parsing worker with PubSub broadcast
+[2026-05-15T23:20:13Z] coding CREATE lib/sports_fanatic/workers/run_news_agents_worker.ex -- Daily 9am ET Oban worker with feature flag gate, per-user error isolation
+[2026-05-15T23:20:14Z] coding MODIFY config/config.exs -- Added RunNewsAgentsWorker to Oban crontab at 0 13 * * *
+[2026-05-15T23:20:15Z] coding MODIFY lib/sports_fanatic/workers/fetch_news_worker.ex -- Store domain_tags from AI analysis response
+[2026-05-15T23:20:16Z] coding MODIFY lib/sports_fanatic/news.ex -- Added domain_tags and team league to feed data
+[2026-05-15T23:21:00Z] coding MODIFY lib/sports_fanatic_web/live/news_live.ex -- Added command input, tab switching, search, agent PubSub, current_user from session
+[2026-05-15T23:21:01Z] coding MODIFY lib/sports_fanatic_web/live/news_live.html.heex -- Sticky command input, Feed/Agents tabs, entity display, search indicator
+[2026-05-15T23:22:00Z] coding MODIFY lib/sports_fanatic_web/live/admin_live.ex -- Added Agents tab with feature flag toggle, user settings table, Run All Agents button
+[2026-05-15T23:37:14Z] testing: CREATE test/sports_fanatic/agents/news_agent_setting_test.exs -- Unit tests for NewsAgentSetting schema changesets (create/update, status validation, prompt length)
+[2026-05-15T23:37:14Z] testing: CREATE test/sports_fanatic/agents/news_agent_result_test.exs -- Unit tests for NewsAgentResult schema changeset (required fields, optional defaults, matched_news_item_ids, exa_results)
+[2026-05-15T23:37:14Z] testing: CREATE test/sports_fanatic/content/news_item_domain_tags_test.exs -- Unit tests for domain_tags field on NewsItem (default empty list, accepts string arrays, regression guards)
+[2026-05-15T23:37:14Z] testing: CREATE test/sports_fanatic/workers/parse_setting_worker_test.exs -- Unit tests for ParseSettingWorker Oban job structure (queue, max_attempts, args)
+[2026-05-15T23:37:14Z] testing: CREATE test/sports_fanatic/workers/run_news_agents_worker_test.exs -- Unit tests for RunNewsAgentsWorker Oban job structure (queue, max_attempts, args)
+[2026-05-15T23:37:14Z] testing: MODIFY mix.exs -- Added 4 new test files to test.unit alias
+[2026-05-15T19:43:00Z] coding MODIFY lib/sports_fanatic/workers/parse_setting_worker.ex — SEC-NEW-001: Replace internal error details with generic user-facing message; log details via Logger.error
+[2026-05-15T19:43:00Z] coding MODIFY lib/sports_fanatic/agents.ex — SEC-NEW-002: Add hourly rate limit (5/user/hour) with count_user_settings_last_hour/1 query
+[2026-05-15T19:43:00Z] coding MODIFY lib/sports_fanatic_web/live/news_live.ex — SEC-NEW-002: Handle :hourly_rate_limit_exceeded error with user-facing flash message
+[2026-05-15T19:43:00Z] coding MODIFY lib/sports_fanatic/agents/news_agent_setting.ex — SEC-NEW-003: Add validate_required([:status]) to update_changeset/2
+[2026-05-15T19:43:00Z] coding MODIFY lib/sports_fanatic_web/live/news_live.html.heex — SEC-NEW-006: Guard Float.round against integer confidence by adding 0.0
+[2026-05-15T23:46:31Z] build: VERIFY mix compile --warnings-as-errors -- passed, no warnings or errors
+[2026-05-15T23:46:31Z] build: VERIFY mix format --check-formatted -- FAILED: 3 files unformatted (parse_setting_worker.ex, news_item_domain_tags_test.exs, news_live.ex)
+[2026-05-15T23:46:31Z] build: VERIFY config/config.exs -- RunNewsAgentsWorker crontab entry present at 0 13 * * *
+[2026-05-15T23:46:31Z] build: VERIFY mix.exs -- no new deps; test.unit alias includes all 4 new test file paths
+[2026-05-15T23:46:31Z] build: VERIFY python_bridge/requirements.txt -- unchanged, no new packages
+[2026-05-15T23:46:31Z] build: CREATE agent-notes/build.md -- build verification notes
+[2026-05-15T23:55:00Z] documentation MODIFY /Users/charmalloc/dev/sports-fanatic/.claude/worktrees/agentic-news-feed-settings/CLAUDE.md — Added Agents System section (command input, settings lifecycle, daily execution, admin config, entity display); updated Architecture Summary, File Structure, Routing Conventions (LiveView events table, PubSub topics), Database Schemas (news_agent_settings, news_agent_results tables, news_items domain_tags alteration), Valkey Caching (no new keys note), Python Bridge (/agents/parse-setting, /agents/execute endpoints), Oban Workers (RunNewsAgentsWorker cron, ParseSettingWorker), Known Issues (AGENTS-001 through AGENTS-003), Common Tasks (agents enable/disable, manual trigger, Phase 2 skills, domain_tags backfill)
