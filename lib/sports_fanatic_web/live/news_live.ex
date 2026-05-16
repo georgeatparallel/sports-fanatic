@@ -46,7 +46,14 @@ defmodule SportsFanaticWeb.NewsLive do
       |> assign(:filtered_feed, nil)
       # Chat-specific assigns
       |> assign(:chat_enabled, chat_enabled)
-      |> assign(:chat_messages, [])
+      |> assign(:chat_messages, [
+        %{
+          id: "welcome",
+          role: "assistant",
+          content: "How can I help you today? Ask me about any MLB player, team, or topic — I'll search our news database and research external sources if needed.",
+          inserted_at: DateTime.utc_now()
+        }
+      ])
       |> assign(:chat_session_id, nil)
       |> assign(:agent_running, false)
       |> assign(:chat_input, "")

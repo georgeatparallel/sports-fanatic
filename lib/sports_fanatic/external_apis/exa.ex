@@ -25,7 +25,7 @@ defmodule SportsFanatic.ExternalApis.Exa do
       Logger.warning("Exa API key not configured, skipping search")
       {:ok, []}
     else
-      num_results = Keyword.get(opts, :num_results, 5) |> min(10)
+      num_results = Keyword.get(opts, :num_results, 10) |> min(25)
       days_back = Keyword.get(opts, :days_back, 7)
 
       start_date =

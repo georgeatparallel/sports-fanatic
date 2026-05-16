@@ -2,15 +2,17 @@ defmodule SportsFanatic.Agents.NewsAgent do
   @moduledoc """
   MLB news research agent. Orchestrates a ReAct-style tool-calling loop:
 
-  1. Search local news database
-  2. If insufficient results, search Exa.ai for external articles
-  3. Classify and store any new articles discovered
-  4. Return a summary with article IDs
+  1. Search local news database (no date restriction — search ALL articles)
+  2. If results found, report what we have and how recent it is
+  3. If insufficient results, automatically search Exa.ai with LLM-generated prompts
+  4. Classify and store any new articles discovered
+  5. Return a conversational summary with article IDs
 
   Progress updates are broadcast via PubSub to `chat:{user_id}`.
   """
 
   alias SportsFanatic.Agents.Actions.{ClassifyArticle, SearchExa, SearchLocalNews}
+  alias SportsFanatic.PythonBridge
 
   require Logger
 
@@ -40,62 +42,55 @@ defmodule SportsFanatic.Agents.NewsAgent do
     end
   end
 
-  defp execute(query, user_id, _context, date) do
-    all_article_ids = []
-
-    # Step 1: Search local news
-    broadcast_progress(user_id, "Searching local news database...")
+  defp execute(query, user_id, _context, _date) do
+    # Step 1: Search local news (no date restriction — search everything)
+    broadcast_progress(user_id, "Searching our news database...")
 
     local_result =
-      SearchLocalNews.run(
-        %{
-          query: query,
-          limit: 10,
-          date_from: date,
-          date_to: date
-        },
-        %{}
-      )
+      SearchLocalNews.run(%{query: query, limit: 15}, %{})
 
-    {local_articles, all_article_ids} =
+    {local_articles, local_ids} =
       case local_result do
         {:ok, %{articles: articles, count: count}} when count > 0 ->
-          broadcast_progress(user_id, "Found #{count} local article#{if count != 1, do: "s"}.")
+          # Report what we found and how old it is
+          newest = articles |> Enum.map(& &1.published_date) |> Enum.max(Date)
+          age_days = Date.diff(Date.utc_today(), newest)
+
+          age_text =
+            cond do
+              age_days == 0 -> "from today"
+              age_days == 1 -> "from yesterday"
+              age_days <= 7 -> "from #{age_days} days ago"
+              true -> "from #{age_days} days ago (#{Date.to_iso8601(newest)})"
+            end
+
+          broadcast_progress(
+            user_id,
+            "Found #{count} article#{if count != 1, do: "s"} in our database, most recent #{age_text}."
+          )
+
           ids = Enum.map(articles, & &1.id)
           {articles, ids}
 
         _ ->
-          broadcast_progress(user_id, "No local articles found.")
-          {[], all_article_ids}
+          broadcast_progress(user_id, "No articles found in our database for \"#{query}\".")
+          {[], []}
       end
 
-    # Step 2: Search Exa if local results are insufficient
-    {exa_article_ids, new_count} =
+    # Step 2: If insufficient local results, do deep Exa research
+    {exa_ids, exa_summary} =
       if length(local_articles) < 3 do
-        search_exa(query, user_id)
+        deep_research(query, user_id)
       else
-        {[], 0}
+        {[], nil}
       end
 
-    all_article_ids = (all_article_ids ++ exa_article_ids) |> Enum.uniq()
+    all_ids = (local_ids ++ exa_ids) |> Enum.uniq()
 
-    # Step 3: Build summary
-    total = length(all_article_ids)
+    # Step 3: Build conversational summary
+    summary = build_summary(query, local_articles, exa_ids, exa_summary, all_ids)
 
-    summary =
-      cond do
-        total == 0 ->
-          "I couldn't find any articles matching your query. Try different search terms or check back later."
-
-        new_count > 0 ->
-          "Found #{total} article#{if total != 1, do: "s"} related to your query" <>
-            " (#{new_count} newly discovered from external sources)."
-
-        true ->
-          "Found #{total} article#{if total != 1, do: "s"} related to your query."
-      end
-
-    {:ok, %{summary: summary, news_item_ids: all_article_ids}}
+    {:ok, %{summary: summary, news_item_ids: all_ids}}
   rescue
     e ->
       Logger.error(
@@ -105,44 +100,116 @@ defmodule SportsFanatic.Agents.NewsAgent do
       {:error, {:agent_error, Exception.message(e)}}
   end
 
-  defp search_exa(query, user_id) do
-    broadcast_progress(user_id, "Searching external sources via Exa.ai...")
+  # Deep research via Exa.ai with LLM-generated search prompts
+  defp deep_research(query, user_id) do
+    broadcast_progress(user_id, "Researching external sources for deeper coverage...")
 
-    case SearchExa.run(%{query: "#{query} MLB baseball 2026", num_results: 5, days_back: 7}, %{}) do
-      {:ok, %{known_articles: known, new_articles: new, new_count: new_count}} ->
-        known_ids = Enum.map(known, & &1.id)
+    # Generate smart search prompts using LLM
+    search_queries = generate_search_prompts(query, user_id)
 
-        new_ids =
-          if new_count > 0 do
-            broadcast_progress(
-              user_id,
-              "Processing #{new_count} new external article#{if new_count != 1, do: "s"}..."
-            )
+    # Execute all search prompts and aggregate results
+    all_new_ids =
+      Enum.flat_map(search_queries, fn search_query ->
+        broadcast_progress(user_id, "Searching: \"#{String.slice(search_query, 0, 60)}\"...")
 
-            classify_new_articles(new, user_id)
-          else
+        case SearchExa.run(%{query: search_query, num_results: 25, days_back: 30}, %{}) do
+          {:ok, %{new_articles: new, new_count: new_count, known_count: known_count}} ->
+            if known_count > 0 do
+              broadcast_progress(user_id, "Found #{known_count} previously indexed article#{if known_count != 1, do: "s"}.")
+            end
+
+            if new_count > 0 do
+              broadcast_progress(user_id, "Discovering #{new_count} new article#{if new_count != 1, do: "s"}, processing...")
+              classify_new_articles(new, user_id)
+            else
+              []
+            end
+
+          {:error, reason} ->
+            Logger.warning("Exa search failed for '#{search_query}': #{inspect(reason)}")
             []
-          end
-
-        if known != [] do
-          broadcast_progress(
-            user_id,
-            "Found #{length(known)} previously indexed article#{if length(known) != 1, do: "s"}."
-          )
         end
+      end)
+      |> Enum.uniq()
 
-        {known_ids ++ new_ids, length(new_ids)}
+    # Generate an aggregated summary from the Exa research
+    exa_summary =
+      if all_new_ids != [] do
+        broadcast_progress(user_id, "Research complete — discovered #{length(all_new_ids)} new article#{if length(all_new_ids) != 1, do: "s"}.")
+        "Discovered #{length(all_new_ids)} new articles from external sources and added them to our database."
+      else
+        broadcast_progress(user_id, "External search complete — no new articles found beyond what we already have.")
+        nil
+      end
 
-      {:error, reason} ->
-        Logger.warning("Exa search failed: #{inspect(reason)}")
-        broadcast_progress(user_id, "External search unavailable, showing local results only.")
-        {[], 0}
+    {all_new_ids, exa_summary}
+  end
+
+  # Generate intelligent search prompts using LLM via Python Bridge
+  defp generate_search_prompts(query, user_id) do
+    broadcast_progress(user_id, "Generating research queries...")
+
+    # Start with a base MLB-qualified query
+    base_query = "#{query} MLB baseball"
+
+    # Try to generate smarter queries via LLM
+    case generate_llm_prompts(query) do
+      {:ok, prompts} when prompts != [] ->
+        broadcast_progress(user_id, "Generated #{length(prompts)} research queries.")
+        prompts
+
+      _ ->
+        # Fallback: manually generate variations
+        Logger.info("LLM prompt generation unavailable, using manual variations")
+
+        [
+          base_query,
+          "#{query} MLB 2026 news",
+          "#{query} baseball stats season"
+        ]
+    end
+  end
+
+  # Use the Python Bridge to generate search prompts
+  defp generate_llm_prompts(query) do
+    case PythonBridge.analyze_news(
+           "Generate Exa search queries for: #{query}",
+           """
+           Generate 3 search queries to find comprehensive MLB baseball news about: "#{query}"
+
+           Requirements:
+           - Each query should find different angles (recent news, stats, analysis)
+           - Always include "MLB" or "baseball" to filter noise
+           - Include the current year (2026) in at least one query
+           - Be specific enough to get relevant results
+
+           Return queries as a comma-separated list.
+           """
+         ) do
+      {:ok, %{"ai_summary" => summary}} when is_binary(summary) and summary != "" ->
+        prompts =
+          summary
+          |> String.split(~r/[,\n]+/, trim: true)
+          |> Enum.map(&String.trim/1)
+          |> Enum.reject(&(&1 == ""))
+          |> Enum.take(4)
+
+        if prompts != [], do: {:ok, prompts}, else: {:error, :empty}
+
+      _ ->
+        {:error, :llm_unavailable}
     end
   end
 
   defp classify_new_articles(articles, user_id) do
     articles
-    |> Enum.map(fn article ->
+    |> Enum.take(25)
+    |> Enum.with_index(1)
+    |> Enum.map(fn {article, idx} ->
+      if rem(idx, 5) == 0 do
+        broadcast_progress(user_id, "Processing article #{idx}/#{min(length(articles), 25)}...")
+      end
+
       case ClassifyArticle.run(
              %{
                title: article.title,
@@ -164,14 +231,32 @@ defmodule SportsFanatic.Agents.NewsAgent do
       end
     end)
     |> Enum.reject(&is_nil/1)
-    |> tap(fn ids ->
-      if ids != [] do
-        broadcast_progress(
-          user_id,
-          "Enriched and stored #{length(ids)} new article#{if length(ids) != 1, do: "s"}."
-        )
-      end
-    end)
+  end
+
+  defp build_summary(query, local_articles, exa_ids, exa_summary, all_ids) do
+    total = length(all_ids)
+
+    cond do
+      total == 0 ->
+        "I searched our database and external sources for \"#{query}\" but couldn't find any relevant articles. " <>
+          "This player or topic may not have recent MLB news coverage. " <>
+          "Try searching with different terms, or ask me about a specific team or recent event."
+
+      local_articles != [] and exa_ids == [] ->
+        "I found #{length(local_articles)} article#{if length(local_articles) != 1, do: "s"} about \"#{query}\" in our database. " <>
+          "These are the most relevant results from our news feed."
+
+      local_articles == [] and exa_ids != [] ->
+        "\"#{query}\" wasn't in our news feed, so I searched external sources and " <>
+          "discovered #{length(exa_ids)} new article#{if length(exa_ids) != 1, do: "s"}. " <>
+          "#{exa_summary || ""} These have been added to our feed and are now available for everyone."
+
+      true ->
+        "Found #{total} total article#{if total != 1, do: "s"} about \"#{query}\": " <>
+          "#{length(local_articles)} from our database" <>
+          if(exa_ids != [], do: " and #{length(exa_ids)} newly discovered from external research", else: "") <>
+          ". #{exa_summary || ""}"
+    end
   end
 
   defp broadcast_progress(user_id, message) do
