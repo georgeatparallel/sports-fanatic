@@ -75,6 +75,15 @@ defmodule SportsFanatic.PythonBridge do
     post("/chat/resolve-context", %{query: query, conversation: conversation})
   end
 
+  @doc "Synthesize research sources into a rich conversational response."
+  def synthesize_research(query, sources, local_summaries \\ []) do
+    post("/chat/synthesize-research", %{
+      query: query,
+      sources: sources,
+      local_article_summaries: local_summaries
+    })
+  end
+
   def health_check do
     base_url = base_url()
 

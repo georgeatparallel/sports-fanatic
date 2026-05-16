@@ -177,3 +177,151 @@ def _fallback_response(query: str) -> ResolveContextResponse:
         ],
         reasoning="Fallback: treating as new topic due to processing error.",
     )
+
+
+# ── Research Synthesis Endpoint ────────────────────────────────
+
+SYNTHESIS_SYSTEM_PROMPT = """You are a knowledgeable, friendly MLB research assistant — like a well-informed friend who follows baseball closely. You provide rich, detailed analysis covering multiple angles.
+
+When responding about a player or topic, cover ALL relevant angles based on the source material:
+
+**For injured players:**
+- Current injury status and what happened
+- Expected return timeline (specific dates if available)
+- Rehab progress (minor league rehab starts, bullpen sessions, etc.)
+- Impact on the team's roster and rotation
+- Fantasy baseball implications (should you hold, drop, stash?)
+- What to watch for (next rehab start, upcoming imaging, etc.)
+
+**For active players:**
+- Recent performance highlights and stats
+- Current streaks or slumps
+- Upcoming matchups and schedule
+- Fantasy value assessment
+- Betting/props angles (trends, over/unders)
+- Historical comparisons if relevant
+
+**For teams or general topics:**
+- Key storylines and context
+- Multiple player impacts
+- Standings and playoff implications
+
+**Response style:**
+- Be conversational and enthusiastic — you love baseball
+- Use specific stats, dates, and details from the sources
+- Organize with clear sections using bold headers
+- Synthesize across multiple sources — don't just list them
+- If information conflicts between sources, note the discrepancy
+- End with a brief "bottom line" takeaway
+- If you found a lot of different angles, tell the user what topics you found and ask what they want to dive deeper into
+- Keep it thorough but readable — aim for 200-400 words"""
+
+
+class SourceArticle(BaseModel):
+    title: str
+    text: str = ""
+    url: str = ""
+    author: str | None = None
+    published_date: str | None = None
+
+
+class SynthesizeRequest(BaseModel):
+    query: str
+    sources: list[SourceArticle]
+    local_article_summaries: list[str] = []
+
+
+class SynthesizeResponse(BaseModel):
+    response: str
+    short_summary: str
+    key_facts: list[str]
+
+
+@router.post("/synthesize-research", response_model=SynthesizeResponse)
+async def synthesize_research(request: SynthesizeRequest):
+    """Synthesize Exa research results into a rich, conversational response."""
+
+    if not settings.anthropic_api_key:
+        return SynthesizeResponse(
+            response="I found some articles but couldn't generate a detailed summary. Here are the results.",
+            short_summary="Research results available",
+            key_facts=[],
+        )
+
+    # Build source material for the LLM
+    source_text = ""
+    for i, src in enumerate(request.sources[:25], 1):
+        source_text += f"\n--- Source {i}: {src.title} ---\n"
+        if src.author:
+            source_text += f"Author: {src.author}\n"
+        if src.published_date:
+            source_text += f"Published: {src.published_date}\n"
+        if src.text:
+            source_text += f"{src.text[:3000]}\n"
+
+    local_context = ""
+    if request.local_article_summaries:
+        local_context = "\n\nArticles already in our database:\n"
+        for summary in request.local_article_summaries[:10]:
+            local_context += f"- {summary}\n"
+
+    try:
+        client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+
+        response = client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=2048,
+            temperature=0.3,
+            system=SYNTHESIS_SYSTEM_PROMPT,
+            messages=[
+                {
+                    "role": "user",
+                    "content": f"""The user asked: "{request.query}"
+
+I found the following source material from web research:{local_context}
+
+External sources found:
+{source_text}
+
+Please provide a comprehensive, friendly research response covering all relevant angles. Also provide a short_summary (1 sentence for the news feed) and key_facts (3-5 bullet points of the most important takeaways).
+
+Respond in JSON format:
+{{"response": "your detailed response here", "short_summary": "one sentence summary", "key_facts": ["fact 1", "fact 2", ...]}}""",
+                }
+            ],
+        )
+
+        # Parse the response
+        text = response.content[0].text.strip()
+
+        # Try to extract JSON from the response
+        import json
+
+        try:
+            # Try direct JSON parse
+            data = json.loads(text)
+            return SynthesizeResponse(
+                response=data.get("response", text),
+                short_summary=data.get("short_summary", ""),
+                key_facts=data.get("key_facts", []),
+            )
+        except json.JSONDecodeError:
+            # If not valid JSON, use the raw text
+            return SynthesizeResponse(
+                response=text,
+                short_summary=text[:200],
+                key_facts=[],
+            )
+
+    except Exception as e:
+        logger.error(f"Research synthesis failed: {e}")
+        # Fallback: create a basic summary from titles
+        titles = [s.title for s in request.sources[:10] if s.title]
+        fallback = f"Here's what I found about \"{request.query}\":\n\n"
+        for title in titles:
+            fallback += f"• {title}\n"
+        return SynthesizeResponse(
+            response=fallback,
+            short_summary=f"Found {len(request.sources)} articles about {request.query}",
+            key_facts=titles[:5],
+        )
