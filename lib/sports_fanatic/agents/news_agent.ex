@@ -17,7 +17,7 @@ defmodule SportsFanatic.Agents.NewsAgent do
 
   require Logger
 
-  @agent_timeout 90_000
+  @agent_timeout 120_000
 
   def run(query, opts \\ []) do
     user_id = Keyword.fetch!(opts, :user_id)
@@ -172,15 +172,17 @@ defmodule SportsFanatic.Agents.NewsAgent do
                 }
               end)
 
-            # Classify and store new articles
+            # Classify top 5 new articles inline, rest will be in sources for synthesis
             new_ids =
               if new_count > 0 do
+                classify_count = min(new_count, 5)
+
                 broadcast_progress(
                   user_id,
-                  "Processing #{new_count} new article#{pl(new_count)}..."
+                  "Saving #{classify_count} of #{new_count} new article#{pl(new_count)}..."
                 )
 
-                classify_new_articles(new, user_id)
+                classify_new_articles(Enum.take(new, 5), user_id)
               else
                 []
               end
