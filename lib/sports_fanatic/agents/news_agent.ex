@@ -14,6 +14,11 @@ defmodule SportsFanatic.Agents.NewsAgent do
 
   alias SportsFanatic.AI.Claude
   alias SportsFanatic.Agents.Actions.{ClassifyArticle, SearchExa, SearchLocalNews}
+  alias SportsFanatic.Content.ScoutingReport
+  alias SportsFanatic.Mlb.Player
+  alias SportsFanatic.Repo
+
+  import Ecto.Query
 
   require Logger
 
@@ -103,6 +108,9 @@ defmodule SportsFanatic.Agents.NewsAgent do
         "I searched our database and external sources for \"#{resolved_query}\" but couldn't find any relevant MLB coverage. " <>
           "Try being more specific — for example, include the player's team or a specific topic like 'injury update' or 'season stats'."
       end
+
+    # Step 4: Generate scouting reports for mentioned players and append links
+    summary = maybe_add_scouting(summary, all_ids, user_id)
 
     {:ok, %{summary: summary, news_item_ids: all_ids}}
   rescue
@@ -274,6 +282,129 @@ defmodule SportsFanatic.Agents.NewsAgent do
       _ ->
         "Research complete. Check the articles below for details."
     end
+  end
+
+  # ── Scouting Report Integration ─────────────────────────────
+
+  defp maybe_add_scouting(summary, article_ids, _user_id) when article_ids == [] do
+    summary
+  end
+
+  defp maybe_add_scouting(summary, article_ids, user_id) do
+    today = SportsFanatic.DateHelper.today()
+
+    # Find players referenced in the matched articles
+    player_ids =
+      from(n in SportsFanatic.Content.NewsItem,
+        where: n.id in ^article_ids,
+        select: n.player_ids
+      )
+      |> Repo.all()
+      |> List.flatten()
+      |> Enum.reject(&is_nil/1)
+      |> Enum.uniq()
+
+    if player_ids == [] do
+      summary
+    else
+      # Load player info
+      players =
+        from(p in Player, where: p.id in ^player_ids)
+        |> Repo.all()
+
+      if players == [] do
+        summary
+      else
+        # Check which players have scouting reports today
+        existing_report_player_ids =
+          from(sr in ScoutingReport,
+            where: sr.player_id in ^player_ids and sr.report_date == ^today,
+            select: sr.player_id
+          )
+          |> Repo.all()
+          |> MapSet.new()
+
+        # Generate reports for players missing them (max 3 to avoid timeout)
+        players_needing_reports =
+          players
+          |> Enum.reject(&MapSet.member?(existing_report_player_ids, &1.id))
+          |> Enum.take(3)
+
+        if players_needing_reports != [] do
+          broadcast_progress(user_id, "Generating scouting reports for #{length(players_needing_reports)} player#{pl(length(players_needing_reports))}...")
+
+          for player <- players_needing_reports do
+            generate_scouting_for_player(player, today)
+          end
+        end
+
+        # Build scouting links section
+        scouting_links =
+          players
+          |> Enum.take(5)
+          |> Enum.map(fn player ->
+            team = Repo.get(SportsFanatic.Mlb.Team, player.team_id)
+            team_slug = if team, do: team.slug, else: "unknown"
+
+            has_report = MapSet.member?(existing_report_player_ids, player.id) or
+              player.id in Enum.map(players_needing_reports, & &1.id)
+
+            if has_report do
+              "- [**#{player.full_name}**](/mlb/scouting/#{team_slug}/#{player.slug})"
+            else
+              "- **#{player.full_name}** (scouting report pending)"
+            end
+          end)
+          |> Enum.join("\n")
+
+        # Get a teaser from the first scouting report
+        teaser =
+          case Repo.one(from sr in ScoutingReport,
+            where: sr.player_id in ^player_ids and sr.report_date == ^today,
+            order_by: [desc: sr.inserted_at],
+            limit: 1
+          ) do
+            %{content: content} when is_map(content) ->
+              news_summary = content["news_summary"] || ""
+              sentiment = content["overall_sentiment"] || ""
+              if news_summary != "", do: " #{sentiment |> String.capitalize()} outlook — #{news_summary}", else: ""
+            _ -> ""
+          end
+
+        summary <>
+          "\n\n---\n\n**Scouting Reports Available** — click a player to see their full scouting breakdown:#{teaser}\n\n" <>
+          scouting_links
+      end
+    end
+  rescue
+    e ->
+      Logger.warning("Scouting integration error: #{Exception.message(e)}")
+      summary
+  end
+
+  defp generate_scouting_for_player(player, today) do
+    case Claude.search_player_sources(player.full_name) do
+      {:ok, sources} when sources != [] ->
+        sources_text = Enum.map_join(sources, "\n\n---\n\n", fn s -> "#{s.title}\n#{s.text}" end)
+
+        case Claude.generate_scouting(player.full_name, sources_text) do
+          {:ok, report} when is_map(report) ->
+            %ScoutingReport{}
+            |> ScoutingReport.changeset(%{
+              player_id: player.id,
+              report_date: today,
+              content: report,
+              sources: Enum.map(sources, fn s -> %{"title" => s.title, "url" => s.url} end)
+            })
+            |> Repo.insert(on_conflict: :nothing)
+
+          _ -> :skip
+        end
+
+      _ -> :skip
+    end
+  rescue
+    _ -> :skip
   end
 
   # ── Helpers ─────────────────────────────────────────────────
