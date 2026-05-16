@@ -24,28 +24,15 @@ import topbar from "../vendor/topbar"
 
 let Hooks = {}
 
-// Scroll chat to show latest user message, but don't force-scroll during agent responses
+// Chat scroll: only auto-scroll when USER sends a message.
+// Agent responses stay at top so user can read and scroll at their own pace.
 Hooks.ScrollBottom = {
   mounted() {
-    this.lastChildCount = this.el.children.length
-    this.observer = new MutationObserver(() => {
-      const newCount = this.el.children.length
-      // Only auto-scroll when a user message is added (blue bubble)
-      // Don't scroll during agent response streaming — let user read at their pace
-      const lastChild = this.el.lastElementChild
-      if (lastChild && newCount > this.lastChildCount) {
-        const isUserMsg = lastChild.querySelector('.bg-blue-500')
-        const isProgress = lastChild.querySelector('.animate-spin')
-        if (isUserMsg || isProgress) {
-          this.el.scrollTop = this.el.scrollHeight
-        }
-      }
-      this.lastChildCount = newCount
+    this._userScrolled = false
+    // Listen for phx events to know when to scroll
+    this.handleEvent("scroll_to_bottom", () => {
+      this.el.scrollTop = this.el.scrollHeight
     })
-    this.observer.observe(this.el, { childList: true })
-  },
-  destroyed() {
-    if (this.observer) this.observer.disconnect()
   }
 }
 

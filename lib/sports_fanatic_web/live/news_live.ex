@@ -414,7 +414,8 @@ defmodule SportsFanaticWeb.NewsLive do
      |> assign(:agent_running, true)
      |> assign(:chat_input, "")
      |> assign(:chat_articles, [])
-     |> assign(:chat_subscribed, true)}
+     |> assign(:chat_subscribed, true)
+     |> push_event("scroll_to_bottom", %{})}
   end
 
   # ── Legacy Command Handlers ───────────────────────────────────
