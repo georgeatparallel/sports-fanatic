@@ -13,6 +13,7 @@
         name="input"
         value={@command_input}
         rows="2"
+        autofocus
         phx-keydown="submit_command"
         phx-key="Enter"
         placeholder={if @current_user, do: "Type /settings-apply \"your description\" to create an agent, or search the feed...", else: "Search the feed, or log in to use agent commands..."}
