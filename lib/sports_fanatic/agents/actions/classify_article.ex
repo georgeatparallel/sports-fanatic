@@ -9,10 +9,10 @@ defmodule SportsFanatic.Agents.Actions.ClassifyArticle do
     name: "classify_article",
     description: "Classify and enrich a new article via AI, then store it"
 
+  alias SportsFanatic.AI.Claude
   alias SportsFanatic.Agents.Actions.ResolveEntities
   alias SportsFanatic.Cache
   alias SportsFanatic.News
-  alias SportsFanatic.PythonBridge
 
   require Logger
 
@@ -93,10 +93,7 @@ defmodule SportsFanatic.Agents.Actions.ClassifyArticle do
   defp classify_via_bridge(title, body) do
     excerpt = String.slice(body || "", 0, 500)
 
-    case PythonBridge.analyze_news(title, excerpt) do
-      {:ok, %{"category" => cat, "sentiment" => sent, "summary" => sum}} ->
-        {cat, sent, sum}
-
+    case Claude.classify_article(title, excerpt) do
       {:ok, result} when is_map(result) ->
         {
           Map.get(result, "category", "news"),
@@ -105,7 +102,7 @@ defmodule SportsFanatic.Agents.Actions.ClassifyArticle do
         }
 
       {:error, reason} ->
-        Logger.warning("Python Bridge classify failed: #{inspect(reason)}, using defaults")
+        Logger.warning("Claude classify failed: #{inspect(reason)}, using defaults")
         {"news", "neutral", nil}
     end
   end

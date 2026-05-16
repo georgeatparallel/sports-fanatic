@@ -12,8 +12,8 @@ defmodule SportsFanatic.Agents.NewsAgent do
   rehab status, fantasy implications, betting angles, and more.
   """
 
+  alias SportsFanatic.AI.Claude
   alias SportsFanatic.Agents.Actions.{ClassifyArticle, SearchExa, SearchLocalNews}
-  alias SportsFanatic.PythonBridge
 
   require Logger
 
@@ -120,7 +120,7 @@ defmodule SportsFanatic.Agents.NewsAgent do
   defp resolve_context(query, context, user_id) do
     broadcast_progress(user_id, "Understanding your question...")
 
-    case PythonBridge.resolve_chat_context(query, context) do
+    case Claude.resolve_context(query, context) do
       {:ok, %{"resolved_query" => resolved, "search_prompts" => prompts}} ->
         if resolved != query do
           broadcast_progress(user_id, "I see — you're asking about: #{resolved}")
@@ -249,7 +249,7 @@ defmodule SportsFanatic.Agents.NewsAgent do
         }
       end)
 
-    case PythonBridge.synthesize_research(query, sources_for_llm, local_summaries) do
+    case Claude.synthesize_research(query, sources_for_llm, local_summaries) do
       {:ok, %{"response" => response}} when is_binary(response) and response != "" ->
         broadcast_progress(user_id, "Research complete!")
         response
