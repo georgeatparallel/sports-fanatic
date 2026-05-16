@@ -105,11 +105,27 @@ defmodule SportsFanaticWeb.NewsLive do
           # Load or create chat session
           case ChatBot.get_or_create_session(user_id) do
             {:ok, session_record} ->
-              messages = ChatBot.list_session_messages(session_record.id)
+              db_messages = ChatBot.list_session_messages(session_record.id)
+              formatted = format_messages(db_messages)
+
+              # Always include welcome message at the start
+              welcome = %{
+                id: "welcome",
+                role: "assistant",
+                content: "How can I help you today? Try one of these:\n\n" <>
+                  "- **How is Hunter Brown doing?**\n" <>
+                  "- **What's the Mets injury report?**\n" <>
+                  "- **Current HR streaks**\n" <>
+                  "- **Upload a roster** — drag and drop your fantasy CSV to create a player feed\n\n" <>
+                  "Type **/help** for all commands.",
+                inserted_at: DateTime.utc_now()
+              }
+
+              all_messages = if formatted == [], do: [welcome], else: [welcome | formatted]
 
               socket
               |> assign(:chat_session_id, session_record.id)
-              |> assign(:chat_messages, format_messages(messages))
+              |> assign(:chat_messages, all_messages)
 
             {:error, _} ->
               socket

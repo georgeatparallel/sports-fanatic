@@ -28,32 +28,33 @@ defmodule SportsFanatic.Workers.FeedResearchWorker do
         _ -> Feeds.list_all_active_feeds()
       end
 
-    for feed <- feeds do
-      research_feed(feed)
-    end
+    # Deduplicate players across all feeds — if a player appears in 3 feeds,
+    # research them only once
+    all_player_ids =
+      feeds
+      |> Enum.flat_map(& &1.player_ids)
+      |> Enum.uniq()
+      |> Enum.take(@max_players_per_feed)
 
-    :ok
-  end
+    Logger.info("FeedResearchWorker: researching #{length(all_player_ids)} unique players across #{length(feeds)} feeds")
 
-  defp research_feed(feed) do
-    player_ids = Enum.take(feed.player_ids, @max_players_per_feed)
-
-    for player_id <- player_ids do
+    for player_id <- all_player_ids do
       case Repo.get(Player, player_id) do
         nil ->
-          Logger.warning("FeedResearchWorker: player #{player_id} not found, skipping")
+          Logger.warning("FeedResearchWorker: player #{player_id} not found")
 
         player ->
           research_player(player)
       end
     end
 
-    Feeds.update_feed(feed, %{last_researched_at: DateTime.utc_now()})
-  rescue
-    e ->
-      Logger.error(
-        "FeedResearchWorker: error researching feed #{feed.id}: #{Exception.message(e)}"
-      )
+    # Mark all feeds as researched
+    now = DateTime.utc_now()
+    for feed <- feeds do
+      Feeds.update_feed(feed, %{last_researched_at: now})
+    end
+
+    :ok
   end
 
   defp research_player(player) do

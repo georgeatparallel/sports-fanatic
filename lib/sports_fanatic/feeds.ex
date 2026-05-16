@@ -142,10 +142,21 @@ defmodule SportsFanatic.Feeds do
     else
       Enum.split_with(articles, fn item ->
         item_player_ids = (item["player_ids"] || []) |> List.wrap()
-        item_team_ids = (item["team_ids"] || []) |> List.wrap()
 
-        Enum.any?(item_player_ids, &MapSet.member?(player_set, &1)) or
-          Enum.any?(item_team_ids, &MapSet.member?(team_set, &1))
+        # Primary match: player overlap
+        player_match = Enum.any?(item_player_ids, &MapSet.member?(player_set, &1))
+
+        # Only match on teams if the feed has NO players (team-only feed)
+        # This prevents CSV-uploaded feeds from matching every article for those teams
+        team_match =
+          if MapSet.size(player_set) == 0 do
+            item_team_ids = (item["team_ids"] || []) |> List.wrap()
+            Enum.any?(item_team_ids, &MapSet.member?(team_set, &1))
+          else
+            false
+          end
+
+        player_match or team_match
       end)
     end
   end

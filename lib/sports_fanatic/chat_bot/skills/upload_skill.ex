@@ -39,8 +39,13 @@ defmodule SportsFanatic.ChatBot.Skills.UploadSkill do
                team_ids: state.team_ids
              }) do
           {:ok, feed} ->
+            # Kick off immediate feed research in the background
+            %{"feed_ids" => [feed.id]}
+            |> SportsFanatic.Workers.FeedResearchWorker.new()
+            |> Oban.insert()
+
             {:reply,
-             "Created feed **\"#{feed.name}\"** with #{state.player_count} players and #{state.team_count} teams.",
+             "Created feed **\"#{feed.name}\"** with #{state.player_count} players and #{state.team_count} teams. Researching your players now — news will appear shortly!",
              nil, :feeds_changed}
 
           {:error, :max_feeds_reached} ->
