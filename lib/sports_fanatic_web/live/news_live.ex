@@ -51,6 +51,8 @@ defmodule SportsFanaticWeb.NewsLive do
       |> assign(:agent_running, false)
       |> assign(:chat_input, "")
       |> assign(:chat_articles, [])
+      |> assign(:anon_id, nil)
+      |> assign(:chat_subscribed, false)
 
     socket =
       if current_user && connected?(socket) do
@@ -194,9 +196,6 @@ defmodule SportsFanaticWeb.NewsLive do
       text == "" ->
         {:noreply, socket}
 
-      is_nil(socket.assigns.current_user) ->
-        {:noreply, put_flash(socket, :error, "Please log in to use the chatbot.")}
-
       socket.assigns.agent_running ->
         {:noreply,
          put_flash(socket, :info, "Please wait for the current search to complete, or cancel it.")}
@@ -207,38 +206,38 @@ defmodule SportsFanaticWeb.NewsLive do
   end
 
   def handle_event("clear_chat", _params, socket) do
-    if socket.assigns.chat_session_id do
+    # Clear persisted session for authenticated users
+    if socket.assigns.current_user && socket.assigns.chat_session_id do
       ChatBot.clear_session(socket.assigns.chat_session_id, socket.assigns.current_user.id)
     end
 
-    # Create a new session
-    user_id = socket.assigns.current_user.id
+    # Create a new session for authenticated users
+    new_session_id =
+      if socket.assigns.current_user do
+        case ChatBot.get_or_create_session(socket.assigns.current_user.id) do
+          {:ok, s} -> s.id
+          _ -> nil
+        end
+      else
+        nil
+      end
 
-    case ChatBot.get_or_create_session(user_id) do
-      {:ok, new_session} ->
-        {:noreply,
-         socket
-         |> assign(:chat_messages, [])
-         |> assign(:chat_session_id, new_session.id)
-         |> assign(:agent_running, false)
-         |> assign(:chat_articles, [])
-         |> assign(:chat_input, "")}
-
-      {:error, _} ->
-        {:noreply,
-         socket
-         |> assign(:chat_messages, [])
-         |> assign(:chat_session_id, nil)
-         |> assign(:agent_running, false)
-         |> assign(:chat_articles, [])
-         |> assign(:chat_input, "")}
-    end
+    {:noreply,
+     socket
+     |> assign(:chat_messages, [])
+     |> assign(:chat_session_id, new_session_id)
+     |> assign(:agent_running, false)
+     |> assign(:chat_articles, [])
+     |> assign(:chat_input, "")}
   end
 
   def handle_event("cancel_agent", _params, socket) do
-    if socket.assigns.current_user do
-      AgentSupervisor.cancel_agent(socket.assigns.current_user.id)
-    end
+    user_id =
+      if socket.assigns.current_user,
+        do: socket.assigns.current_user.id,
+        else: socket.assigns[:anon_id]
+
+    if user_id, do: AgentSupervisor.cancel_agent(user_id)
 
     {:noreply, assign(socket, :agent_running, false)}
   end
@@ -318,66 +317,88 @@ defmodule SportsFanaticWeb.NewsLive do
   # ── Chat Submission Logic ─────────────────────────────────────
 
   defp handle_chat_submit(text, socket) do
-    user_id = socket.assigns.current_user.id
+    # Use user_id if logged in, otherwise generate an anonymous session key
+    user_id =
+      if socket.assigns.current_user,
+        do: socket.assigns.current_user.id,
+        else: socket.assigns[:anon_id] || Ecto.UUID.generate()
+
+    # Rate limit for authenticated users only
+    if socket.assigns.current_user do
+      case ChatBot.check_rate_limit(user_id) do
+        {:error, :hourly_limit_exceeded} ->
+          {:noreply, put_flash(socket, :error, "Rate limit reached (max 10 queries per hour).")}
+
+        {:error, :daily_limit_exceeded} ->
+          {:noreply, put_flash(socket, :error, "Rate limit reached (max 50 queries per day).")}
+
+        :ok ->
+          do_chat_submit(text, user_id, socket)
+      end
+    else
+      # Anonymous users: no rate limit, no persistence
+      socket = assign(socket, :anon_id, user_id)
+      do_chat_submit(text, user_id, socket)
+    end
+  end
+
+  defp do_chat_submit(text, user_id, socket) do
     session_id = socket.assigns.chat_session_id
 
-    # Rate limit check
-    case ChatBot.check_rate_limit(user_id) do
-      {:error, :hourly_limit_exceeded} ->
-        {:noreply, put_flash(socket, :error, "Rate limit reached (max 10 queries per hour).")}
-
-      {:error, :daily_limit_exceeded} ->
-        {:noreply, put_flash(socket, :error, "Rate limit reached (max 50 queries per day).")}
-
-      :ok ->
-        # Ensure we have a session
-        session_id =
-          if is_nil(session_id) do
-            case ChatBot.get_or_create_session(user_id) do
-              {:ok, s} -> s.id
-              _ -> nil
-            end
-          else
-            ChatBot.touch_session(session_id)
-            session_id
-          end
-
+    # Persist chat session for authenticated users only
+    session_id =
+      if socket.assigns.current_user do
         if is_nil(session_id) do
-          {:noreply, put_flash(socket, :error, "Could not create chat session.")}
+          case ChatBot.get_or_create_session(user_id) do
+            {:ok, s} -> s.id
+            _ -> nil
+          end
         else
-          # Store user message
-          {:ok, _msg} =
-            ChatBot.create_message(%{
-              session_id: session_id,
-              role: "user",
-              content: text
-            })
-
-          # Add to chat messages for display
-          user_msg = %{
-            id: Ecto.UUID.generate(),
-            role: "user",
-            content: text,
-            inserted_at: DateTime.utc_now()
-          }
-
-          chat_messages = socket.assigns.chat_messages ++ [user_msg]
-
-          # Get date context for agent
-          date = socket.assigns[:date_str]
-
-          # Spawn agent
-          AgentSupervisor.start_agent(user_id, text, date: date)
-
-          {:noreply,
-           socket
-           |> assign(:chat_messages, chat_messages)
-           |> assign(:chat_session_id, session_id)
-           |> assign(:agent_running, true)
-           |> assign(:chat_input, "")
-           |> assign(:chat_articles, [])}
+          ChatBot.touch_session(session_id)
+          session_id
         end
+      else
+        session_id
+      end
+
+    # Store message for authenticated users
+    if socket.assigns.current_user && session_id do
+      ChatBot.create_message(%{
+        session_id: session_id,
+        role: "user",
+        content: text
+      })
     end
+
+    # Add to chat messages for display
+    user_msg = %{
+      id: Ecto.UUID.generate(),
+      role: "user",
+      content: text,
+      inserted_at: DateTime.utc_now()
+    }
+
+    chat_messages = socket.assigns.chat_messages ++ [user_msg]
+
+    # Subscribe to agent PubSub if not already
+    if not socket.assigns[:chat_subscribed] do
+      Phoenix.PubSub.subscribe(SportsFanatic.PubSub, "chat:#{user_id}")
+    end
+
+    # Get date context for agent
+    date = socket.assigns[:date_str]
+
+    # Spawn agent
+    AgentSupervisor.start_agent(user_id, text, date: date)
+
+    {:noreply,
+     socket
+     |> assign(:chat_messages, chat_messages)
+     |> assign(:chat_session_id, session_id)
+     |> assign(:agent_running, true)
+     |> assign(:chat_input, "")
+     |> assign(:chat_articles, [])
+     |> assign(:chat_subscribed, true)}
   end
 
   # ── Legacy Command Handlers ───────────────────────────────────

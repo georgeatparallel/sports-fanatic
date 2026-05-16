@@ -129,12 +129,8 @@
           type="text"
           name="message"
           value={@chat_input}
-          placeholder={
-            if @current_user,
-              do: "Ask about MLB news, players, or trades...",
-              else: "Log in to use the news chatbot..."
-          }
-          disabled={@agent_running || is_nil(@current_user)}
+          placeholder="Ask about MLB news, players, or trades..."
+          disabled={@agent_running}
           autocomplete="off"
           phx-debounce="300"
           class={[
@@ -144,7 +140,7 @@
         />
         <button
           type="submit"
-          disabled={@agent_running || is_nil(@current_user)}
+          disabled={@agent_running}
           class="absolute right-2 top-1/2 -translate-y-1/2 text-blue-500 hover:text-blue-700 disabled:text-gray-300"
         >
           <svg
