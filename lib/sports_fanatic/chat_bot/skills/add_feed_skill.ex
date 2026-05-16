@@ -35,6 +35,10 @@ defmodule SportsFanatic.ChatBot.Skills.AddFeedSkill do
     end
   end
 
+  def handle(_text, %{skill: :add_feed, step: :await_players}, %{current_user: nil}) do
+    {:reply, "You need to be logged in to create a feed. Use /register or /login first.", nil}
+  end
+
   def handle(text, %{skill: :add_feed, step: :await_players, name: name}, %{
         current_user: user
       }) do

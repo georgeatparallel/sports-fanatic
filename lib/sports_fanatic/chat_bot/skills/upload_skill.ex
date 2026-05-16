@@ -19,6 +19,10 @@ defmodule SportsFanatic.ChatBot.Skills.UploadSkill do
      %{skill: :upload, step: :await_file}}
   end
 
+  def handle(_text, %{skill: :upload, step: :await_name}, %{current_user: nil}) do
+    {:reply, "You need to be logged in to save a feed. Use /register or /login first.", nil}
+  end
+
   def handle(text, %{skill: :upload, step: :await_name} = state, %{current_user: user}) do
     name = String.trim(text)
 
