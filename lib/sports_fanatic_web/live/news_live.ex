@@ -155,27 +155,12 @@ defmodule SportsFanaticWeb.NewsLive do
   # ── Command/Event Handlers ─────────────────────────────────
 
   @impl true
+  def handle_event("submit_command", %{"key" => "Enter", "value" => input}, socket) do
+    handle_command_input(String.trim(input), socket)
+  end
+
   def handle_event("submit_command", %{"input" => input}, socket) do
-    input = String.trim(input)
-
-    cond do
-      input == "" ->
-        {:noreply, socket}
-
-      String.starts_with?(input, "/settings-clear") ->
-        if socket.assigns.current_user,
-          do: handle_settings_clear(socket),
-          else: {:noreply, put_flash(socket, :error, "Please log in to use agent commands.")}
-
-      String.starts_with?(input, "/settings-apply") ->
-        if socket.assigns.current_user,
-          do: handle_settings_apply(input, socket),
-          else: {:noreply, put_flash(socket, :error, "Please log in to use agent commands.")}
-
-      true ->
-        # Plain text search — available to all users
-        handle_search(input, socket)
-    end
+    handle_command_input(String.trim(input), socket)
   end
 
   def handle_event("search_feed", %{"query" => query}, socket) do
@@ -221,6 +206,27 @@ defmodule SportsFanaticWeb.NewsLive do
   end
 
   # ── Command Handlers ───────────────────────────────────────
+
+  defp handle_command_input(input, socket) do
+    cond do
+      input == "" ->
+        {:noreply, socket}
+
+      String.starts_with?(input, "/settings-clear") ->
+        if socket.assigns.current_user,
+          do: handle_settings_clear(socket),
+          else: {:noreply, put_flash(socket, :error, "Please log in to use agent commands.")}
+
+      String.starts_with?(input, "/settings-apply") ->
+        if socket.assigns.current_user,
+          do: handle_settings_apply(input, socket),
+          else: {:noreply, put_flash(socket, :error, "Please log in to use agent commands.")}
+
+      true ->
+        # Plain text search — available to all users
+        handle_search(input, socket)
+    end
+  end
 
   defp handle_settings_apply(input, socket) do
     # Extract the prompt: /settings-apply "prompt here" or /settings-apply prompt here
