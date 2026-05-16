@@ -17,7 +17,6 @@ defmodule SportsFanatic.Workers.FetchNewsWorker do
   alias SportsFanatic.Mlb.{Player, Team}
   alias SportsFanatic.News
   alias SportsFanatic.News.EntityMatcher
-  alias SportsFanatic.PythonBridge
   alias SportsFanatic.Repo
   alias SportsFanatic.Storage
 
@@ -105,8 +104,14 @@ defmodule SportsFanatic.Workers.FetchNewsWorker do
     s3_key = upload_to_s3(external_id, item)
     ai_result = analyze_with_ai(fields.title, fields.body)
 
+    # Use LLM-extracted player/team names for entity resolution (much more accurate)
+    # Falls back to regex if LLM didn't return names
     {player_ids, team_ids} =
-      match_entities_from_text(fields.title <> " " <> fields.body, all_players, all_teams)
+      if ai_result.player_names != [] or ai_result.team_names != [] do
+        resolve_llm_entities(ai_result.player_names, ai_result.team_names, all_players, all_teams)
+      else
+        match_entities_from_text(fields.title <> " " <> fields.body, all_players, all_teams)
+      end
 
     News.create_news_item(%{
       source: "fantasynerds",
@@ -160,7 +165,7 @@ defmodule SportsFanatic.Workers.FetchNewsWorker do
   defp analyze_with_ai(title, body) do
     excerpt = String.slice(body, 0, 500)
 
-    case PythonBridge.analyze_news(title, excerpt) do
+    case SportsFanatic.AI.Claude.classify_article(title, excerpt) do
       {:ok, result} when is_map(result) ->
         %{
           category: result["category"],
@@ -168,33 +173,49 @@ defmodule SportsFanatic.Workers.FetchNewsWorker do
           ai_summary: result["summary"],
           injury_area: result["injury_area"],
           injury_grade: result["injury_grade"],
-          domain_tags: result["domain_tags"] || []
+          domain_tags: result["domain_tags"] || [],
+          # LLM-extracted entities — much more accurate than regex
+          player_names: result["player_names"] || [],
+          team_names: result["team_names"] || []
         }
 
       {:error, reason} ->
         Logger.warning("FetchNewsWorker: AI analysis failed: #{inspect(reason)}")
 
         %{
-          category: nil,
-          sentiment: nil,
-          ai_summary: nil,
-          injury_area: nil,
-          injury_grade: nil,
-          domain_tags: []
+          category: nil, sentiment: nil, ai_summary: nil,
+          injury_area: nil, injury_grade: nil, domain_tags: [],
+          player_names: [], team_names: []
         }
 
       _ ->
         %{
-          category: nil,
-          sentiment: nil,
-          ai_summary: nil,
-          injury_area: nil,
-          injury_grade: nil,
-          domain_tags: []
+          category: nil, sentiment: nil, ai_summary: nil,
+          injury_area: nil, injury_grade: nil, domain_tags: [],
+          player_names: [], team_names: []
         }
     end
   end
 
+  # Resolve LLM-extracted player/team names against the database
+  defp resolve_llm_entities(player_names, team_names, all_players, all_teams) do
+    matched_players = EntityMatcher.match_players(player_names, all_players)
+    matched_teams = EntityMatcher.match_teams(team_names, all_teams)
+
+    # Also add teams from matched players
+    player_team_ids =
+      matched_players
+      |> Enum.map(& &1.team_id)
+      |> Enum.reject(&is_nil/1)
+
+    all_team_ids =
+      (Enum.map(matched_teams, & &1.id) ++ player_team_ids)
+      |> Enum.uniq()
+
+    {Enum.map(matched_players, & &1.id), all_team_ids}
+  end
+
+  # Fallback: regex-based entity extraction (used when LLM doesn't return names)
   defp match_entities_from_text(text, all_players, all_teams) do
     # Only extract names from title + first 500 chars of body
     # to avoid matching players from sidebars, related articles, comments
