@@ -97,13 +97,13 @@
               >
                 Dashboard
               </a>
-              <a
+              <.link
                 href="/logout"
+                method="delete"
                 class="text-sm text-gray-500 hover:text-gray-700"
-                data-method="delete"
               >
                 Sign Out
-              </a>
+              </.link>
             <% else %>
               <%= if SportsFanatic.FeatureFlags.enabled?("subscriptions_enabled") do %>
                 <a
