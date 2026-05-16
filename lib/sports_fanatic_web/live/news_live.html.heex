@@ -9,24 +9,49 @@
   <%!-- Sticky Command Input --%>
   <div class="sticky top-0 z-10 bg-white shadow-sm border-b border-gray-200 pb-2 mb-4 -mx-4 px-4 pt-2">
     <form phx-submit="submit_command" class="relative">
-      <textarea
-        name="input"
-        value={@command_input}
-        rows="2"
-        autofocus
-        phx-keydown="submit_command"
-        phx-key="Enter"
-        placeholder={if @current_user, do: "Type /settings-apply \"your description\" to create an agent, or search the feed...", else: "Search the feed, or log in to use agent commands..."}
-        class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm resize-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-        phx-debounce="300"
-      ><%= @command_input %></textarea>
+      <div class="relative">
+        <textarea
+          name="input"
+          value={@command_input}
+          rows="2"
+          autofocus
+          phx-keydown="submit_command"
+          phx-key="Enter"
+          placeholder={if @current_user, do: "Type /settings-apply \"your description\" to create an agent, or search the feed...", else: "Search the feed, or log in to use agent commands..."}
+          class="w-full rounded-lg border border-gray-300 px-3 py-2 pr-8 text-sm resize-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          phx-debounce="300"
+        ><%= @command_input %></textarea>
+        <%= if @search_query != "" or @command_input != "" do %>
+          <button
+            type="button"
+            phx-click="clear_search"
+            class="absolute top-2 right-2 text-gray-400 hover:text-gray-600"
+            title="Clear"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+              <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+            </svg>
+          </button>
+        <% end %>
+      </div>
       <div class="flex items-center justify-between mt-1">
         <span class="text-xs text-gray-400">
-          Enter to submit, Shift+Enter for newline
+          Enter to search &middot; Shift+Enter for newline
         </span>
-        <button type="submit" class="text-xs text-blue-600 hover:text-blue-800 font-medium">
-          Submit
-        </button>
+        <div class="flex items-center gap-3">
+          <%= if @search_query != "" do %>
+            <button
+              type="button"
+              phx-click="clear_search"
+              class="text-xs text-red-500 hover:text-red-700 font-medium"
+            >
+              Clear Search
+            </button>
+          <% end %>
+          <button type="submit" class="text-xs text-blue-600 hover:text-blue-800 font-medium">
+            Submit
+          </button>
+        </div>
       </div>
     </form>
   </div>
@@ -45,16 +70,18 @@
 
     <%!-- Search indicator --%>
     <%= if @search_query != "" do %>
-      <div class="mb-4 flex items-center gap-2">
-        <span class="text-sm text-gray-500">
-          Showing <%= length(@filtered_feed || []) %> results for "<%= @search_query %>"
+      <div class="mb-4 bg-blue-50 border border-blue-200 rounded-lg px-4 py-2 flex items-center justify-between">
+        <span class="text-sm text-blue-800">
+          Showing <strong><%= length(@filtered_feed || []) %></strong> results for "<strong><%= @search_query %></strong>"
         </span>
         <button
-          phx-click="search_feed"
-          phx-value-query=""
-          class="text-xs text-blue-600 hover:text-blue-800"
+          phx-click="clear_search"
+          class="inline-flex items-center gap-1 px-3 py-1 bg-white border border-blue-300 rounded-md text-sm text-blue-700 hover:bg-blue-100 font-medium"
         >
-          Clear
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+          </svg>
+          Clear Search
         </button>
       </div>
     <% end %>

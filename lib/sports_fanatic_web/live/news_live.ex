@@ -205,6 +205,14 @@ defmodule SportsFanaticWeb.NewsLive do
     {:noreply, assign(socket, :command_input, value)}
   end
 
+  def handle_event("clear_search", _params, socket) do
+    {:noreply,
+     socket
+     |> assign(:filtered_feed, nil)
+     |> assign(:search_query, "")
+     |> assign(:command_input, "")}
+  end
+
   # ── Command Handlers ───────────────────────────────────────
 
   defp handle_command_input(input, socket) do
@@ -306,7 +314,11 @@ defmodule SportsFanaticWeb.NewsLive do
   end
 
   defp filter_feed(feed, query) do
-    query_lower = String.downcase(query)
+    terms =
+      query
+      |> String.downcase()
+      |> String.split(~r/\s+/, trim: true)
+      |> Enum.flat_map(&expand_term/1)
 
     Enum.filter(feed, fn item ->
       searchable =
@@ -314,18 +326,37 @@ defmodule SportsFanaticWeb.NewsLive do
           item["title"] || "",
           item["ai_summary"] || "",
           item["body"] || "",
-          item["summary"] || ""
+          item["summary"] || "",
+          item["category"] || ""
         ] ++
           Enum.map(item["players"] || [], fn p -> p["full_name"] || "" end) ++
-          Enum.map(item["teams"] || [], fn t -> t["name"] || "" end) ++
+          Enum.map(item["teams"] || [], fn t ->
+            "#{t["name"]} #{t["abbreviation"]} #{t["league"]}"
+          end) ++
           (item["domain_tags"] || [])
 
-      searchable
-      |> Enum.join(" ")
-      |> String.downcase()
-      |> String.contains?(query_lower)
+      text = searchable |> Enum.join(" ") |> String.downcase()
+
+      Enum.all?(terms, fn term_group ->
+        Enum.any?(term_group, fn t -> String.contains?(text, t) end)
+      end)
     end)
   end
+
+  # Expand common baseball abbreviations so users can search naturally
+  defp expand_term("hr"), do: [["hr", "home-run", "homer", "home run"]]
+  defp expand_term("homers"), do: [["homers", "homer", "home-run", "home run"]]
+  defp expand_term("homer"), do: [["homer", "home-run", "homers", "home run"]]
+  defp expand_term("streak"), do: [["streak"]]
+  defp expand_term("streaks"), do: [["streak", "streaks"]]
+  defp expand_term("il"), do: [["il", "injured list", "injury"]]
+  defp expand_term("dl"), do: [["dl", "disabled list", "injury"]]
+  defp expand_term("tj"), do: [["tj", "tommy john"]]
+  defp expand_term("rbi"), do: [["rbi", "runs batted"]]
+  defp expand_term("era"), do: [["era", "earned run"]]
+  defp expand_term("al"), do: [["al"]]
+  defp expand_term("nl"), do: [["nl"]]
+  defp expand_term(term), do: [[term]]
 
   # ── PubSub Handlers ────────────────────────────────────────
 
