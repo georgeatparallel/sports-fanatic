@@ -7,7 +7,7 @@
 
 <section class="max-w-4xl mx-auto px-4 py-8">
   <%!-- Sticky Command Input --%>
-  <div class="sticky top-0 z-10 bg-white shadow-sm border-b border-gray-200 pb-3 mb-6 -mx-4 px-4 pt-2">
+  <div class="sticky top-0 z-10 bg-white shadow-sm border-b border-gray-200 pb-2 mb-4 -mx-4 px-4 pt-2">
     <form phx-submit="submit_command" class="relative">
       <textarea
         name="input"
@@ -16,10 +16,9 @@
         phx-keydown="submit_command"
         phx-key="Enter"
         placeholder={if @current_user, do: "Type /settings-apply \"your description\" to create an agent, or search the feed...", else: "Search the feed, or log in to use agent commands..."}
-        class="w-full rounded-lg border border-gray-300 px-4 py-2 text-sm resize-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+        class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm resize-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
         phx-debounce="300"
-      >
-      </textarea>
+      ><%= @command_input %></textarea>
       <div class="flex items-center justify-between mt-1">
         <span class="text-xs text-gray-400">
           Enter to submit, Shift+Enter for newline
@@ -29,50 +28,9 @@
         </button>
       </div>
     </form>
-
-    <%!-- Tab Switcher --%>
-    <div class="flex gap-4 mt-2 border-t border-gray-100 pt-2">
-      <button
-        phx-click="switch_news_tab"
-        phx-value-tab="feed"
-        class={[
-          "text-sm font-medium pb-1 border-b-2 transition",
-          if(@active_tab == "feed",
-            do: "border-blue-500 text-blue-600",
-            else: "border-transparent text-gray-500 hover:text-gray-700"
-          )
-        ]}
-      >
-        Feed
-        <%= if @search_query != "" do %>
-          <span class="ml-1 text-xs text-gray-400">
-            (<%= length(@filtered_feed || @feed) %>)
-          </span>
-        <% end %>
-      </button>
-      <button
-        phx-click="switch_news_tab"
-        phx-value-tab="agents"
-        class={[
-          "text-sm font-medium pb-1 border-b-2 transition",
-          if(@active_tab == "agents",
-            do: "border-blue-500 text-blue-600",
-            else: "border-transparent text-gray-500 hover:text-gray-700"
-          )
-        ]}
-      >
-        Agents
-        <%= if length(@user_settings) > 0 do %>
-          <span class="ml-1 bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full text-xs">
-            <%= length(@user_settings) %>
-          </span>
-        <% end %>
-      </button>
-    </div>
   </div>
 
-  <%!-- Feed Tab --%>
-  <%= if @active_tab == "feed" do %>
+  <%!-- Feed --%>
     <SportsFanaticWeb.SEOComponents.date_nav
       prev_date={@prev_date}
       next_date={@next_date}
@@ -214,113 +172,5 @@
       base_path="/mlb/news"
       link_type={:patch}
     />
-  <% end %>
 
-  <%!-- Agents Tab --%>
-  <%= if @active_tab == "agents" do %>
-    <%= if is_nil(@current_user) do %>
-      <div class="text-center py-12">
-        <p class="text-gray-500 mb-4">Log in to create and manage news agents.</p>
-        <a href="/login" class="text-blue-600 hover:text-blue-800 font-medium">
-          Log in
-        </a>
-      </div>
-    <% else %>
-      <h2 class="text-xl font-bold text-gray-900 mb-4">Your Agent Settings</h2>
-
-      <%= if @user_settings == [] do %>
-        <div class="text-center py-8 bg-gray-50 rounded-lg border border-gray-200">
-          <p class="text-gray-500 mb-2">No agent settings yet.</p>
-          <p class="text-sm text-gray-400">
-            Use <code class="bg-gray-100 px-1 rounded">/settings-apply "description"</code>
-            to create your first agent.
-          </p>
-        </div>
-      <% else %>
-        <div class="space-y-3 mb-8">
-          <%= for setting <- @user_settings do %>
-            <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-              <div class="flex items-start justify-between">
-                <div class="flex-1 min-w-0">
-                  <div class="flex items-center gap-2 mb-1">
-                    <span class={"inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium #{setting_status_class(setting.status)}"}>
-                      <%= setting.status %>
-                    </span>
-                    <span class="text-xs text-gray-400">
-                      Created <%= Calendar.strftime(setting.inserted_at, "%b %d, %H:%M") %>
-                    </span>
-                  </div>
-                  <p class="text-sm text-gray-900 break-words"><%= setting.raw_prompt %></p>
-
-                  <%!-- Parsed criteria summary --%>
-                  <%= if setting.parsed_criteria do %>
-                    <div class="mt-2 text-xs text-gray-500">
-                      <%= if interpretation = get_in(setting.parsed_criteria, ["interpretation"]) do %>
-                        <p class="italic"><%= interpretation %></p>
-                      <% end %>
-                      <%= if confidence = get_in(setting.parsed_criteria, ["confidence"]) do %>
-                        <span class="text-gray-400">
-                          Confidence: <%= Float.round((confidence + 0.0) * 100, 0) %>%
-                        </span>
-                      <% end %>
-                    </div>
-                  <% end %>
-
-                  <%!-- Error message --%>
-                  <%= if setting.error_message do %>
-                    <p class="mt-1 text-xs text-red-600"><%= setting.error_message %></p>
-                  <% end %>
-
-                  <%!-- Last result --%>
-                  <%= if setting.last_result do %>
-                    <div class="mt-2 text-xs text-gray-500">
-                      Last run: <%= setting.last_result["run_date"] || "N/A" %> &mdash; <%= setting.last_result[
-                        "matched_count"
-                      ] || 0 %> match(es)
-                    </div>
-                  <% end %>
-                </div>
-
-                <button
-                  phx-click="delete_setting"
-                  phx-value-id={setting.id}
-                  data-confirm="Delete this setting?"
-                  class="ml-4 text-red-500 hover:text-red-700 text-sm flex-shrink-0"
-                >
-                  Delete
-                </button>
-              </div>
-            </div>
-          <% end %>
-        </div>
-      <% end %>
-
-      <%!-- Latest Results --%>
-      <%= if @agent_results != [] do %>
-        <h3 class="text-lg font-semibold text-gray-900 mb-3">Latest Results</h3>
-        <div class="space-y-3">
-          <%= for result <- @agent_results do %>
-            <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-              <div class="flex items-center gap-2 mb-2">
-                <span class="text-xs text-gray-400">
-                  <%= Date.to_iso8601(result.run_date) %>
-                </span>
-                <%= if result.setting do %>
-                  <span class="text-xs text-gray-500 truncate max-w-xs">
-                    &mdash; <%= String.slice(result.setting.raw_prompt, 0, 80) %>
-                  </span>
-                <% end %>
-              </div>
-              <%= if result.explanation do %>
-                <p class="text-sm text-gray-700"><%= result.explanation %></p>
-              <% end %>
-              <p class="text-xs text-gray-400 mt-1">
-                <%= length(result.matched_news_item_ids || []) %> matched article(s)
-              </p>
-            </div>
-          <% end %>
-        </div>
-      <% end %>
-    <% end %>
-  <% end %>
 </section>
