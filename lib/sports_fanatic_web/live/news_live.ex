@@ -4,17 +4,24 @@ defmodule SportsFanaticWeb.NewsLive do
   new articles arrive via PubSub, and handles day transitions for users
   who leave the page open overnight.
 
-  Supports agent commands for authenticated users:
-  - /settings-apply "prompt" - creates a new agent setting
-  - /settings-clear - removes all settings
-  - Plain text - filters the feed client-side
+  Supports two input modes based on the `news_chatbot_enabled` feature flag:
+
+  **Chat mode (flag on)**: Authenticated users interact via a conversational
+  agent. The agent searches local news, discovers articles via Exa.ai, and
+  streams progress updates to the chat thread.
+
+  **Legacy mode (flag off)**: Agent commands via /settings-apply and
+  client-side feed search.
   """
 
   use SportsFanaticWeb, :live_view
 
   alias SportsFanatic.Accounts
   alias SportsFanatic.Agents
+  alias SportsFanatic.Agents.AgentSupervisor
+  alias SportsFanatic.ChatBot
   alias SportsFanatic.DateHelper
+  alias SportsFanatic.FeatureFlags
   alias SportsFanatic.News
 
   import SportsFanaticWeb.NewsHTML, only: [category_badge: 1, sentiment_dot: 1]
@@ -24,9 +31,8 @@ defmodule SportsFanaticWeb.NewsLive do
   @impl true
   def mount(_params, session, socket) do
     today = DateHelper.today()
-
-    # Load current_user from session token (available in all browser pipelines)
     current_user = load_user_from_session(session)
+    chat_enabled = FeatureFlags.enabled?("news_chatbot_enabled")
 
     socket =
       socket
@@ -38,20 +44,46 @@ defmodule SportsFanaticWeb.NewsLive do
       |> assign(:user_settings, [])
       |> assign(:agent_results, [])
       |> assign(:filtered_feed, nil)
+      # Chat-specific assigns
+      |> assign(:chat_enabled, chat_enabled)
+      |> assign(:chat_messages, [])
+      |> assign(:chat_session_id, nil)
+      |> assign(:agent_running, false)
+      |> assign(:chat_input, "")
+      |> assign(:chat_articles, [])
 
-    # Load user-specific data and subscribe to agent PubSub topics
     socket =
       if current_user && connected?(socket) do
         user_id = current_user.id
-        Phoenix.PubSub.subscribe(SportsFanatic.PubSub, "agent:settings:#{user_id}")
-        Phoenix.PubSub.subscribe(SportsFanatic.PubSub, "agent:results:#{user_id}")
 
-        settings = Agents.list_user_settings(user_id)
-        results = Agents.latest_results_for_user(user_id)
+        if chat_enabled do
+          # Subscribe to chat PubSub channel
+          Phoenix.PubSub.subscribe(SportsFanatic.PubSub, "chat:#{user_id}")
 
-        socket
-        |> assign(:user_settings, settings)
-        |> assign(:agent_results, results)
+          # Load or create chat session
+          case ChatBot.get_or_create_session(user_id) do
+            {:ok, session_record} ->
+              messages = ChatBot.list_session_messages(session_record.id)
+
+              socket
+              |> assign(:chat_session_id, session_record.id)
+              |> assign(:chat_messages, format_messages(messages))
+
+            {:error, _} ->
+              socket
+          end
+        else
+          # Legacy mode subscriptions
+          Phoenix.PubSub.subscribe(SportsFanatic.PubSub, "agent:settings:#{user_id}")
+          Phoenix.PubSub.subscribe(SportsFanatic.PubSub, "agent:results:#{user_id}")
+
+          settings = Agents.list_user_settings(user_id)
+          results = Agents.latest_results_for_user(user_id)
+
+          socket
+          |> assign(:user_settings, settings)
+          |> assign(:agent_results, results)
+        end
       else
         socket
       end
@@ -152,15 +184,85 @@ defmodule SportsFanaticWeb.NewsLive do
     |> assign(:search_query, "")
   end
 
-  # ── Command/Event Handlers ─────────────────────────────────
+  # ── Chat Event Handlers ───────────────────────────────────────
 
   @impl true
+  def handle_event("submit_chat", %{"message" => text}, socket) do
+    text = String.trim(text)
+
+    cond do
+      text == "" ->
+        {:noreply, socket}
+
+      is_nil(socket.assigns.current_user) ->
+        {:noreply, put_flash(socket, :error, "Please log in to use the chatbot.")}
+
+      socket.assigns.agent_running ->
+        {:noreply,
+         put_flash(socket, :info, "Please wait for the current search to complete, or cancel it.")}
+
+      true ->
+        handle_chat_submit(text, socket)
+    end
+  end
+
+  def handle_event("clear_chat", _params, socket) do
+    if socket.assigns.chat_session_id do
+      ChatBot.clear_session(socket.assigns.chat_session_id, socket.assigns.current_user.id)
+    end
+
+    # Create a new session
+    user_id = socket.assigns.current_user.id
+
+    case ChatBot.get_or_create_session(user_id) do
+      {:ok, new_session} ->
+        {:noreply,
+         socket
+         |> assign(:chat_messages, [])
+         |> assign(:chat_session_id, new_session.id)
+         |> assign(:agent_running, false)
+         |> assign(:chat_articles, [])
+         |> assign(:chat_input, "")}
+
+      {:error, _} ->
+        {:noreply,
+         socket
+         |> assign(:chat_messages, [])
+         |> assign(:chat_session_id, nil)
+         |> assign(:agent_running, false)
+         |> assign(:chat_articles, [])
+         |> assign(:chat_input, "")}
+    end
+  end
+
+  def handle_event("cancel_agent", _params, socket) do
+    if socket.assigns.current_user do
+      AgentSupervisor.cancel_agent(socket.assigns.current_user.id)
+    end
+
+    {:noreply, assign(socket, :agent_running, false)}
+  end
+
+  def handle_event("update_chat_input", %{"value" => value}, socket) do
+    {:noreply, assign(socket, :chat_input, value)}
+  end
+
+  # ── Legacy Event Handlers (feature flag off) ──────────────────
+
   def handle_event("submit_command", %{"key" => "Enter", "value" => input}, socket) do
-    handle_command_input(String.trim(input), socket)
+    if socket.assigns.chat_enabled do
+      handle_event("submit_chat", %{"message" => input}, socket)
+    else
+      handle_command_input(String.trim(input), socket)
+    end
   end
 
   def handle_event("submit_command", %{"input" => input}, socket) do
-    handle_command_input(String.trim(input), socket)
+    if socket.assigns.chat_enabled do
+      handle_event("submit_chat", %{"message" => input}, socket)
+    else
+      handle_command_input(String.trim(input), socket)
+    end
   end
 
   def handle_event("search_feed", %{"query" => query}, socket) do
@@ -213,7 +315,72 @@ defmodule SportsFanaticWeb.NewsLive do
      |> assign(:command_input, "")}
   end
 
-  # ── Command Handlers ───────────────────────────────────────
+  # ── Chat Submission Logic ─────────────────────────────────────
+
+  defp handle_chat_submit(text, socket) do
+    user_id = socket.assigns.current_user.id
+    session_id = socket.assigns.chat_session_id
+
+    # Rate limit check
+    case ChatBot.check_rate_limit(user_id) do
+      {:error, :hourly_limit_exceeded} ->
+        {:noreply, put_flash(socket, :error, "Rate limit reached (max 10 queries per hour).")}
+
+      {:error, :daily_limit_exceeded} ->
+        {:noreply, put_flash(socket, :error, "Rate limit reached (max 50 queries per day).")}
+
+      :ok ->
+        # Ensure we have a session
+        session_id =
+          if is_nil(session_id) do
+            case ChatBot.get_or_create_session(user_id) do
+              {:ok, s} -> s.id
+              _ -> nil
+            end
+          else
+            ChatBot.touch_session(session_id)
+            session_id
+          end
+
+        if is_nil(session_id) do
+          {:noreply, put_flash(socket, :error, "Could not create chat session.")}
+        else
+          # Store user message
+          {:ok, _msg} =
+            ChatBot.create_message(%{
+              session_id: session_id,
+              role: "user",
+              content: text
+            })
+
+          # Add to chat messages for display
+          user_msg = %{
+            id: Ecto.UUID.generate(),
+            role: "user",
+            content: text,
+            inserted_at: DateTime.utc_now()
+          }
+
+          chat_messages = socket.assigns.chat_messages ++ [user_msg]
+
+          # Get date context for agent
+          date = socket.assigns[:date_str]
+
+          # Spawn agent
+          AgentSupervisor.start_agent(user_id, text, date: date)
+
+          {:noreply,
+           socket
+           |> assign(:chat_messages, chat_messages)
+           |> assign(:chat_session_id, session_id)
+           |> assign(:agent_running, true)
+           |> assign(:chat_input, "")
+           |> assign(:chat_articles, [])}
+        end
+    end
+  end
+
+  # ── Legacy Command Handlers ───────────────────────────────────
 
   defp handle_command_input(input, socket) do
     cond do
@@ -231,13 +398,12 @@ defmodule SportsFanaticWeb.NewsLive do
           else: {:noreply, put_flash(socket, :error, "Please log in to use agent commands.")}
 
       true ->
-        # Plain text search — available to all users
+        # Plain text search -- available to all users
         handle_search(input, socket)
     end
   end
 
   defp handle_settings_apply(input, socket) do
-    # Extract the prompt: /settings-apply "prompt here" or /settings-apply prompt here
     raw_prompt =
       input
       |> String.replace_prefix("/settings-apply", "")
@@ -252,7 +418,6 @@ defmodule SportsFanaticWeb.NewsLive do
 
       case Agents.create_setting(user_id, raw_prompt) do
         {:ok, setting} ->
-          # Enqueue async LLM parsing
           %{"setting_id" => setting.id}
           |> SportsFanatic.Workers.ParseSettingWorker.new()
           |> Oban.insert()
@@ -343,7 +508,6 @@ defmodule SportsFanaticWeb.NewsLive do
     end)
   end
 
-  # Expand common baseball abbreviations so users can search naturally
   defp expand_term("hr"), do: [["hr", "home-run", "homer", "home run"]]
   defp expand_term("homers"), do: [["homers", "homer", "home-run", "home run"]]
   defp expand_term("homer"), do: [["homer", "home-run", "homers", "home run"]]
@@ -358,9 +522,78 @@ defmodule SportsFanaticWeb.NewsLive do
   defp expand_term("nl"), do: [["nl"]]
   defp expand_term(term), do: [[term]]
 
-  # ── PubSub Handlers ────────────────────────────────────────
+  # ── Chat PubSub Handlers ─────────────────────────────────────
 
   @impl true
+  def handle_info({:agent_progress, %{message: message}}, socket) do
+    progress_msg = %{
+      id: Ecto.UUID.generate(),
+      role: "progress",
+      content: message,
+      inserted_at: DateTime.utc_now()
+    }
+
+    chat_messages = socket.assigns.chat_messages ++ [progress_msg]
+    {:noreply, assign(socket, :chat_messages, chat_messages)}
+  end
+
+  def handle_info({:agent_complete, %{summary: summary, news_item_ids: ids}}, socket) do
+    # Store assistant message
+    if socket.assigns.chat_session_id do
+      ChatBot.create_message(%{
+        session_id: socket.assigns.chat_session_id,
+        role: "assistant",
+        content: summary,
+        news_item_ids: ids
+      })
+    end
+
+    # Remove progress messages, add final assistant message
+    chat_messages =
+      socket.assigns.chat_messages
+      |> Enum.reject(&(&1.role == "progress"))
+
+    assistant_msg = %{
+      id: Ecto.UUID.generate(),
+      role: "assistant",
+      content: summary,
+      news_item_ids: ids,
+      inserted_at: DateTime.utc_now()
+    }
+
+    chat_messages = chat_messages ++ [assistant_msg]
+
+    # Load matched articles from the feed for display
+    chat_articles = load_articles_for_ids(ids)
+
+    {:noreply,
+     socket
+     |> assign(:chat_messages, chat_messages)
+     |> assign(:agent_running, false)
+     |> assign(:chat_articles, chat_articles)}
+  end
+
+  def handle_info({:agent_error, %{error: error}}, socket) do
+    error_msg = %{
+      id: Ecto.UUID.generate(),
+      role: "assistant",
+      content: error,
+      inserted_at: DateTime.utc_now()
+    }
+
+    chat_messages =
+      socket.assigns.chat_messages
+      |> Enum.reject(&(&1.role == "progress"))
+      |> Kernel.++([error_msg])
+
+    {:noreply,
+     socket
+     |> assign(:chat_messages, chat_messages)
+     |> assign(:agent_running, false)}
+  end
+
+  # ── Legacy PubSub Handlers ───────────────────────────────────
+
   def handle_info({:setting_updated, _setting}, socket) do
     if socket.assigns.current_user do
       settings = Agents.list_user_settings(socket.assigns.current_user.id)
@@ -386,7 +619,6 @@ defmodule SportsFanaticWeb.NewsLive do
     old_today = socket.assigns.today
 
     cond do
-      # Day changed and user is viewing "today" mode -- transition to new day
       Date.compare(new_today, old_today) != :eq && socket.assigns.viewing_today ->
         socket =
           socket
@@ -395,7 +627,6 @@ defmodule SportsFanaticWeb.NewsLive do
 
         {:noreply, socket}
 
-      # Day changed but user is on a historical date -- update nav boundary
       Date.compare(new_today, old_today) != :eq ->
         next_date = News.nearest_news_date_after(socket.assigns.date)
 
@@ -404,7 +635,6 @@ defmodule SportsFanaticWeb.NewsLive do
 
         {:noreply, assign(socket, today: new_today, next_date: next_date)}
 
-      # Same day, viewing today -- fallback re-fetch in case PubSub was missed
       socket.assigns.viewing_today ->
         {:ok, feed} = News.get_cached_feed(socket.assigns.date)
 
@@ -425,7 +655,6 @@ defmodule SportsFanaticWeb.NewsLive do
       {:ok, feed} = News.get_cached_feed(date)
       {:noreply, assign(socket, feed: feed, feed_count: length(feed))}
     else
-      # Different date -- might affect nav (new "next" arrow)
       next_date = News.nearest_news_date_after(socket.assigns.date)
       today = socket.assigns.today
 
@@ -441,6 +670,43 @@ defmodule SportsFanaticWeb.NewsLive do
   defp load_user_from_session(session) do
     token = session["session_token"]
     token && Accounts.get_user_by_session_token(token)
+  end
+
+  defp format_messages(messages) do
+    Enum.map(messages, fn m ->
+      %{
+        id: m.id,
+        role: m.role,
+        content: m.content,
+        news_item_ids: m.news_item_ids || [],
+        inserted_at: m.inserted_at
+      }
+    end)
+  end
+
+  defp load_articles_for_ids([]), do: []
+
+  defp load_articles_for_ids(ids) do
+    import Ecto.Query
+
+    ids_list = Enum.take(ids, 20)
+
+    SportsFanatic.Content.NewsItem
+    |> where([n], n.id in ^ids_list)
+    |> order_by([n], desc: n.inserted_at)
+    |> SportsFanatic.Repo.all()
+    |> Enum.map(fn item ->
+      %{
+        "id" => item.id,
+        "title" => item.title,
+        "ai_summary" => item.ai_summary,
+        "category" => item.category,
+        "sentiment" => item.sentiment,
+        "source_url" => item.source_url,
+        "author" => item.author,
+        "published_date" => item.published_date
+      }
+    end)
   end
 
   defp format_changeset_error(%Ecto.Changeset{} = changeset) do
@@ -459,4 +725,11 @@ defmodule SportsFanaticWeb.NewsLive do
   def setting_status_class("failed"), do: "bg-red-100 text-red-800"
   def setting_status_class("expired"), do: "bg-gray-100 text-gray-800"
   def setting_status_class(_), do: "bg-gray-100 text-gray-800"
+
+  # Template helper: sanitize agent output for safe rendering
+  def sanitize_chat(content) when is_binary(content) do
+    HtmlSanitizeEx.strip_tags(content)
+  end
+
+  def sanitize_chat(_), do: ""
 end

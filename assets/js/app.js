@@ -22,8 +22,28 @@ import {Socket} from "phoenix"
 import {LiveSocket} from "phoenix_live_view"
 import topbar from "../vendor/topbar"
 
+let Hooks = {}
+
+// Auto-scroll chat container to bottom when new messages arrive
+Hooks.ScrollBottom = {
+  mounted() {
+    this.scrollToBottom()
+    this.observer = new MutationObserver(() => this.scrollToBottom())
+    this.observer.observe(this.el, { childList: true, subtree: true })
+  },
+  updated() {
+    this.scrollToBottom()
+  },
+  destroyed() {
+    if (this.observer) this.observer.disconnect()
+  },
+  scrollToBottom() {
+    this.el.scrollTop = this.el.scrollHeight
+  }
+}
+
 let csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
-let liveSocket = new LiveSocket("/live", Socket, {params: {_csrf_token: csrfToken}})
+let liveSocket = new LiveSocket("/live", Socket, {params: {_csrf_token: csrfToken}, hooks: Hooks})
 
 // Show progress bar on live navigation and form submits
 topbar.config({barColors: {0: "#29d"}, shadowColor: "rgba(0, 0, 0, .3)"})

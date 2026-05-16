@@ -9,6 +9,7 @@ defmodule SportsFanaticWeb.AdminLive do
   require Logger
 
   alias SportsFanatic.Agents
+  alias SportsFanatic.ChatBot
 
   @workers [
     %{key: "cleanup", module: SportsFanatic.Workers.CleanupWorker, label: "Cleanup"},
@@ -105,7 +106,10 @@ defmodule SportsFanaticWeb.AdminLive do
        selected_run_id: nil,
        todays_lineup_count: todays_lineup_count,
        agent_settings: [],
-       agents_enabled: FeatureFlags.enabled?("news_agents_enabled")
+       agents_enabled: FeatureFlags.enabled?("news_agents_enabled"),
+       query_clusters: [],
+       chat_sessions_list: [],
+       chatbot_enabled: FeatureFlags.enabled?("news_chatbot_enabled")
      )}
   end
 
@@ -155,15 +159,27 @@ defmodule SportsFanaticWeb.AdminLive do
 
   def handle_event("switch_tab", %{"tab" => tab}, socket) do
     socket =
-      if tab == "agents" do
-        all_settings = Agents.list_all_settings(limit: 50)
+      case tab do
+        "agents" ->
+          all_settings = Agents.list_all_settings(limit: 50)
 
-        assign(socket,
-          agent_settings: all_settings,
-          agents_enabled: FeatureFlags.enabled?("news_agents_enabled")
-        )
-      else
-        socket
+          assign(socket,
+            agent_settings: all_settings,
+            agents_enabled: FeatureFlags.enabled?("news_agents_enabled")
+          )
+
+        "queries" ->
+          clusters = ChatBot.list_clusters(limit: 50)
+          sessions = ChatBot.list_all_sessions(limit: 20)
+
+          assign(socket,
+            query_clusters: clusters,
+            chat_sessions_list: sessions,
+            chatbot_enabled: FeatureFlags.enabled?("news_chatbot_enabled")
+          )
+
+        _ ->
+          socket
       end
 
     {:noreply, assign(socket, active_tab: tab)}
@@ -252,6 +268,98 @@ defmodule SportsFanaticWeb.AdminLive do
     {:noreply,
      assign(socket,
        agents_enabled: FeatureFlags.enabled?(key),
+       flags: FeatureFlags.list_all()
+     )}
+  end
+
+  def handle_event("toggle_query_schedule", %{"cluster-id" => cluster_id}, socket) do
+    case ChatBot.get_cluster(cluster_id) do
+      nil ->
+        {:noreply, put_flash(socket, :error, "Cluster not found.")}
+
+      cluster ->
+        new_scheduled = !cluster.scheduled
+        new_freq = if new_scheduled, do: "daily", else: "disabled"
+
+        case ChatBot.update_cluster(cluster, %{
+               scheduled: new_scheduled,
+               schedule_frequency: new_freq
+             }) do
+          {:ok, _} ->
+            clusters = ChatBot.list_clusters(limit: 50)
+            {:noreply, assign(socket, query_clusters: clusters)}
+
+          {:error, _} ->
+            {:noreply, put_flash(socket, :error, "Failed to update cluster.")}
+        end
+    end
+  end
+
+  def handle_event("set_query_frequency", %{"cluster-id" => cluster_id, "freq" => freq}, socket) do
+    case ChatBot.get_cluster(cluster_id) do
+      nil ->
+        {:noreply, put_flash(socket, :error, "Cluster not found.")}
+
+      cluster ->
+        case ChatBot.update_cluster(cluster, %{schedule_frequency: freq}) do
+          {:ok, _} ->
+            clusters = ChatBot.list_clusters(limit: 50)
+            {:noreply, assign(socket, query_clusters: clusters)}
+
+          {:error, _} ->
+            {:noreply, put_flash(socket, :error, "Failed to update frequency.")}
+        end
+    end
+  end
+
+  def handle_event("run_query_now", %{"cluster-id" => cluster_id}, socket) do
+    case ChatBot.get_cluster(cluster_id) do
+      nil ->
+        {:noreply, put_flash(socket, :error, "Cluster not found.")}
+
+      cluster ->
+        case %{"cluster_id" => cluster.id, "query" => cluster.representative_query}
+             |> SportsFanatic.Workers.ScheduledExaSearchWorker.new()
+             |> Oban.insert() do
+          {:ok, _} ->
+            {:noreply,
+             put_flash(
+               socket,
+               :info,
+               "Search enqueued for: #{String.slice(cluster.representative_query, 0, 50)}"
+             )}
+
+          {:error, _} ->
+            {:noreply, put_flash(socket, :error, "Failed to enqueue search.")}
+        end
+    end
+  end
+
+  def handle_event("toggle_chatbot_flag", _params, socket) do
+    key = "news_chatbot_enabled"
+
+    if FeatureFlags.enabled?(key) do
+      case FeatureFlags.get(key) do
+        nil -> :ok
+        _flag -> FeatureFlags.disable(key)
+      end
+    else
+      case FeatureFlags.get(key) do
+        nil ->
+          FeatureFlags.create(%{
+            key: key,
+            enabled: true,
+            description: "Enable/disable the news chatbot agent interface"
+          })
+
+        _flag ->
+          FeatureFlags.enable(key)
+      end
+    end
+
+    {:noreply,
+     assign(socket,
+       chatbot_enabled: FeatureFlags.enabled?(key),
        flags: FeatureFlags.list_all()
      )}
   end
@@ -610,6 +718,19 @@ defmodule SportsFanaticWeb.AdminLive do
             ]}
           >
             Agents
+          </button>
+          <button
+            phx-click="switch_tab"
+            phx-value-tab="queries"
+            class={[
+              "py-3 px-1 border-b-2 font-medium text-sm transition",
+              if(@active_tab == "queries",
+                do: "border-blue-500 text-blue-600",
+                else: "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+              )
+            ]}
+          >
+            Queries
           </button>
           <button
             phx-click="switch_tab"
@@ -1032,6 +1153,218 @@ defmodule SportsFanaticWeb.AdminLive do
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       <%= format_time(setting.inserted_at) %>
+                    </td>
+                  </tr>
+                <% end %>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      <% end %>
+
+      <%!-- Queries Tab --%>
+      <%= if @active_tab == "queries" do %>
+        <div class="space-y-6">
+          <%!-- Chatbot Toggle --%>
+          <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <div class="flex items-center justify-between">
+              <div>
+                <h3 class="text-lg font-semibold text-gray-900">News Chatbot</h3>
+                <p class="text-sm text-gray-500 mt-1">
+                  Enable the agentic chatbot on the news feed page.
+                </p>
+              </div>
+              <div class="flex items-center gap-3">
+                <button
+                  phx-click="toggle_chatbot_flag"
+                  class={[
+                    "relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2",
+                    if(@chatbot_enabled, do: "bg-blue-600", else: "bg-gray-200")
+                  ]}
+                  role="switch"
+                  aria-checked={to_string(@chatbot_enabled)}
+                >
+                  <span class={[
+                    "pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out",
+                    if(@chatbot_enabled, do: "translate-x-5", else: "translate-x-0")
+                  ]}>
+                  </span>
+                </button>
+                <span class={[
+                  "text-sm font-medium",
+                  if(@chatbot_enabled, do: "text-blue-600", else: "text-gray-500")
+                ]}>
+                  <%= if @chatbot_enabled, do: "Enabled", else: "Disabled" %>
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <%!-- Query Clusters --%>
+          <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+            <div class="px-6 py-4 border-b border-gray-200">
+              <h3 class="text-lg font-semibold text-gray-900">
+                Query Clusters
+                <span class="ml-2 text-sm font-normal text-gray-400">
+                  (<%= length(@query_clusters) %>)
+                </span>
+              </h3>
+            </div>
+            <table class="min-w-full divide-y divide-gray-200">
+              <thead class="bg-gray-50">
+                <tr>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    Query
+                  </th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    Count
+                  </th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    Entities
+                  </th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    Schedule
+                  </th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    Last Run
+                  </th>
+                  <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody class="bg-white divide-y divide-gray-200">
+                <%= if @query_clusters == [] do %>
+                  <tr>
+                    <td colspan="6" class="px-6 py-8 text-center text-gray-400 text-sm">
+                      No query clusters yet. Clusters are created automatically from user chat queries.
+                    </td>
+                  </tr>
+                <% end %>
+                <%= for cluster <- @query_clusters do %>
+                  <tr>
+                    <td class="px-6 py-4 text-sm text-gray-800 max-w-xs">
+                      <p class="truncate" title={cluster.representative_query}>
+                        <%= String.slice(cluster.representative_query, 0, 60) %>
+                      </p>
+                      <%= if cluster.topics != [] do %>
+                        <div class="flex flex-wrap gap-1 mt-1">
+                          <%= for topic <- Enum.take(cluster.topics, 5) do %>
+                            <span class="text-xs px-1.5 py-0.5 rounded bg-gray-100 text-gray-600">
+                              <%= topic %>
+                            </span>
+                          <% end %>
+                        </div>
+                      <% end %>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 font-medium">
+                      <%= cluster.query_count %>
+                    </td>
+                    <td class="px-6 py-4 text-sm">
+                      <div class="flex flex-wrap gap-1">
+                        <%= for _pid <- Enum.take(cluster.entity_player_ids || [], 3) do %>
+                          <span class="text-xs px-1.5 py-0.5 rounded bg-blue-50 text-blue-700">
+                            Player
+                          </span>
+                        <% end %>
+                        <%= for _tid <- Enum.take(cluster.entity_team_ids || [], 3) do %>
+                          <span class="text-xs px-1.5 py-0.5 rounded bg-green-50 text-green-700">
+                            Team
+                          </span>
+                        <% end %>
+                      </div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                      <div class="flex items-center gap-2">
+                        <button
+                          phx-click="toggle_query_schedule"
+                          phx-value-cluster-id={cluster.id}
+                          class={[
+                            "relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out",
+                            if(cluster.scheduled, do: "bg-blue-600", else: "bg-gray-200")
+                          ]}
+                          role="switch"
+                        >
+                          <span class={[
+                            "pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out",
+                            if(cluster.scheduled, do: "translate-x-4", else: "translate-x-0")
+                          ]}>
+                          </span>
+                        </button>
+                        <%= if cluster.scheduled do %>
+                          <select
+                            phx-change="set_query_frequency"
+                            phx-value-cluster-id={cluster.id}
+                            name="freq"
+                            class="text-xs border-gray-300 rounded py-0.5 px-1"
+                          >
+                            <option value="daily" selected={cluster.schedule_frequency == "daily"}>
+                              Daily
+                            </option>
+                            <option value="hourly" selected={cluster.schedule_frequency == "hourly"}>
+                              Hourly
+                            </option>
+                          </select>
+                        <% end %>
+                      </div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <%= format_time(cluster.last_run_at) %>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm">
+                      <button
+                        phx-click="run_query_now"
+                        phx-value-cluster-id={cluster.id}
+                        class="text-blue-600 hover:text-blue-800 font-medium"
+                      >
+                        Run Now
+                      </button>
+                    </td>
+                  </tr>
+                <% end %>
+              </tbody>
+            </table>
+          </div>
+
+          <%!-- Chat Sessions --%>
+          <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+            <div class="px-6 py-4 border-b border-gray-200">
+              <h3 class="text-lg font-semibold text-gray-900">Recent Chat Sessions</h3>
+            </div>
+            <table class="min-w-full divide-y divide-gray-200">
+              <thead class="bg-gray-50">
+                <tr>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    User
+                  </th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    Status
+                  </th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    Last Activity
+                  </th>
+                </tr>
+              </thead>
+              <tbody class="bg-white divide-y divide-gray-200">
+                <%= if @chat_sessions_list == [] do %>
+                  <tr>
+                    <td colspan="3" class="px-6 py-8 text-center text-gray-400 text-sm">
+                      No chat sessions yet.
+                    </td>
+                  </tr>
+                <% end %>
+                <%= for session <- @chat_sessions_list do %>
+                  <tr>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                      <%= if session.user, do: session.user.email, else: "Unknown" %>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                      <span class={"inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium #{if session.status == "active", do: "bg-green-100 text-green-800", else: "bg-gray-100 text-gray-800"}"}>
+                        <%= session.status %>
+                      </span>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <%= format_time(session.last_activity_at) %>
                     </td>
                   </tr>
                 <% end %>

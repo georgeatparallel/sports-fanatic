@@ -14,8 +14,12 @@ config :sports_fanatic, SportsFanatic.Repo,
   pool: Ecto.Adapters.SQL.Sandbox,
   pool_size: 10
 
-# Use Oban.Testing inline mode so worker tests don't require a running queue
-config :sports_fanatic, Oban, testing: :inline
+# Disable Oban startup verification so unit tests run without a live database.
+# Oban 2.22 added migrate verification on start even in :inline/:manual modes.
+# :disabled skips the verify_migrated! check entirely. Worker struct tests
+# (job changeset shape) still work because Worker.new/1 does not require Oban
+# to be running. Integration tests that need Oban should use mix test instead.
+config :sports_fanatic, Oban, testing: :disabled
 
 # Point Valkey to a non-existent host so tests that don't exercise cache
 # don't fail on connection; the Cache module gracefully handles errors.

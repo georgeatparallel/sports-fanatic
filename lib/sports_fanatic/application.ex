@@ -22,6 +22,10 @@ defmodule SportsFanatic.Application do
       {SportsFanatic.Scouting.Pipeline, []},
       # Python Bridge health check
       SportsFanatic.PythonBridge.HealthCheck,
+      # Agent infrastructure for chatbot
+      {Registry, keys: :unique, name: SportsFanatic.AgentRegistry},
+      {DynamicSupervisor,
+       name: SportsFanatic.AgentDynamicSupervisor, strategy: :one_for_one, max_children: 100},
       # Phoenix Endpoint
       SportsFanaticWeb.Endpoint
     ]

@@ -35,6 +35,12 @@ config :sports_fanatic,
 # FantasyNerds API key
 config :sports_fanatic, :fantasy_nerds_api_key, System.get_env("FANTASY_NERDS_API_KEY")
 
+# Exa.ai API key for chatbot web search
+config :sports_fanatic, :exa, api_key: System.get_env("EXA_API_KEY")
+
+# Anthropic API key (shared with Python Bridge for direct LLM calls)
+config :sports_fanatic, :anthropic_api_key, System.get_env("ANTHROPIC_API_KEY")
+
 # S3 storage for raw news articles (runtime so env vars are read at boot, not compile time)
 config :sports_fanatic, :news_s3_bucket, System.get_env("NEWS_S3_BUCKET", "sports-fanatic-news")
 config :sports_fanatic, :news_s3_enabled, System.get_env("NEWS_S3_ENABLED", "false") == "true"
