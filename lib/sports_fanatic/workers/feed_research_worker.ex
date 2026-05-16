@@ -10,10 +10,10 @@ defmodule SportsFanatic.Workers.FeedResearchWorker do
   use Oban.Worker, queue: :default, max_attempts: 2
 
   alias SportsFanatic.Agents.Actions.{SearchExa, SearchLocalNews}
+  alias SportsFanatic.AI.Claude
   alias SportsFanatic.Content.ScoutingReport
   alias SportsFanatic.Feeds
   alias SportsFanatic.Mlb.Player
-  alias SportsFanatic.PythonBridge
   alias SportsFanatic.Repo
 
   import Ecto.Query
@@ -94,21 +94,22 @@ defmodule SportsFanatic.Workers.FeedResearchWorker do
     unless has_report_today do
       Logger.info("FeedResearchWorker: generating scouting report for #{player.full_name}")
 
-      # Search for source material via Exa
-      case PythonBridge.search_player(player.full_name) do
-        {:ok, %{"sources" => sources}} when is_list(sources) and sources != [] ->
-          sources_text = Enum.map_join(sources, "\n\n", fn s ->
-            "#{s["title"] || ""}\n#{s["text"] || ""}"
+      # Search for source material via Exa (direct Elixir, parallel)
+      case Claude.search_player_sources(player.full_name) do
+        {:ok, sources} when sources != [] ->
+          sources_text = Enum.map_join(sources, "\n\n---\n\n", fn s ->
+            "#{s.title}\n#{s.text}"
           end)
 
-          case PythonBridge.generate_scouting(player.full_name, player.id, sources_text) do
-            {:ok, %{"report" => report}} when is_binary(report) ->
+          # Generate report via direct Claude call (no Python Bridge)
+          case Claude.generate_scouting(player.full_name, sources_text) do
+            {:ok, report} when is_map(report) ->
               %ScoutingReport{}
               |> ScoutingReport.changeset(%{
                 player_id: player.id,
                 report_date: today,
                 content: report,
-                sources: sources
+                sources: Enum.map(sources, fn s -> %{"title" => s.title, "url" => s.url} end)
               })
               |> Repo.insert(on_conflict: :nothing)
 
@@ -117,7 +118,7 @@ defmodule SportsFanatic.Workers.FeedResearchWorker do
           end
 
         _ ->
-          Logger.info("FeedResearchWorker: no sources found for scouting report on #{player.full_name}")
+          Logger.info("FeedResearchWorker: no sources found for scouting on #{player.full_name}")
       end
     end
   rescue

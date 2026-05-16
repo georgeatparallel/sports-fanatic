@@ -132,6 +132,79 @@ defmodule SportsFanatic.AI.Claude do
     end
   end
 
+  # ── Scouting Report Generation ──────────────────────────────
+
+  @scouting_tool %{
+    "name" => "scouting_report",
+    "description" => "Generate a structured scouting report for an MLB player",
+    "input_schema" => %{
+      "type" => "object",
+      "properties" => %{
+        "hit_streak" => %{"type" => "integer", "description" => "Current hitting streak (0 if none)"},
+        "hr_streak" => %{"type" => "integer", "description" => "Current HR streak (0 if none)"},
+        "on_base_streak" => %{"type" => "integer", "description" => "Current on-base streak (0 if none)"},
+        "injury_status" => %{"type" => "string", "enum" => ["healthy", "day-to-day", "IL-10", "IL-15", "IL-60"]},
+        "injury_detail" => %{"type" => "string"},
+        "positive_factors" => %{"type" => "array", "items" => %{"type" => "string"}},
+        "negative_factors" => %{"type" => "array", "items" => %{"type" => "string"}},
+        "overall_sentiment" => %{"type" => "string", "enum" => ["positive", "neutral", "negative"]},
+        "confidence_modifier" => %{"type" => "number"},
+        "news_summary" => %{"type" => "string"},
+        "sources_count" => %{"type" => "integer"},
+        "hit_probability" => %{"type" => "number"},
+        "hr_probability" => %{"type" => "number"}
+      },
+      "required" => ["injury_status", "overall_sentiment", "news_summary", "positive_factors", "negative_factors"]
+    }
+  }
+
+  def generate_scouting(player_name, sources_text) when is_binary(sources_text) do
+    prompt = """
+    Analyze the following news and data about MLB player #{player_name}.
+    Generate a structured scouting report based on the available information.
+
+    Sources:
+    #{String.slice(sources_text, 0, 15_000)}
+    """
+
+    call_with_tool(
+      "You are an MLB scouting analyst. Analyze player data and produce accurate scouting reports.",
+      prompt,
+      @scouting_tool,
+      "scouting_report"
+    )
+  end
+
+  @doc """
+  Search for player source material via Exa.ai directly from Elixir.
+  Returns {:ok, sources} or {:error, reason}.
+  """
+  def search_player_sources(player_name) do
+    alias SportsFanatic.ExternalApis.Exa
+
+    queries = [
+      "\"#{player_name}\" MLB injury status 2026",
+      "\"#{player_name}\" MLB stats performance 2026",
+      "\"#{player_name}\" MLB recent news"
+    ]
+
+    sources =
+      queries
+      |> Task.async_stream(
+        fn query -> Exa.search(query, num_results: 5, days_back: 14) end,
+        max_concurrency: 3,
+        timeout: 15_000,
+        on_timeout: :kill_task
+      )
+      |> Enum.flat_map(fn
+        {:ok, {:ok, results}} -> results
+        _ -> []
+      end)
+      |> Enum.uniq_by(& &1.url)
+
+    {:ok, sources}
+  end
+
   # ── Low-Level API Calls ────────────────────────────────────
 
   defp call_with_tool(system, user_content, tool, tool_name) do
