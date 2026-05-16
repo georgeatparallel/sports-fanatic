@@ -42,12 +42,20 @@ defmodule SportsFanatic.Agents.NewsAgent do
     end
   end
 
-  defp execute(query, user_id, _context, _date) do
+  defp execute(query, user_id, context, _date) do
+    # Step 0: Resolve context if conversation history exists
+    {resolved_query, pregenerated_prompts} =
+      if context != [] and length(context) > 1 do
+        resolve_context(query, context, user_id)
+      else
+        {query, nil}
+      end
+
     # Step 1: Search local news (no date restriction — search everything)
     broadcast_progress(user_id, "Searching our news database...")
 
     local_result =
-      SearchLocalNews.run(%{query: query, limit: 15}, %{})
+      SearchLocalNews.run(%{query: resolved_query, limit: 15}, %{})
 
     {local_articles, local_ids} =
       case local_result do
@@ -73,14 +81,14 @@ defmodule SportsFanatic.Agents.NewsAgent do
           {articles, ids}
 
         _ ->
-          broadcast_progress(user_id, "No articles found in our database for \"#{query}\".")
+          broadcast_progress(user_id, "No articles found in our database for \"#{resolved_query}\".")
           {[], []}
       end
 
     # Step 2: If insufficient local results, do deep Exa research
     {exa_ids, exa_summary} =
       if length(local_articles) < 3 do
-        deep_research(query, user_id)
+        deep_research(resolved_query, user_id, pregenerated_prompts)
       else
         {[], nil}
       end
@@ -88,7 +96,7 @@ defmodule SportsFanatic.Agents.NewsAgent do
     all_ids = (local_ids ++ exa_ids) |> Enum.uniq()
 
     # Step 3: Build conversational summary
-    summary = build_summary(query, local_articles, exa_ids, exa_summary, all_ids)
+    summary = build_summary(resolved_query, local_articles, exa_ids, exa_summary, all_ids)
 
     {:ok, %{summary: summary, news_item_ids: all_ids}}
   rescue
@@ -100,12 +108,43 @@ defmodule SportsFanatic.Agents.NewsAgent do
       {:error, {:agent_error, Exception.message(e)}}
   end
 
+  # Resolve conversation context using LLM to detect topic changes and resolve references
+  defp resolve_context(query, context, user_id) do
+    broadcast_progress(user_id, "Understanding your question...")
+
+    case PythonBridge.resolve_chat_context(query, context) do
+      {:ok, %{"is_continuation" => true, "resolved_query" => resolved, "search_prompts" => prompts}} ->
+        broadcast_progress(user_id, "Following up on previous topic...")
+        Logger.info("Context resolved: continuation. Query: '#{query}' → '#{resolved}'")
+        {resolved, prompts}
+
+      {:ok, %{"is_continuation" => false, "resolved_query" => resolved, "search_prompts" => prompts}} ->
+        broadcast_progress(user_id, "Starting new research topic...")
+        Logger.info("Context resolved: new topic. Query: '#{query}' → '#{resolved}'")
+        {resolved, prompts}
+
+      {:ok, %{"resolved_query" => resolved, "search_prompts" => prompts}} ->
+        # Fallback if is_continuation key is missing
+        {resolved, prompts}
+
+      {:error, reason} ->
+        Logger.warning("Context resolution failed: #{inspect(reason)}, using raw query")
+        {query, nil}
+    end
+  end
+
   # Deep research via Exa.ai with LLM-generated search prompts
-  defp deep_research(query, user_id) do
+  defp deep_research(query, user_id, pregenerated_prompts) do
     broadcast_progress(user_id, "Researching external sources for deeper coverage...")
 
-    # Generate smart search prompts using LLM
-    search_queries = generate_search_prompts(query, user_id)
+    # Use pregenerated prompts from context resolver, or generate new ones
+    search_queries =
+      if pregenerated_prompts && pregenerated_prompts != [] do
+        broadcast_progress(user_id, "Using #{length(pregenerated_prompts)} context-aware research queries.")
+        pregenerated_prompts
+      else
+        generate_search_prompts(query, user_id)
+      end
 
     # Execute all search prompts and aggregate results
     all_new_ids =

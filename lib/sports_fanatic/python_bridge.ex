@@ -70,6 +70,11 @@ defmodule SportsFanatic.PythonBridge do
     post("/agents/execute", %{settings: settings, date_range: date_range})
   end
 
+  @doc "Resolve chat context: detect topic continuation, resolve pronouns, generate search prompts."
+  def resolve_chat_context(query, conversation) do
+    post("/chat/resolve-context", %{query: query, conversation: conversation})
+  end
+
   def health_check do
     base_url = base_url()
 

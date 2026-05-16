@@ -8,6 +8,7 @@ import logging
 from fastapi import FastAPI
 
 from src.api.agents import router as agents_router
+from src.api.chat import router as chat_router
 from src.api.gameday import router as gameday_router
 from src.api.news import router as news_router
 from src.api.predict import router as predict_router
@@ -26,6 +27,7 @@ app = FastAPI(
 )
 
 app.include_router(agents_router, prefix="/agents", tags=["agents"])
+app.include_router(chat_router, prefix="/chat", tags=["chat"])
 app.include_router(predict_router, prefix="/predict", tags=["predictions"])
 app.include_router(scouting_router, prefix="/scouting", tags=["scouting"])
 app.include_router(gameday_router, prefix="/gameday", tags=["gameday"])

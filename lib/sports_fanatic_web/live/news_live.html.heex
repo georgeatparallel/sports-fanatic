@@ -8,9 +8,9 @@
 <section class="max-w-4xl mx-auto px-4 py-8">
   <%!-- Chat Interface (feature-flagged) --%>
   <%= if @chat_enabled do %>
-    <div class="sticky top-0 z-10 bg-white shadow-sm border border-gray-200 rounded-lg mb-4 -mx-4 px-4 pt-2 pb-2">
+    <div class="sticky top-0 z-10 bg-white shadow-sm border border-gray-200 rounded-lg mb-4 -mx-4 px-4 pt-2 pb-2 flex flex-col max-h-[420px]">
       <%!-- Chat header --%>
-      <div class="flex items-center justify-between mb-2">
+      <div class="flex items-center justify-between mb-2 flex-shrink-0">
         <h3 class="text-sm font-semibold text-gray-700">News Research Agent</h3>
         <div class="flex items-center gap-2">
           <%= if @agent_running do %>
@@ -21,7 +21,7 @@
               Cancel
             </button>
           <% end %>
-          <%= if @chat_messages != [] do %>
+          <%= if length(@chat_messages) > 1 do %>
             <button
               phx-click="clear_chat"
               class="text-xs text-gray-500 hover:text-gray-700 font-medium"
@@ -32,89 +32,60 @@
         </div>
       </div>
 
-      <%!-- Chat messages thread --%>
-      <%= if @chat_messages != [] do %>
-        <div
-          class="max-h-64 overflow-y-auto mb-2 space-y-2 px-1"
-          id="chat-messages"
-          phx-hook="ScrollBottom"
-        >
-          <%= for msg <- @chat_messages do %>
-            <div
-              id={"chat-msg-#{msg.id}"}
-              class={[
-                "flex",
-                if(msg.role == "user", do: "justify-end", else: "justify-start")
-              ]}
-            >
-              <div class={[
-                "max-w-[80%] rounded-lg px-3 py-2 text-sm",
-                cond do
-                  msg.role == "user" -> "bg-blue-500 text-white"
-                  msg.role == "progress" -> "bg-gray-100 text-gray-600 italic"
-                  true -> "bg-gray-50 text-gray-800 border border-gray-200"
-                end
-              ]}>
-                <%= if msg.role == "progress" do %>
-                  <div class="flex items-center gap-2">
-                    <svg
-                      class="animate-spin h-3 w-3 text-gray-400"
-                      xmlns="http://www.w3.org/2000/svg"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                    >
-                      <circle
-                        class="opacity-25"
-                        cx="12"
-                        cy="12"
-                        r="10"
-                        stroke="currentColor"
-                        stroke-width="4"
-                      >
-                      </circle>
-                      <path
-                        class="opacity-75"
-                        fill="currentColor"
-                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-                      >
-                      </path>
-                    </svg>
-                    <span><%= sanitize_chat(msg.content) %></span>
-                  </div>
-                <% else %>
-                  <%= sanitize_chat(msg.content) %>
-                <% end %>
-              </div>
+      <%!-- Chat messages thread (scrollable, fills available space) --%>
+      <div
+        class="flex-1 overflow-y-auto min-h-0 space-y-2 px-1 mb-2"
+        id="chat-messages"
+        phx-hook="ScrollBottom"
+      >
+        <%= for msg <- @chat_messages do %>
+          <div
+            id={"chat-msg-#{msg.id}"}
+            class={[
+              "flex",
+              if(msg.role == "user", do: "justify-end", else: "justify-start")
+            ]}
+          >
+            <div class={[
+              "max-w-[80%] rounded-lg px-3 py-2 text-sm",
+              cond do
+                msg.role == "user" -> "bg-blue-500 text-white"
+                msg.role == "progress" -> "bg-gray-100 text-gray-600 italic"
+                true -> "bg-gray-50 text-gray-800 border border-gray-200"
+              end
+            ]}>
+              <%= if msg.role == "progress" do %>
+                <div class="flex items-center gap-2">
+                  <svg class="animate-spin h-3 w-3 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                  </svg>
+                  <span><%= sanitize_chat(msg.content) %></span>
+                </div>
+              <% else %>
+                <%= sanitize_chat(msg.content) %>
+              <% end %>
             </div>
-          <% end %>
-        </div>
-      <% end %>
+          </div>
+        <% end %>
+      </div>
 
       <%!-- Chat articles from last agent response --%>
       <%= if @chat_articles != [] do %>
-        <div class="mb-2 space-y-1">
+        <div class="flex-shrink-0 max-h-32 overflow-y-auto mb-2 space-y-1">
           <%= for article <- @chat_articles do %>
             <div class="bg-white border border-gray-100 rounded px-3 py-2 text-sm">
               <div class="flex items-center gap-2">
                 <span class="font-medium text-gray-900 truncate"><%= article["title"] %></span>
                 <%= if article["category"] do %>
-                  <span class="text-xs px-1.5 py-0.5 rounded bg-gray-100 text-gray-600">
-                    <%= article["category"] %>
-                  </span>
+                  <span class="text-xs px-1.5 py-0.5 rounded bg-gray-100 text-gray-600"><%= article["category"] %></span>
                 <% end %>
               </div>
               <%= if article["ai_summary"] do %>
-                <p class="text-xs text-gray-500 mt-1 line-clamp-2">
-                  <%= article["ai_summary"] %>
-                </p>
+                <p class="text-xs text-gray-500 mt-1 line-clamp-2"><%= article["ai_summary"] %></p>
               <% end %>
               <%= if article["source_url"] do %>
-                <a
-                  href={article["source_url"]}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  class="text-xs text-blue-500 hover:text-blue-700 mt-1 inline-block"
-                >
+                <a href={article["source_url"]} target="_blank" rel="noopener noreferrer" class="text-xs text-blue-500 hover:text-blue-700 mt-1 inline-block">
                   <%= article["author"] || "Read more" %> &rarr;
                 </a>
               <% end %>
@@ -123,39 +94,33 @@
         </div>
       <% end %>
 
-      <%!-- Chat input --%>
-      <form phx-submit="submit_chat" class="relative">
-        <input
-          type="text"
-          name="message"
-          value={@chat_input}
-          placeholder="Ask about MLB news, players, or trades..."
-          disabled={@agent_running}
-          autofocus
-          autocomplete="off"
-          phx-debounce="300"
-          class={[
-            "w-full rounded-lg border border-gray-300 px-3 py-2 pr-10 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500",
-            if(@agent_running, do: "bg-gray-50 cursor-not-allowed", else: "")
-          ]}
-        />
-        <button
-          type="submit"
-          disabled={@agent_running}
-          class="absolute right-2 top-1/2 -translate-y-1/2 text-blue-500 hover:text-blue-700 disabled:text-gray-300"
-        >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            class="h-5 w-5"
-            viewBox="0 0 20 20"
-            fill="currentColor"
+      <%!-- Chat input (pinned to bottom) --%>
+      <div class="flex-shrink-0">
+        <form phx-submit="submit_chat" class="relative">
+          <input
+            type="text"
+            name="message"
+            value={@chat_input}
+            placeholder="Ask about MLB news, players, or trades..."
+            disabled={@agent_running}
+            autofocus
+            autocomplete="off"
+            class={[
+              "w-full rounded-lg border border-gray-300 px-3 py-2 pr-10 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500",
+              if(@agent_running, do: "bg-gray-50 cursor-not-allowed", else: "")
+            ]}
+          />
+          <button
+            type="submit"
+            disabled={@agent_running}
+            class="absolute right-2 top-1/2 -translate-y-1/2 text-blue-500 hover:text-blue-700 disabled:text-gray-300"
           >
-            <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
-          </svg>
-        </button>
-      </form>
-      <div class="flex items-center justify-between mt-1">
-        <span class="text-xs text-gray-400">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+              <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
+            </svg>
+          </button>
+        </form>
+        <span class="text-xs text-gray-400 mt-1 block">
           <%= if @agent_running, do: "Searching...", else: "Enter to search" %>
         </span>
       </div>

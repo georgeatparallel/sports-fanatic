@@ -392,11 +392,20 @@ defmodule SportsFanaticWeb.NewsLive do
       Phoenix.PubSub.subscribe(SportsFanatic.PubSub, "chat:#{user_id}")
     end
 
+    # Build conversation context (last 10 user+assistant messages, skip progress/welcome)
+    context_messages =
+      chat_messages
+      |> Enum.filter(fn msg ->
+        msg.role in ["user", "assistant"] and msg.id != "welcome"
+      end)
+      |> Enum.take(-10)
+      |> Enum.map(fn msg -> %{role: msg.role, content: msg.content} end)
+
     # Get date context for agent
     date = socket.assigns[:date_str]
 
-    # Spawn agent
-    AgentSupervisor.start_agent(user_id, text, date: date)
+    # Spawn agent with conversation context
+    AgentSupervisor.start_agent(user_id, text, date: date, context: context_messages)
 
     {:noreply,
      socket
