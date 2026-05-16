@@ -42,6 +42,39 @@
         phx-hook="ScrollBottom"
       >
         <%= for msg <- @chat_messages do %>
+          <%!-- Clickable sample prompts after welcome message --%>
+          <%= if msg.id == "welcome" do %>
+            <div id="sample-prompts" class="flex flex-wrap gap-2 mt-2 mb-1 justify-start">
+              <button
+                phx-click="submit_chat"
+                phx-value-message="How is Hunter Brown doing?"
+                class="text-xs bg-blue-50 text-blue-700 px-3 py-1.5 rounded-full border border-blue-200 hover:bg-blue-100 transition"
+              >
+                How is Hunter Brown doing?
+              </button>
+              <button
+                phx-click="submit_chat"
+                phx-value-message="What's the Mets injury report?"
+                class="text-xs bg-blue-50 text-blue-700 px-3 py-1.5 rounded-full border border-blue-200 hover:bg-blue-100 transition"
+              >
+                Mets injury report
+              </button>
+              <button
+                phx-click="submit_chat"
+                phx-value-message="Current HR streaks"
+                class="text-xs bg-blue-50 text-blue-700 px-3 py-1.5 rounded-full border border-blue-200 hover:bg-blue-100 transition"
+              >
+                Current HR streaks
+              </button>
+              <button
+                phx-click="submit_chat"
+                phx-value-message="/upload"
+                class="text-xs bg-green-50 text-green-700 px-3 py-1.5 rounded-full border border-green-200 hover:bg-green-100 transition"
+              >
+                Upload roster CSV
+              </button>
+            </div>
+          <% end %>
           <div
             id={"chat-msg-#{msg.id}"}
             class={[

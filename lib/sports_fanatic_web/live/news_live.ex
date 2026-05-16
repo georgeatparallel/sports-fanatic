@@ -63,8 +63,12 @@ defmodule SportsFanaticWeb.NewsLive do
         %{
           id: "welcome",
           role: "assistant",
-          content:
-            "How can I help you today? Ask me about any MLB player, team, or topic. Type **/help** for a list of commands.",
+          content: "How can I help you today? Try one of these:\n\n" <>
+            "- **How is Hunter Brown doing?**\n" <>
+            "- **What's the Mets injury report?**\n" <>
+            "- **Current HR streaks**\n" <>
+            "- **Upload a roster** — drag and drop your fantasy CSV to create a player feed\n\n" <>
+            "Type **/help** for all commands.",
           inserted_at: DateTime.utc_now()
         }
       ])
@@ -474,15 +478,13 @@ defmodule SportsFanaticWeb.NewsLive do
 
     case result do
       {:reply, message, new_skill_state} ->
-        apply_skill_reply(socket, message, new_skill_state)
+        {:noreply, apply_skill_reply(socket, message, new_skill_state)}
 
       {:reply, message, new_skill_state, :feeds_changed} ->
-        socket =
-          socket
-          |> apply_skill_reply(message, new_skill_state)
-          |> reload_user_feeds()
-
-        {:noreply, socket}
+        {:noreply,
+         socket
+         |> apply_skill_reply(message, new_skill_state)
+         |> reload_user_feeds()}
 
       {:reply_with_auth, message, token, _user} ->
         assistant_msg = %{
