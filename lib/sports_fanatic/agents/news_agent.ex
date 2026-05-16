@@ -158,7 +158,7 @@ defmodule SportsFanatic.Agents.NewsAgent do
         short_query = String.slice(search_query, 0, 55)
         broadcast_progress(user_id, "(#{idx}/#{length(search_queries)}) #{short_query}...")
 
-        case SearchExa.run(%{query: search_query, num_results: 25, days_back: 30}, %{}) do
+        case SearchExa.run(%{query: search_query, num_results: 10, days_back: 30}, %{}) do
           {:ok, %{new_articles: new, known_articles: known, new_count: new_count}} ->
             # Collect raw sources for synthesis (both known and new)
             raw_sources =
@@ -212,24 +212,11 @@ defmodule SportsFanatic.Agents.NewsAgent do
 
   # Generate search prompts covering multiple angles
   defp generate_multi_angle_prompts(query) do
-    # Base queries that cover different angles
-    base = String.downcase(query)
-
-    prompts = [
-      # General news and latest updates
+    # 2 focused searches — keeps total time under 60s
+    [
       "#{query} MLB baseball 2026 latest news update",
-      # Injury / IL status (very common query intent)
-      "#{query} MLB injury update IL status return timeline 2026",
-      # Performance and stats
-      "#{query} MLB 2026 season stats performance"
+      "#{query} MLB injury update fantasy outlook 2026"
     ]
-
-    # Add fantasy angle if it seems player-related (not a topic like "trade deadline")
-    if not String.contains?(base, ~w(trade deadline streak standings playoff)) do
-      prompts ++ ["#{query} fantasy baseball 2026 outlook value"]
-    else
-      prompts
-    end
   end
 
   # ── LLM Synthesis ───────────────────────────────────────────
