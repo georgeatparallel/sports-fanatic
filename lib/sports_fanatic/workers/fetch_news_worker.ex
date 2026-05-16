@@ -196,9 +196,13 @@ defmodule SportsFanatic.Workers.FetchNewsWorker do
   end
 
   defp match_entities_from_text(text, all_players, all_teams) do
+    # Only extract names from title + first 500 chars of body
+    # to avoid matching players from sidebars, related articles, comments
+    extract_text = String.slice(text, 0, 800)
+
     # Extract potential player names: look for capitalized word pairs
     player_name_candidates =
-      text
+      extract_text
       |> then(&Regex.scan(~r/\b([A-Z][a-z]+(?:\s[A-Z][a-z]+)+)\b/, &1))
       |> Enum.map(fn [full | _] -> full end)
       |> Enum.uniq()
