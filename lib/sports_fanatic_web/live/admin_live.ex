@@ -109,7 +109,14 @@ defmodule SportsFanaticWeb.AdminLive do
        agents_enabled: FeatureFlags.enabled?("news_agents_enabled"),
        query_clusters: [],
        chat_sessions_list: [],
-       chatbot_enabled: FeatureFlags.enabled?("news_chatbot_enabled")
+       chatbot_enabled: FeatureFlags.enabled?("news_chatbot_enabled"),
+       all_feeds: [],
+       feed_research_stats: %{
+         total_feeds: 0,
+         researched_today: 0,
+         pending_today: 0,
+         total_players: 0
+       }
      )}
   end
 
@@ -178,11 +185,30 @@ defmodule SportsFanaticWeb.AdminLive do
             chatbot_enabled: FeatureFlags.enabled?("news_chatbot_enabled")
           )
 
+        "feeds" ->
+          all_feeds = SportsFanatic.Feeds.list_all_feeds(limit: 100)
+          stats = SportsFanatic.Feeds.feed_research_stats()
+
+          assign(socket,
+            all_feeds: all_feeds,
+            feed_research_stats: stats
+          )
+
         _ ->
           socket
       end
 
     {:noreply, assign(socket, active_tab: tab)}
+  end
+
+  def handle_event("run_feed_research", _params, socket) do
+    case %{} |> SportsFanatic.Workers.FeedResearchWorker.new() |> Oban.insert() do
+      {:ok, _job} ->
+        {:noreply, put_flash(socket, :info, "Feed research worker enqueued.")}
+
+      {:error, _} ->
+        {:noreply, put_flash(socket, :error, "Failed to enqueue feed research worker.")}
+    end
   end
 
   def handle_event("toggle_flag", %{"key" => key}, socket) do
@@ -731,6 +757,19 @@ defmodule SportsFanaticWeb.AdminLive do
             ]}
           >
             Queries
+          </button>
+          <button
+            phx-click="switch_tab"
+            phx-value-tab="feeds"
+            class={[
+              "py-3 px-1 border-b-2 font-medium text-sm transition",
+              if(@active_tab == "feeds",
+                do: "border-blue-500 text-blue-600",
+                else: "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+              )
+            ]}
+          >
+            Feeds
           </button>
           <button
             phx-click="switch_tab"
@@ -1504,6 +1543,114 @@ defmodule SportsFanaticWeb.AdminLive do
                 Add Flag
               </button>
             </form>
+          </div>
+        </div>
+      <% end %>
+
+      <%!-- Feeds Tab --%>
+      <%= if @active_tab == "feeds" do %>
+        <div class="space-y-6">
+          <%!-- Research controls --%>
+          <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-5">
+            <div class="flex items-center justify-between mb-4">
+              <h3 class="text-lg font-semibold text-gray-900">Feed Research</h3>
+              <button
+                phx-click="run_feed_research"
+                class="bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-blue-700 transition"
+              >
+                Run Now
+              </button>
+            </div>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div class="bg-gray-50 rounded-lg p-3">
+                <p class="text-xs text-gray-500 uppercase font-medium">Total Feeds</p>
+                <p class="text-2xl font-bold text-gray-900">
+                  <%= @feed_research_stats.total_feeds %>
+                </p>
+              </div>
+              <div class="bg-gray-50 rounded-lg p-3">
+                <p class="text-xs text-gray-500 uppercase font-medium">Total Players</p>
+                <p class="text-2xl font-bold text-gray-900">
+                  <%= @feed_research_stats.total_players %>
+                </p>
+              </div>
+              <div class="bg-gray-50 rounded-lg p-3">
+                <p class="text-xs text-gray-500 uppercase font-medium">Researched Today</p>
+                <p class="text-2xl font-bold text-green-600">
+                  <%= @feed_research_stats.researched_today %>
+                </p>
+              </div>
+              <div class="bg-gray-50 rounded-lg p-3">
+                <p class="text-xs text-gray-500 uppercase font-medium">Pending Today</p>
+                <p class="text-2xl font-bold text-yellow-600">
+                  <%= @feed_research_stats.pending_today %>
+                </p>
+              </div>
+            </div>
+            <p class="text-xs text-gray-400 mt-3">Schedule: Daily at 9:00 AM ET (13:00 UTC)</p>
+          </div>
+
+          <%!-- All feeds table --%>
+          <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-5">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">All User Feeds</h3>
+            <%= if @all_feeds == [] do %>
+              <p class="text-gray-500 text-sm">No feeds created yet.</p>
+            <% else %>
+              <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                  <thead class="bg-gray-50">
+                    <tr>
+                      <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                        User
+                      </th>
+                      <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                        Feed Name
+                      </th>
+                      <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                        Players
+                      </th>
+                      <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                        Teams
+                      </th>
+                      <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                        Active
+                      </th>
+                      <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                        Last Researched
+                      </th>
+                      <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                        Created
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-gray-200">
+                    <%= for feed <- @all_feeds do %>
+                      <tr>
+                        <td class="px-4 py-2 text-sm text-gray-700"><%= feed.user.email %></td>
+                        <td class="px-4 py-2 text-sm font-medium text-gray-900"><%= feed.name %></td>
+                        <td class="px-4 py-2 text-sm text-gray-600">
+                          <%= length(feed.player_ids) %>
+                        </td>
+                        <td class="px-4 py-2 text-sm text-gray-600"><%= length(feed.team_ids) %></td>
+                        <td class="px-4 py-2 text-sm">
+                          <span class={if feed.is_active, do: "text-green-600", else: "text-gray-400"}>
+                            <%= if feed.is_active, do: "Yes", else: "No" %>
+                          </span>
+                        </td>
+                        <td class="px-4 py-2 text-sm text-gray-500">
+                          <%= if feed.last_researched_at,
+                            do: Calendar.strftime(feed.last_researched_at, "%Y-%m-%d %H:%M"),
+                            else: "Never" %>
+                        </td>
+                        <td class="px-4 py-2 text-sm text-gray-500">
+                          <%= Calendar.strftime(feed.inserted_at, "%Y-%m-%d") %>
+                        </td>
+                      </tr>
+                    <% end %>
+                  </tbody>
+                </table>
+              </div>
+            <% end %>
           </div>
         </div>
       <% end %>

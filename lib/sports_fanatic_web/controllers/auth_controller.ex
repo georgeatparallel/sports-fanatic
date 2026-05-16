@@ -82,6 +82,38 @@ defmodule SportsFanaticWeb.AuthController do
     |> redirect(to: "/")
   end
 
+  @doc """
+  Sets a session from a one-time token (used for inline auth from LiveView chat).
+  Token is validated against the accounts.sessions table. After use the
+  response redirects to the `return_to` param (validated as a relative path).
+  """
+  def set_session_from_token(conn, %{"token" => token} = params) do
+    return_to = Map.get(params, "return_to", "/")
+
+    # Validate return_to is a relative path (prevent open redirects)
+    return_to =
+      case return_to do
+        "/" <> _rest = path ->
+          if String.starts_with?(path, "//"), do: "/", else: path
+
+        _ ->
+          "/"
+      end
+
+    case Accounts.get_user_by_session_token(token) do
+      nil ->
+        conn
+        |> put_flash(:error, "Invalid or expired session link.")
+        |> redirect(to: "/login")
+
+      _user ->
+        conn
+        |> put_session(:session_token, token)
+        |> put_flash(:info, "You are now signed in.")
+        |> redirect(to: return_to)
+    end
+  end
+
   defp conn_info(conn) do
     %{
       ip_address: conn.remote_ip |> :inet.ntoa() |> to_string(),

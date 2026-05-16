@@ -20,7 +20,20 @@ defmodule SportsFanaticWeb.NewsLive do
   alias SportsFanatic.Agents
   alias SportsFanatic.Agents.AgentSupervisor
   alias SportsFanatic.ChatBot
+  alias SportsFanatic.ChatBot.SkillRouter
+
+  alias SportsFanatic.ChatBot.Skills.{
+    AddFeedSkill,
+    HelpSkill,
+    ListFeedsSkill,
+    LoginSkill,
+    ManageFeedsSkill,
+    RegisterSkill,
+    UploadSkill
+  }
+
   alias SportsFanatic.DateHelper
+  alias SportsFanatic.Feeds
   alias SportsFanatic.FeatureFlags
   alias SportsFanatic.News
 
@@ -50,7 +63,8 @@ defmodule SportsFanaticWeb.NewsLive do
         %{
           id: "welcome",
           role: "assistant",
-          content: "How can I help you today? Ask me about any MLB player, team, or topic — I'll search our news database and research external sources if needed.",
+          content:
+            "How can I help you today? Ask me about any MLB player, team, or topic. Type **/help** for a list of commands.",
           inserted_at: DateTime.utc_now()
         }
       ])
@@ -60,10 +74,25 @@ defmodule SportsFanaticWeb.NewsLive do
       |> assign(:chat_articles, [])
       |> assign(:anon_id, nil)
       |> assign(:chat_subscribed, false)
+      # Feed-specific assigns
+      |> assign(:user_feeds, [])
+      |> assign(:active_feed, nil)
+      |> assign(:feed_articles, [])
+      |> assign(:skill_state, nil)
+      |> allow_upload(:roster_csv, accept: ~w(.csv), max_entries: 1, max_file_size: 1_048_576)
 
     socket =
       if current_user && connected?(socket) do
         user_id = current_user.id
+
+        # Load user feeds
+        user_feeds = Feeds.list_feeds(user_id)
+        active_feed = Feeds.get_active_feed(user_id)
+
+        socket =
+          socket
+          |> assign(:user_feeds, user_feeds)
+          |> assign(:active_feed, active_feed)
 
         if chat_enabled do
           # Subscribe to chat PubSub channel
@@ -170,12 +199,17 @@ defmodule SportsFanaticWeb.NewsLive do
         "publisher" => %{"@type" => "Organization", "name" => "Sports Fan Agent"}
       })
 
+    # Partition feed into user feed articles and general articles
+    active_feed = socket.assigns[:active_feed]
+    {feed_articles, _rest} = Feeds.partition_articles_by_feed(active_feed, feed)
+
     socket
     |> assign(:date, date)
     |> assign(:date_str, date_str)
     |> assign(:formatted_date, formatted_date)
     |> assign(:feed, feed)
     |> assign(:feed_count, length(feed))
+    |> assign(:feed_articles, feed_articles)
     |> assign(:prev_date, prev_date)
     |> assign(:next_date, next_date)
     |> assign(:viewing_today, viewing_today)
@@ -253,6 +287,74 @@ defmodule SportsFanaticWeb.NewsLive do
     {:noreply, assign(socket, :chat_input, value)}
   end
 
+  def handle_event("switch_feed", %{"feed_id" => ""}, socket) do
+    {_feed_articles, _rest} = Feeds.partition_articles_by_feed(nil, socket.assigns.feed)
+
+    {:noreply,
+     socket
+     |> assign(:active_feed, nil)
+     |> assign(:feed_articles, [])}
+  end
+
+  def handle_event("switch_feed", %{"feed_id" => feed_id}, socket) do
+    case socket.assigns.current_user do
+      nil ->
+        {:noreply, socket}
+
+      user ->
+        try do
+          feed = Feeds.get_feed!(feed_id, user.id)
+          {feed_articles, _rest} = Feeds.partition_articles_by_feed(feed, socket.assigns.feed)
+
+          {:noreply,
+           socket
+           |> assign(:active_feed, feed)
+           |> assign(:feed_articles, feed_articles)}
+        rescue
+          Ecto.NoResultsError ->
+            {:noreply, socket}
+        end
+    end
+  end
+
+  def handle_event("upload_csv", _params, socket) do
+    if socket.assigns.skill_state && socket.assigns.skill_state.skill == :upload &&
+         socket.assigns.skill_state.step == :await_file do
+      context = %{current_user: socket.assigns.current_user}
+
+      result =
+        consume_uploaded_entries(socket, :roster_csv, fn %{path: path}, _entry ->
+          csv_binary = File.read!(path)
+          {:ok, csv_binary}
+        end)
+
+      case result do
+        [csv_binary | _] ->
+          case UploadSkill.process_csv(csv_binary, context) do
+            {:reply, message, new_skill_state} ->
+              {:noreply, apply_skill_reply(socket, message, new_skill_state)}
+
+            {:reply, message, new_skill_state, :feeds_changed} ->
+              socket =
+                socket
+                |> apply_skill_reply(message, new_skill_state)
+                |> reload_user_feeds()
+
+              {:noreply, socket}
+          end
+
+        [] ->
+          {:noreply, socket}
+      end
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_event("validate_upload", _params, socket) do
+    {:noreply, socket}
+  end
+
   # ── Legacy Event Handlers (feature flag off) ──────────────────
 
   def handle_event("submit_command", %{"key" => "Enter", "value" => input}, socket) do
@@ -324,6 +426,156 @@ defmodule SportsFanaticWeb.NewsLive do
   # ── Chat Submission Logic ─────────────────────────────────────
 
   defp handle_chat_submit(text, socket) do
+    # Route through skill router first
+    case SkillRouter.route(text, socket.assigns.skill_state) do
+      {:skill, :cancel} ->
+        cancel_msg = %{
+          id: Ecto.UUID.generate(),
+          role: "assistant",
+          content: "Operation cancelled.",
+          inserted_at: DateTime.utc_now()
+        }
+
+        {:noreply,
+         socket
+         |> append_user_msg(text)
+         |> update(:chat_messages, &(&1 ++ [cancel_msg]))
+         |> assign(:skill_state, nil)
+         |> assign(:chat_input, "")
+         |> push_event("scroll_to_bottom", %{})}
+
+      {:skill, skill_name} ->
+        handle_skill(skill_name, text, nil, socket)
+
+      {:continue, skill_name, input} ->
+        handle_skill(skill_name, input, socket.assigns.skill_state, socket)
+
+      {:agent, text} ->
+        # Fall through to existing agent logic
+        do_agent_submit(text, socket)
+    end
+  end
+
+  defp handle_skill(skill_name, text, skill_state, socket) do
+    context = %{current_user: socket.assigns.current_user}
+
+    result =
+      case skill_name do
+        :help -> HelpSkill.handle(text, skill_state, context)
+        :register -> RegisterSkill.handle(text, skill_state, context)
+        :login -> LoginSkill.handle(text, skill_state, context)
+        :add_feed -> AddFeedSkill.handle(text, skill_state, context)
+        :list_feeds -> ListFeedsSkill.handle(text, skill_state, context)
+        :manage_feeds -> ManageFeedsSkill.handle(text, skill_state, context)
+        :upload -> UploadSkill.handle(text, skill_state, context)
+      end
+
+    socket = append_user_msg(socket, text)
+
+    case result do
+      {:reply, message, new_skill_state} ->
+        apply_skill_reply(socket, message, new_skill_state)
+
+      {:reply, message, new_skill_state, :feeds_changed} ->
+        socket =
+          socket
+          |> apply_skill_reply(message, new_skill_state)
+          |> reload_user_feeds()
+
+        {:noreply, socket}
+
+      {:reply_with_auth, message, token, _user} ->
+        assistant_msg = %{
+          id: Ecto.UUID.generate(),
+          role: "assistant",
+          content: message,
+          inserted_at: DateTime.utc_now()
+        }
+
+        return_to =
+          if socket.assigns[:date_str],
+            do: "/mlb/news/#{socket.assigns.date_str}",
+            else: "/mlb/news"
+
+        {:noreply,
+         socket
+         |> update(:chat_messages, &(&1 ++ [assistant_msg]))
+         |> assign(:skill_state, nil)
+         |> assign(:chat_input, "")
+         |> push_navigate(to: "/auth/session/#{token}?return_to=#{return_to}")}
+    end
+  end
+
+  defp apply_skill_reply(socket, message, new_skill_state) do
+    assistant_msg = %{
+      id: Ecto.UUID.generate(),
+      role: "assistant",
+      content: message,
+      inserted_at: DateTime.utc_now()
+    }
+
+    # Do not persist password messages to chat history
+    is_password_step =
+      new_skill_state != nil and
+        Map.get(new_skill_state, :step) in [:await_password]
+
+    # Persist assistant message for authenticated users (skip password prompts)
+    if socket.assigns.current_user && socket.assigns.chat_session_id && !is_password_step do
+      ChatBot.create_message(%{
+        session_id: socket.assigns.chat_session_id,
+        role: "assistant",
+        content: message
+      })
+    end
+
+    socket
+    |> update(:chat_messages, &(&1 ++ [assistant_msg]))
+    |> assign(:skill_state, new_skill_state)
+    |> assign(:chat_input, "")
+    |> push_event("scroll_to_bottom", %{})
+  end
+
+  defp append_user_msg(socket, text) do
+    # Do not persist password inputs
+    is_password_input =
+      socket.assigns.skill_state != nil and
+        Map.get(socket.assigns.skill_state, :step) == :await_password
+
+    user_msg = %{
+      id: Ecto.UUID.generate(),
+      role: "user",
+      content: if(is_password_input, do: "********", else: text),
+      inserted_at: DateTime.utc_now()
+    }
+
+    # Persist non-password user messages
+    if socket.assigns.current_user && socket.assigns.chat_session_id && !is_password_input do
+      ChatBot.create_message(%{
+        session_id: socket.assigns.chat_session_id,
+        role: "user",
+        content: text
+      })
+    end
+
+    update(socket, :chat_messages, &(&1 ++ [user_msg]))
+  end
+
+  defp reload_user_feeds(socket) do
+    if socket.assigns.current_user do
+      user_feeds = Feeds.list_feeds(socket.assigns.current_user.id)
+      active_feed = Feeds.get_active_feed(socket.assigns.current_user.id)
+      {feed_articles, _rest} = Feeds.partition_articles_by_feed(active_feed, socket.assigns.feed)
+
+      socket
+      |> assign(:user_feeds, user_feeds)
+      |> assign(:active_feed, active_feed)
+      |> assign(:feed_articles, feed_articles)
+    else
+      socket
+    end
+  end
+
+  defp do_agent_submit(text, socket) do
     # Use user_id if logged in, otherwise generate an anonymous session key
     user_id =
       if socket.assigns.current_user,
@@ -538,8 +790,13 @@ defmodule SportsFanaticWeb.NewsLive do
     else
       Enum.filter(feed, fn item ->
         # Build separate search contexts for precise matching
-        leagues = item["teams"] |> List.wrap() |> Enum.map(fn t -> String.downcase(t["league"] || "") end)
-        abbreviations = item["teams"] |> List.wrap() |> Enum.map(fn t -> String.downcase(t["abbreviation"] || "") end)
+        leagues =
+          item["teams"] |> List.wrap() |> Enum.map(fn t -> String.downcase(t["league"] || "") end)
+
+        abbreviations =
+          item["teams"]
+          |> List.wrap()
+          |> Enum.map(fn t -> String.downcase(t["abbreviation"] || "") end)
 
         text_parts =
           [
@@ -811,4 +1068,28 @@ defmodule SportsFanaticWeb.NewsLive do
   end
 
   def sanitize_chat(_), do: ""
+
+  # Template helpers for skills and uploads
+  def skill_placeholder(%{skill: :register, step: :await_email}),
+    do: "Enter your email address..."
+
+  def skill_placeholder(%{skill: :register, step: :await_password}), do: "Enter a password..."
+  def skill_placeholder(%{skill: :login, step: :await_email}), do: "Enter your email address..."
+  def skill_placeholder(%{skill: :login, step: :await_password}), do: "Enter your password..."
+  def skill_placeholder(%{skill: :add_feed, step: :await_name}), do: "Enter a feed name..."
+
+  def skill_placeholder(%{skill: :add_feed, step: :await_players}),
+    do: "Enter player names separated by commas..."
+
+  def skill_placeholder(%{skill: :upload, step: :await_file}), do: "Select a CSV file above..."
+  def skill_placeholder(%{skill: :upload, step: :await_name}), do: "Enter a feed name..."
+  def skill_placeholder(%{skill: :manage_feeds, step: :await_selection}), do: "Enter a number..."
+  def skill_placeholder(%{skill: :manage_feeds, step: :await_action}), do: "Enter 1, 2, or 3..."
+  def skill_placeholder(%{skill: :manage_feeds, step: :await_rename}), do: "Enter a new name..."
+  def skill_placeholder(_), do: "Type a message..."
+
+  def upload_error_message(:too_large), do: "File is too large (max 1 MB)"
+  def upload_error_message(:not_accepted), do: "Only .csv files are accepted"
+  def upload_error_message(:too_many_files), do: "Only one file at a time"
+  def upload_error_message(_), do: "Upload error"
 end

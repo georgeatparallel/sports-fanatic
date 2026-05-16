@@ -95,6 +95,7 @@ defmodule SportsFanaticWeb.Router do
     get "/login", AuthController, :login_form
     post "/login", AuthController, :login
     delete "/logout", AuthController, :logout
+    get "/auth/session/:token", AuthController, :set_session_from_token
   end
 
   # --- Subscription Routes ---

@@ -67,12 +67,20 @@ defmodule SportsFanatic.Agents.NewsAgent do
               true -> "from #{age_days} days ago"
             end
 
-          broadcast_progress(user_id, "Found #{count} article#{pl(count)} in our database (most recent #{age_text}).")
+          broadcast_progress(
+            user_id,
+            "Found #{count} article#{pl(count)} in our database (most recent #{age_text})."
+          )
+
           ids = Enum.map(articles, & &1.id)
           {articles, ids}
 
         _ ->
-          broadcast_progress(user_id, "Nothing in our database yet — researching external sources...")
+          broadcast_progress(
+            user_id,
+            "Nothing in our database yet — researching external sources..."
+          )
+
           {[], []}
       end
 
@@ -100,7 +108,10 @@ defmodule SportsFanatic.Agents.NewsAgent do
     {:ok, %{summary: summary, news_item_ids: all_ids}}
   rescue
     e ->
-      Logger.error("NewsAgent error: #{Exception.message(e)}\n#{Exception.format_stacktrace(__STACKTRACE__)}")
+      Logger.error(
+        "NewsAgent error: #{Exception.message(e)}\n#{Exception.format_stacktrace(__STACKTRACE__)}"
+      )
+
       {:error, {:agent_error, Exception.message(e)}}
   end
 
@@ -152,13 +163,23 @@ defmodule SportsFanatic.Agents.NewsAgent do
             # Collect raw sources for synthesis (both known and new)
             raw_sources =
               Enum.map(new, fn a ->
-                %{title: a.title, text: a.text, url: a.url, author: a.author, published_date: a.published_date}
+                %{
+                  title: a.title,
+                  text: a.text,
+                  url: a.url,
+                  author: a.author,
+                  published_date: a.published_date
+                }
               end)
 
             # Classify and store new articles
             new_ids =
               if new_count > 0 do
-                broadcast_progress(user_id, "Processing #{new_count} new article#{pl(new_count)}...")
+                broadcast_progress(
+                  user_id,
+                  "Processing #{new_count} new article#{pl(new_count)}..."
+                )
+
                 classify_new_articles(new, user_id)
               else
                 []
@@ -178,7 +199,10 @@ defmodule SportsFanatic.Agents.NewsAgent do
     unique_ids = Enum.uniq(all_new_ids)
 
     if all_sources != [] do
-      broadcast_progress(user_id, "Found #{length(all_sources)} sources across all searches. Analyzing...")
+      broadcast_progress(
+        user_id,
+        "Found #{length(all_sources)} sources across all searches. Analyzing..."
+      )
     end
 
     {all_sources, unique_ids}
@@ -245,6 +269,7 @@ defmodule SportsFanatic.Agents.NewsAgent do
         Logger.warning("Synthesis failed: #{inspect(reason)}")
         # Fallback: basic summary
         total = length(local_articles) + length(exa_sources)
+
         "I found #{total} source#{pl(total)} about \"#{query}\" but couldn't generate a detailed analysis right now. " <>
           "The articles are displayed below for you to browse."
 
