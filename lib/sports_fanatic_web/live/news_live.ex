@@ -478,34 +478,60 @@ defmodule SportsFanaticWeb.NewsLive do
     end
   end
 
+  @stop_words ~w(a an the is was are were be been being have has had do does did
+    will would shall should may might can could and but or nor for yet so at by
+    from in into of on to with about above after before between through during
+    only just very also more most other some such no not than too any each every
+    all both few many much own same so still when where how what which who whom
+    this that these those my our your its his her their me us you him them show
+    me tell give find get)
+
   defp filter_feed(feed, query) do
     terms =
       query
       |> String.downcase()
       |> String.split(~r/\s+/, trim: true)
+      |> Enum.reject(&(&1 in @stop_words))
       |> Enum.flat_map(&expand_term/1)
 
-    Enum.filter(feed, fn item ->
-      searchable =
-        [
-          item["title"] || "",
-          item["ai_summary"] || "",
-          item["body"] || "",
-          item["summary"] || "",
-          item["category"] || ""
-        ] ++
-          Enum.map(item["players"] || [], fn p -> p["full_name"] || "" end) ++
-          Enum.map(item["teams"] || [], fn t ->
-            "#{t["name"]} #{t["abbreviation"]} #{t["league"]}"
-          end) ++
-          (item["domain_tags"] || [])
+    # If all words were stop words, show everything
+    if terms == [] do
+      feed
+    else
+      Enum.filter(feed, fn item ->
+        # Build separate search contexts for precise matching
+        leagues = item["teams"] |> List.wrap() |> Enum.map(fn t -> String.downcase(t["league"] || "") end)
+        abbreviations = item["teams"] |> List.wrap() |> Enum.map(fn t -> String.downcase(t["abbreviation"] || "") end)
 
-      text = searchable |> Enum.join(" ") |> String.downcase()
+        text_parts =
+          [
+            item["title"] || "",
+            item["ai_summary"] || "",
+            item["body"] || "",
+            item["summary"] || "",
+            item["category"] || ""
+          ] ++
+            Enum.map(item["players"] || [], fn p -> p["full_name"] || "" end) ++
+            Enum.map(item["teams"] || [], fn t ->
+              "#{t["name"]} #{t["abbreviation"]} #{t["league"]}"
+            end) ++
+            (item["domain_tags"] || [])
 
-      Enum.all?(terms, fn term_group ->
-        Enum.any?(term_group, fn t -> String.contains?(text, t) end)
+        text = text_parts |> Enum.join(" ") |> String.downcase()
+
+        Enum.all?(terms, fn term_group ->
+          Enum.any?(term_group, fn t ->
+            cond do
+              # For league terms, match exactly against team leagues
+              t in ["al", "nl"] -> t in leagues
+              # For short abbreviations (2-3 chars), match against team abbreviations too
+              String.length(t) <= 3 -> t in abbreviations or String.contains?(text, t)
+              true -> String.contains?(text, t)
+            end
+          end)
+        end)
       end)
-    end)
+    end
   end
 
   defp expand_term("hr"), do: [["hr", "home-run", "homer", "home run"]]
