@@ -8,7 +8,7 @@
 <section class="max-w-4xl mx-auto px-4 py-8">
   <%!-- Chat Interface (feature-flagged) --%>
   <%= if @chat_enabled do %>
-    <div class="bg-white shadow-sm border border-gray-200 rounded-lg mb-4 -mx-4 px-4 pt-2 pb-2 flex flex-col" style="height: 420px;">
+    <div class="bg-white shadow-sm border border-gray-200 rounded-lg mb-8 -mx-4 px-4 pt-2 pb-2 flex flex-col" style="height: calc(100vh - 180px); min-height: 400px;">
       <%!-- Chat header --%>
       <div class="flex items-center justify-between mb-2 flex-shrink-0">
         <h3 class="text-sm font-semibold text-gray-700">News Research Agent</h3>
@@ -63,7 +63,13 @@
                   <span><%= sanitize_chat(msg.content) %></span>
                 </div>
               <% else %>
-                <%= sanitize_chat(msg.content) %>
+                <%= if msg.role == "assistant" do %>
+                  <div class="prose prose-sm max-w-none">
+                    <%= render_markdown(msg.content) %>
+                  </div>
+                <% else %>
+                  <%= sanitize_chat(msg.content) %>
+                <% end %>
               <% end %>
             </div>
           </div>
@@ -199,9 +205,35 @@
     link_type={:patch}
   />
 
-  <h1 class="text-3xl font-bold text-gray-900 mb-6">
+  <h1 class="text-3xl font-bold text-gray-900 mb-4">
     MLB News &mdash; <%= @formatted_date %>
   </h1>
+
+  <%!-- Feed search filter --%>
+  <form phx-submit="submit_command" class="mb-4">
+    <div class="relative">
+      <input
+        type="text"
+        name="input"
+        value={@command_input}
+        placeholder="Filter news feed..."
+        autocomplete="off"
+        phx-debounce="300"
+        class="w-full rounded-lg border border-gray-300 px-3 py-2 pr-8 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+      />
+      <%= if @search_query != "" or @command_input != "" do %>
+        <button
+          type="button"
+          phx-click="clear_search"
+          class="absolute top-2 right-2 text-gray-400 hover:text-gray-600"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+          </svg>
+        </button>
+      <% end %>
+    </div>
+  </form>
 
   <%!-- Search indicator --%>
   <%= if @search_query != "" do %>

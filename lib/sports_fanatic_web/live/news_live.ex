@@ -789,7 +789,22 @@ defmodule SportsFanaticWeb.NewsLive do
   def setting_status_class("expired"), do: "bg-gray-100 text-gray-800"
   def setting_status_class(_), do: "bg-gray-100 text-gray-800"
 
-  # Template helper: sanitize agent output for safe rendering
+  # Template helper: render markdown and sanitize for safe display
+  def render_markdown(content) when is_binary(content) do
+    case Earmark.as_html(content, compact_output: true) do
+      {:ok, html, _} ->
+        html
+        |> HtmlSanitizeEx.basic_html()
+        |> Phoenix.HTML.raw()
+
+      _ ->
+        content |> HtmlSanitizeEx.strip_tags()
+    end
+  end
+
+  def render_markdown(_), do: ""
+
+  # Plain text sanitize (for user messages and progress)
   def sanitize_chat(content) when is_binary(content) do
     HtmlSanitizeEx.strip_tags(content)
   end

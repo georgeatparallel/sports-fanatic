@@ -73,7 +73,8 @@ defmodule SportsFanatic.MixProject do
       {:ex_aws_s3, "~> 2.5"},
       {:sweet_xml, "~> 0.7"},
       # HTML sanitization for chat output
-      {:html_sanitize_ex, "~> 1.4"}
+      {:html_sanitize_ex, "~> 1.4"},
+      {:earmark, "~> 1.4"}
     ]
   end
 

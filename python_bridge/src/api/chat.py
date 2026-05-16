@@ -283,35 +283,26 @@ I found the following source material from web research:{local_context}
 External sources found:
 {source_text}
 
-Please provide a comprehensive, friendly research response covering all relevant angles. Also provide a short_summary (1 sentence for the news feed) and key_facts (3-5 bullet points of the most important takeaways).
-
-Respond in JSON format:
-{{"response": "your detailed response here", "short_summary": "one sentence summary", "key_facts": ["fact 1", "fact 2", ...]}}""",
+Write a comprehensive, friendly research response using markdown formatting.
+Use **bold** for headers and key terms, bullet points for lists, and organize
+into clear sections. Write prose — do NOT return JSON.""",
                 }
             ],
         )
 
-        # Parse the response
         text = response.content[0].text.strip()
 
-        # Try to extract JSON from the response
-        import json
+        # Extract first sentence as short summary
+        first_sentence = text.split(".")[0].strip() + "." if "." in text else text[:200]
+        # Clean any markdown from the short summary
+        import re
+        short = re.sub(r"[*#_`]", "", first_sentence)
 
-        try:
-            # Try direct JSON parse
-            data = json.loads(text)
-            return SynthesizeResponse(
-                response=data.get("response", text),
-                short_summary=data.get("short_summary", ""),
-                key_facts=data.get("key_facts", []),
-            )
-        except json.JSONDecodeError:
-            # If not valid JSON, use the raw text
-            return SynthesizeResponse(
-                response=text,
-                short_summary=text[:200],
-                key_facts=[],
-            )
+        return SynthesizeResponse(
+            response=text,
+            short_summary=short,
+            key_facts=[],
+        )
 
     except Exception as e:
         logger.error(f"Research synthesis failed: {e}")
