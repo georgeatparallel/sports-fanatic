@@ -84,10 +84,9 @@ defmodule SportsFanatic.Agents.NewsAgent do
           {[], []}
       end
 
-    # Step 2: Always do Exa research for comprehensive coverage
-    # (even with some local results, unless we have 10+)
+    # Step 2: Only do Exa research if local results are insufficient
     {exa_sources, exa_ids} =
-      if length(local_articles) < 10 do
+      if length(local_articles) < 5 do
         deep_research(resolved_query, user_id, pregenerated_prompts)
       else
         broadcast_progress(user_id, "We have extensive coverage already.")
@@ -148,57 +147,67 @@ defmodule SportsFanatic.Agents.NewsAgent do
         generate_multi_angle_prompts(query)
       end
 
-    broadcast_progress(user_id, "Researching #{length(search_queries)} angles...")
+    broadcast_progress(user_id, "Searching #{length(search_queries)} angles in parallel...")
 
-    # Execute all searches and collect raw sources
-    {all_sources, all_new_ids} =
+    # Run all Exa searches IN PARALLEL
+    exa_results =
       search_queries
-      |> Enum.with_index(1)
-      |> Enum.reduce({[], []}, fn {search_query, idx}, {sources_acc, ids_acc} ->
-        short_query = String.slice(search_query, 0, 55)
-        broadcast_progress(user_id, "(#{idx}/#{length(search_queries)}) #{short_query}...")
-
-        case SearchExa.run(%{query: search_query, num_results: 10, days_back: 30}, %{}) do
-          {:ok, %{new_articles: new, known_articles: known, new_count: new_count}} ->
-            # Collect raw sources for synthesis (both known and new)
-            raw_sources =
-              Enum.map(new, fn a ->
-                %{
-                  title: a.title,
-                  text: a.text,
-                  url: a.url,
-                  author: a.author,
-                  published_date: a.published_date
-                }
-              end)
-
-            # Classify top 5 new articles inline, rest will be in sources for synthesis
-            new_ids =
-              if new_count > 0 do
-                classify_count = min(new_count, 5)
-
-                broadcast_progress(
-                  user_id,
-                  "Saving #{classify_count} of #{new_count} new article#{pl(new_count)}..."
-                )
-
-                classify_new_articles(Enum.take(new, 5), user_id)
-              else
-                []
-              end
-
-            # Also include known article IDs
-            known_ids = Enum.map(known, & &1.id)
-
-            {sources_acc ++ raw_sources, ids_acc ++ new_ids ++ known_ids}
-
-          {:error, reason} ->
-            Logger.warning("Exa search failed for '#{search_query}': #{inspect(reason)}")
-            {sources_acc, ids_acc}
-        end
+      |> Task.async_stream(
+        fn search_query ->
+          SearchExa.run(%{query: search_query, num_results: 10, days_back: 30}, %{})
+        end,
+        max_concurrency: 3,
+        timeout: 20_000,
+        on_timeout: :kill_task
+      )
+      |> Enum.map(fn
+        {:ok, result} -> result
+        _ -> {:error, :timeout}
       end)
 
-    unique_ids = Enum.uniq(all_new_ids)
+    # Collect sources and known IDs from all searches
+    {all_sources, all_new_articles, known_ids} =
+      Enum.reduce(exa_results, {[], [], []}, fn
+        {:ok, %{new_articles: new, known_articles: known}}, {src, new_acc, kid} ->
+          raw = Enum.map(new, fn a ->
+            %{title: a.title, text: a.text, url: a.url, author: a.author, published_date: a.published_date}
+          end)
+          {src ++ raw, new_acc ++ new, kid ++ Enum.map(known, & &1.id)}
+
+        _, acc -> acc
+      end)
+
+    # Classify top 3 new articles IN PARALLEL (not 5 sequentially)
+    new_ids =
+      if all_new_articles != [] do
+        to_classify = Enum.take(all_new_articles, 3)
+        broadcast_progress(user_id, "Saving #{length(to_classify)} new article#{pl(length(to_classify))} in parallel...")
+
+        to_classify
+        |> Task.async_stream(
+          fn article ->
+            case ClassifyArticle.run(
+              %{title: article.title, body: article.text, source_url: article.url, author: article.author},
+              %{}
+            ) do
+              {:ok, %{status: :created, news_item_id: id}} when not is_nil(id) -> id
+              _ -> nil
+            end
+          end,
+          max_concurrency: 3,
+          timeout: 15_000,
+          on_timeout: :kill_task
+        )
+        |> Enum.map(fn
+          {:ok, id} -> id
+          _ -> nil
+        end)
+        |> Enum.reject(&is_nil/1)
+      else
+        []
+      end
+
+    unique_ids = Enum.uniq(new_ids ++ known_ids)
 
     if all_sources != [] do
       broadcast_progress(
@@ -265,34 +274,6 @@ defmodule SportsFanatic.Agents.NewsAgent do
       _ ->
         "Research complete. Check the articles below for details."
     end
-  end
-
-  # ── Article Classification ──────────────────────────────────
-
-  defp classify_new_articles(articles, user_id) do
-    articles
-    |> Enum.take(25)
-    |> Enum.with_index(1)
-    |> Enum.map(fn {article, idx} ->
-      if rem(idx, 10) == 0 do
-        broadcast_progress(user_id, "Classifying article #{idx}/#{min(length(articles), 25)}...")
-      end
-
-      case ClassifyArticle.run(
-             %{
-               title: article.title,
-               body: article.text,
-               source_url: article.url,
-               author: article.author
-             },
-             %{}
-           ) do
-        {:ok, %{status: :created, news_item_id: id}} when not is_nil(id) -> id
-        {:ok, %{status: :already_exists}} -> nil
-        {:error, _} -> nil
-      end
-    end)
-    |> Enum.reject(&is_nil/1)
   end
 
   # ── Helpers ─────────────────────────────────────────────────
