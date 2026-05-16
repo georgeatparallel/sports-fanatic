@@ -64,7 +64,7 @@
                 </div>
               <% else %>
                 <%= if msg.role == "assistant" do %>
-                  <div class="prose prose-sm max-w-none">
+                  <div class="chat-markdown">
                     <%= render_markdown(msg.content) %>
                   </div>
                 <% else %>
