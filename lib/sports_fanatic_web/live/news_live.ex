@@ -63,12 +63,7 @@ defmodule SportsFanaticWeb.NewsLive do
         %{
           id: "welcome",
           role: "assistant",
-          content: "How can I help you today? Try one of these:\n\n" <>
-            "- **How is Hunter Brown doing?**\n" <>
-            "- **What's the Mets injury report?**\n" <>
-            "- **Current HR streaks**\n" <>
-            "- **Upload a roster** — drag and drop your fantasy CSV to create a player feed\n\n" <>
-            "Type **/help** for all commands.",
+          content: welcome_content(),
           inserted_at: DateTime.utc_now()
         }
       ])
@@ -109,18 +104,7 @@ defmodule SportsFanaticWeb.NewsLive do
               formatted = format_messages(db_messages)
 
               # Always include welcome message at the start
-              welcome = %{
-                id: "welcome",
-                role: "assistant",
-                content: "How can I help you today? Try one of these:\n\n" <>
-                  "- **How is Hunter Brown doing?**\n" <>
-                  "- **What's the Mets injury report?**\n" <>
-                  "- **Current HR streaks**\n" <>
-                  "- **Upload a roster** — drag and drop your fantasy CSV to create a player feed\n\n" <>
-                  "Type **/help** for all commands.",
-                inserted_at: DateTime.utc_now()
-              }
-
+              welcome = welcome_message()
               all_messages = if formatted == [], do: [welcome], else: [welcome | formatted]
 
               socket
@@ -285,7 +269,7 @@ defmodule SportsFanaticWeb.NewsLive do
 
     {:noreply,
      socket
-     |> assign(:chat_messages, [])
+     |> assign(:chat_messages, [welcome_message()])
      |> assign(:chat_session_id, new_session_id)
      |> assign(:agent_running, false)
      |> assign(:chat_articles, [])
@@ -1079,6 +1063,24 @@ defmodule SportsFanaticWeb.NewsLive do
   end
 
   def sanitize_chat(_), do: ""
+
+  defp welcome_content do
+    "How can I help you today? Try one of these:\n\n" <>
+      "- **How is Hunter Brown doing?**\n" <>
+      "- **What's the Mets injury report?**\n" <>
+      "- **Current HR streaks**\n" <>
+      "- **Upload a roster** — drag and drop your fantasy CSV to create a player feed\n\n" <>
+      "Type **/help** for all commands."
+  end
+
+  defp welcome_message do
+    %{
+      id: "welcome",
+      role: "assistant",
+      content: welcome_content(),
+      inserted_at: DateTime.utc_now()
+    }
+  end
 
   # Template helpers for skills and uploads
   def skill_placeholder(%{skill: :register, step: :await_email}),
