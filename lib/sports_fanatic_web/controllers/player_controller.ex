@@ -68,7 +68,7 @@ defmodule SportsFanaticWeb.PlayerController do
 
     player =
       Player
-      |> where([p], p.team_id == ^team.id and p.slug == ^player_slug and p.status == "active")
+      |> where([p], p.team_id == ^team.id and p.slug == ^player_slug)
       |> Repo.one!()
 
     today = SportsFanatic.DateHelper.today()
@@ -166,7 +166,7 @@ defmodule SportsFanaticWeb.PlayerController do
 
     player =
       Player
-      |> where([p], p.team_id == ^team.id and p.slug == ^player_slug and p.status == "active")
+      |> where([p], p.team_id == ^team.id and p.slug == ^player_slug)
       |> Repo.one!()
 
     sources = Scouting.sources_for_player_by_category(player.id, category)

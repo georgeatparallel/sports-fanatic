@@ -10,9 +10,13 @@ defmodule SportsFanatic.Workers.FeedResearchWorker do
   use Oban.Worker, queue: :default, max_attempts: 2
 
   alias SportsFanatic.Agents.Actions.{SearchExa, SearchLocalNews}
+  alias SportsFanatic.Content.ScoutingReport
   alias SportsFanatic.Feeds
   alias SportsFanatic.Mlb.Player
+  alias SportsFanatic.PythonBridge
   alias SportsFanatic.Repo
+
+  import Ecto.Query
 
   require Logger
 
@@ -68,10 +72,56 @@ defmodule SportsFanatic.Workers.FeedResearchWorker do
       %{query: "#{player.full_name} MLB 2026", num_results: 10, days_back: 7},
       %{}
     )
+
+    # Generate scouting report if we don't have one today
+    maybe_generate_scouting(player)
   rescue
     e ->
       Logger.error(
         "FeedResearchWorker: error researching player #{player.full_name}: #{Exception.message(e)}"
       )
+  end
+
+  defp maybe_generate_scouting(player) do
+    today = SportsFanatic.DateHelper.today()
+
+    has_report_today =
+      from(sr in ScoutingReport,
+        where: sr.player_id == ^player.id and sr.report_date == ^today
+      )
+      |> Repo.exists?()
+
+    unless has_report_today do
+      Logger.info("FeedResearchWorker: generating scouting report for #{player.full_name}")
+
+      # Search for source material via Exa
+      case PythonBridge.search_player(player.full_name) do
+        {:ok, %{"sources" => sources}} when is_list(sources) and sources != [] ->
+          sources_text = Enum.map_join(sources, "\n\n", fn s ->
+            "#{s["title"] || ""}\n#{s["text"] || ""}"
+          end)
+
+          case PythonBridge.generate_scouting(player.full_name, player.id, sources_text) do
+            {:ok, %{"report" => report}} when is_binary(report) ->
+              %ScoutingReport{}
+              |> ScoutingReport.changeset(%{
+                player_id: player.id,
+                report_date: today,
+                content: report,
+                sources: sources
+              })
+              |> Repo.insert(on_conflict: :nothing)
+
+            _ ->
+              Logger.warning("FeedResearchWorker: scouting generation failed for #{player.full_name}")
+          end
+
+        _ ->
+          Logger.info("FeedResearchWorker: no sources found for scouting report on #{player.full_name}")
+      end
+    end
+  rescue
+    e ->
+      Logger.warning("FeedResearchWorker: scouting error for #{player.full_name}: #{Exception.message(e)}")
   end
 end
