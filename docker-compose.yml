@@ -17,6 +17,8 @@ services:
       - STRIPE_PRICE_YEARLY=${STRIPE_PRICE_YEARLY}
       - JOSHUA_USERNAME=${JOSHUA_USERNAME}
       - JOSHUA_PASSWORD=${JOSHUA_PASSWORD}
+      - EXA_API_KEY=${EXA_API_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
     depends_on:
       db:
         condition: service_healthy

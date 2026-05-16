@@ -322,36 +322,29 @@ defmodule SportsFanaticWeb.NewsLive do
   end
 
   def handle_event("upload_csv", _params, socket) do
-    if socket.assigns.skill_state && socket.assigns.skill_state.skill == :upload &&
-         socket.assigns.skill_state.step == :await_file do
-      context = %{current_user: socket.assigns.current_user}
+    context = %{current_user: socket.assigns.current_user}
 
-      result =
-        consume_uploaded_entries(socket, :roster_csv, fn %{path: path}, _entry ->
-          csv_binary = File.read!(path)
-          {:ok, csv_binary}
-        end)
+    result =
+      consume_uploaded_entries(socket, :roster_csv, fn %{path: path}, _entry ->
+        csv_binary = File.read!(path)
+        {:ok, csv_binary}
+      end)
 
-      case result do
-        [csv_binary | _] ->
-          case UploadSkill.process_csv(csv_binary, context) do
-            {:reply, message, new_skill_state} ->
-              {:noreply, apply_skill_reply(socket, message, new_skill_state)}
+    case result do
+      [csv_binary | _] ->
+        case UploadSkill.process_csv(csv_binary, context) do
+          {:reply, message, new_skill_state} ->
+            {:noreply, apply_skill_reply(socket, message, new_skill_state)}
 
-            {:reply, message, new_skill_state, :feeds_changed} ->
-              socket =
-                socket
-                |> apply_skill_reply(message, new_skill_state)
-                |> reload_user_feeds()
+          {:reply, message, new_skill_state, :feeds_changed} ->
+            {:noreply,
+             socket
+             |> apply_skill_reply(message, new_skill_state)
+             |> reload_user_feeds()}
+        end
 
-              {:noreply, socket}
-          end
-
-        [] ->
-          {:noreply, socket}
-      end
-    else
-      {:noreply, socket}
+      [] ->
+        {:noreply, socket}
     end
   end
 
