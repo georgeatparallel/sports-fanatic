@@ -74,7 +74,9 @@ defmodule SportsFanatic.MixProject do
       {:sweet_xml, "~> 0.7"},
       # HTML sanitization for chat output
       {:html_sanitize_ex, "~> 1.4"},
-      {:earmark, "~> 1.4"}
+      {:earmark, "~> 1.4"},
+      # Pin decimal to 2.x — 3.x has module compilation issue in Docker
+      {:decimal, "~> 2.0"}
     ]
   end
 

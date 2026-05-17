@@ -22,8 +22,7 @@ COPY lib lib
 COPY priv priv
 COPY assets assets
 
-RUN mix deps.compile && \
-    mix assets.deploy && \
+RUN mix assets.deploy && \
     mix compile && \
     mix phx.gen.release && \
     mix release
