@@ -208,8 +208,8 @@ defmodule SportsFanaticWeb.FeedsLive do
     end
   end
 
-  # Player search
-  def handle_event("search_players", %{"query" => query}, socket) do
+  # Player search (phx-keyup sends value)
+  def handle_event("search_players", %{"value" => query}, socket) do
     query = String.trim(query)
 
     results =
@@ -262,7 +262,7 @@ defmodule SportsFanaticWeb.FeedsLive do
   end
 
   # Team search
-  def handle_event("search_teams", %{"query" => query}, socket) do
+  def handle_event("search_teams", %{"value" => query}, socket) do
     query = String.trim(query)
 
     results =

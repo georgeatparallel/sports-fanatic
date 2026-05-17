@@ -157,6 +157,14 @@
   <% end %>
 
   <%= if @view in [:edit, :create] do %>
+    <%!-- Save reminder banner --%>
+    <div class="bg-amber-50 border border-amber-200 rounded-lg px-4 py-2 mb-4 flex items-center gap-2">
+      <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-amber-500 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
+        <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
+      </svg>
+      <span class="text-sm font-medium text-amber-800">Don't forget to save changes</span>
+    </div>
+
     <%!-- Feed Edit/Create View --%>
     <div class="mb-4">
       <button
@@ -241,17 +249,17 @@
         <%!-- Add Player search --%>
         <div class="relative">
           <label class="block text-sm text-gray-600 mb-1">Add Player</label>
-          <form phx-change="search_players" phx-submit="search_players">
-            <input
-              type="text"
-              name="query"
-              value={@player_search}
-              placeholder="Search players by name..."
-              autocomplete="off"
-              phx-debounce="300"
-              class="w-full max-w-md rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            />
-          </form>
+          <input
+            type="text"
+            name="query"
+            value={@player_search}
+            placeholder="Search players by name..."
+            autocomplete="off"
+            phx-keyup="search_players"
+            phx-value-query={@player_search}
+            phx-debounce="300"
+            class="w-full max-w-md rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          />
           <%= if @player_results != [] do %>
             <div class="absolute z-10 mt-1 w-full max-w-md bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
               <%= for player <- @player_results do %>
@@ -324,17 +332,16 @@
         <%!-- Add Team search --%>
         <div class="relative">
           <label class="block text-sm text-gray-600 mb-1">Add Team</label>
-          <form phx-change="search_teams" phx-submit="search_teams">
-            <input
-              type="text"
-              name="query"
-              value={@team_search}
-              placeholder="Search teams by name or abbreviation..."
-              autocomplete="off"
-              phx-debounce="300"
-              class="w-full max-w-md rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            />
-          </form>
+          <input
+            type="text"
+            name="query"
+            value={@team_search}
+            placeholder="Search teams by name or abbreviation..."
+            autocomplete="off"
+            phx-keyup="search_teams"
+            phx-debounce="300"
+            class="w-full max-w-md rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          />
           <%= if @team_results != [] do %>
             <div class="absolute z-10 mt-1 w-full max-w-md bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
               <%= for team <- @team_results do %>
