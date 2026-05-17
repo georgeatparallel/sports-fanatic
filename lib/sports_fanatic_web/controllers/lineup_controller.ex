@@ -62,7 +62,9 @@ defmodule SportsFanaticWeb.LineupController do
         %{}
       end
 
-    canonical = "https://sportsfanatic.com/mlb/lineups/#{date_str}"
+    canonical = SportsFanaticWeb.SEO.absolute_url("/mlb/lineups/#{date_str}")
+    site_url = SportsFanaticWeb.SEO.site_url()
+    today_iso = SportsFanatic.DateHelper.today() |> Date.to_iso8601()
 
     # Build breadcrumb JSON-LD
     json_ld =
@@ -74,20 +76,19 @@ defmodule SportsFanaticWeb.LineupController do
             "@type" => "ListItem",
             "position" => 1,
             "name" => "Home",
-            "item" => "https://sportsfanatic.com/"
+            "item" => site_url <> "/"
           },
           %{
             "@type" => "ListItem",
             "position" => 2,
             "name" => "Baseball",
-            "item" => "https://sportsfanatic.com/mlb/teams"
+            "item" => site_url <> "/mlb/teams"
           },
           %{
             "@type" => "ListItem",
             "position" => 3,
             "name" => "Lineups",
-            "item" =>
-              "https://sportsfanatic.com/mlb/lineups/#{SportsFanatic.DateHelper.today() |> Date.to_iso8601()}"
+            "item" => site_url <> "/mlb/lineups/#{today_iso}"
           },
           %{
             "@type" => "ListItem",

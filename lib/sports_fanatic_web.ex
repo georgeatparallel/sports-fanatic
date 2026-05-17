@@ -85,6 +85,8 @@ defmodule SportsFanaticWeb do
       import Phoenix.HTML
       # Core UI components and translation
       import SportsFanaticWeb.CoreComponents
+      # SEO components (<.seo_meta>, <.json_ld>, <.breadcrumbs>, <.date_nav>, <.subscribe_cta>)
+      import SportsFanaticWeb.SEOComponents
       use Gettext, backend: SportsFanaticWeb.Gettext
 
       # Shortcut for generating JS commands

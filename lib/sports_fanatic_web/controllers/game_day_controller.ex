@@ -14,7 +14,7 @@ defmodule SportsFanaticWeb.GameDayController do
       |> preload([:away_team, :home_team])
       |> Repo.one!()
 
-    canonical = "https://sportsfanatic.com/mlb/game-day/#{date_str}/#{slug}"
+    canonical = SportsFanaticWeb.SEO.absolute_url("/mlb/game-day/#{date_str}/#{slug}")
 
     json_ld = %{
       "@context" => "https://schema.org",
@@ -36,7 +36,8 @@ defmodule SportsFanaticWeb.GameDayController do
         160
       )
     )
-    |> assign(:canonical, canonical)
+    |> assign(:canonical_url, canonical)
+    |> assign(:og_type, "article")
     |> assign(:json_ld, json_ld)
     |> render(:show,
       magazine: magazine,

@@ -34,21 +34,35 @@ defmodule SportsFanaticWeb.PageController do
       |> order_by([t], [t.league, t.division, t.name])
       |> Repo.all()
 
+    site_url = SportsFanaticWeb.SEO.site_url()
+
+    # JSON-LD: identify the publishing Organization and the WebSite. We do NOT
+    # emit a SearchAction (potentialAction) because /mlb/players does not yet
+    # accept a `q=` search parameter — claiming sitelinks search support that
+    # doesn't work would mislead Google.
     json_ld =
-      Jason.encode!(%{
-        "@context" => "https://schema.org",
-        "@type" => "WebSite",
-        "name" => "Sports Fan Agent",
-        "url" => "https://sportsfanatic.com/"
-      })
+      Jason.encode!([
+        %{
+          "@context" => "https://schema.org",
+          "@type" => "Organization",
+          "name" => "Sports Fan Agent",
+          "url" => site_url <> "/",
+          "logo" => SportsFanaticWeb.SEO.absolute_image_url("/images/og-default.png"),
+          "description" => SportsFanaticWeb.SEO.default_description()
+        },
+        %{
+          "@context" => "https://schema.org",
+          "@type" => "WebSite",
+          "name" => "Sports Fan Agent",
+          "url" => site_url <> "/"
+        }
+      ])
 
     conn
-    |> assign(:page_title, "Sports Fan Agent - AI-Powered MLB Intelligence")
-    |> assign(
-      :meta_description,
-      "AI-powered MLB scouting reports, Game Day Magazines, and predictions for every player and matchup."
-    )
-    |> assign(:canonical_url, "https://sportsfanatic.com/")
+    |> assign(:page_title, SportsFanaticWeb.SEO.default_title())
+    |> assign(:meta_description, SportsFanaticWeb.SEO.default_description())
+    |> assign(:canonical_url, site_url <> "/")
+    |> assign(:og_type, "website")
     |> assign(:json_ld, json_ld)
     |> render(:home, today: today, games: games, recent_news: recent_news, teams: teams)
   end

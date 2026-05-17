@@ -13,7 +13,11 @@ defmodule SportsFanatic.Workers.GenerateSitemapWorker do
 
   require Logger
 
-  @base_url "https://sportsfanatic.com"
+  # Site URL is resolved at runtime via the Phoenix Endpoint so it honors
+  # `PHX_HOST` in prod (`https://www.sports-fan-agent.com`) and falls back
+  # to `http://localhost:4000` in dev. Module attributes are evaluated at
+  # compile time, so a function is required here.
+  defp base_url, do: SportsFanaticWeb.Endpoint.url()
 
   @impl Oban.Worker
   def perform(%Oban.Job{}) do
@@ -49,7 +53,7 @@ defmodule SportsFanatic.Workers.GenerateSitemapWorker do
     xml = """
     <?xml version="1.0" encoding="UTF-8"?>
     <sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-    #{Enum.map_join(types, "\n", fn type -> "  <sitemap><loc>#{@base_url}/sitemap-#{type}.xml</loc><lastmod>#{Date.utc_today()}</lastmod></sitemap>" end)}
+    #{Enum.map_join(types, "\n", fn type -> "  <sitemap><loc>#{base_url()}/sitemap-#{type}.xml</loc><lastmod>#{Date.utc_today()}</lastmod></sitemap>" end)}
     </sitemapindex>
     """
 
@@ -71,7 +75,7 @@ defmodule SportsFanatic.Workers.GenerateSitemapWorker do
     |> Repo.all()
     |> Enum.map(fn {team_slug, player_slug, updated} ->
       %{
-        loc: "#{@base_url}/mlb/players/#{team_slug}/#{player_slug}",
+        loc: "#{base_url()}/mlb/players/#{team_slug}/#{player_slug}",
         lastmod: updated,
         changefreq: "daily"
       }
@@ -84,7 +88,7 @@ defmodule SportsFanatic.Workers.GenerateSitemapWorker do
     |> select([t], {t.slug, t.updated_at})
     |> Repo.all()
     |> Enum.map(fn {slug, updated} ->
-      %{loc: "#{@base_url}/mlb/teams/#{slug}", lastmod: updated, changefreq: "daily"}
+      %{loc: "#{base_url()}/mlb/teams/#{slug}", lastmod: updated, changefreq: "daily"}
     end)
   end
 
@@ -95,7 +99,7 @@ defmodule SportsFanatic.Workers.GenerateSitemapWorker do
 
     Enum.map(date_range, fn date ->
       %{
-        loc: "#{@base_url}/mlb/lineups/#{date}",
+        loc: "#{base_url()}/mlb/lineups/#{date}",
         lastmod: date,
         changefreq: if(date == today, do: "daily", else: "weekly")
       }
@@ -111,7 +115,7 @@ defmodule SportsFanatic.Workers.GenerateSitemapWorker do
     |> order_by([n], desc: n.published_date)
     |> Repo.all()
     |> Enum.map(fn {date, slug} ->
-      %{loc: "#{@base_url}/mlb/news/#{date}/#{slug}", lastmod: date, changefreq: "daily"}
+      %{loc: "#{base_url()}/mlb/news/#{date}/#{slug}", lastmod: date, changefreq: "daily"}
     end)
   end
 
@@ -125,7 +129,7 @@ defmodule SportsFanatic.Workers.GenerateSitemapWorker do
     |> Repo.all()
     |> Enum.map(fn {team_slug, player_slug, updated} ->
       %{
-        loc: "#{@base_url}/mlb/scouting/#{team_slug}/#{player_slug}",
+        loc: "#{base_url()}/mlb/scouting/#{team_slug}/#{player_slug}",
         lastmod: updated,
         changefreq: "weekly"
       }
@@ -141,7 +145,7 @@ defmodule SportsFanatic.Workers.GenerateSitemapWorker do
     |> order_by([m], desc: m.game_date)
     |> Repo.all()
     |> Enum.map(fn {date, slug} ->
-      %{loc: "#{@base_url}/mlb/game-day/#{date}/#{slug}", lastmod: date, changefreq: "daily"}
+      %{loc: "#{base_url()}/mlb/game-day/#{date}/#{slug}", lastmod: date, changefreq: "daily"}
     end)
   end
 

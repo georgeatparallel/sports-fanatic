@@ -200,6 +200,9 @@ Browser → Phoenix Router
            ├── /mlb/news/today → NewsController :redirect_today → 302 /mlb/news/<current ET date>
            ├── /mlb/* → SEO Controllers → (Valkey cache hit) → HTML response
            │                            → (cache miss) → PostgreSQL → render → cache → HTML
+           │     Every public page produces complete Open Graph + Twitter Card + canonical tags
+           │     via root.html.heex defaults (SportsFanaticWeb.SEO); no per-page wiring required
+           │     for branded link previews.
            ├── /premium/* → LiveView (subscription-gated, WebSocket)
            └── /webhooks/stripe → StripeWebhookController
 
@@ -288,7 +291,13 @@ lib/sports_fanatic/
                        consolidate_queries, scheduled_exa_search)
 
 lib/sports_fanatic_web/
-  components/         seo_components.ex — json_ld/2, breadcrumbs/1, subscribe_cta/1, date_nav/1
+  seo.ex              SportsFanaticWeb.SEO — site-wide defaults and URL helpers: site_url/0,
+                       absolute_url/1, absolute_image_url/1, canonical_or_request_url/1,
+                       default_title/0, default_description/0, default_og_image_path/0,
+                       default_og_image_alt/0, twitter_handle/0, title_suffix/0
+  components/         seo_components.ex — seo_meta/1 (og:*, twitter:*, article:* tags; og_image_width/
+                       height/alt, og_image, twitter_site, article fields, iso8601 helper),
+                       json_ld/2, breadcrumbs/1, subscribe_cta/1, date_nav/1
   controllers/        Page, Player, Team, Lineup, News, Scouting, GameDay, Sitemap,
                        Auth, Subscription, StripeWebhook controllers + HTML modules
   live/               NewsLive — chat mode (news_chatbot_enabled) OR legacy command mode;
@@ -633,18 +642,69 @@ To manually enqueue a worker in IEx:
 
 ## SEO Template Requirements
 
-Every public controller action must set these assigns on `conn`:
+`SportsFanaticWeb.SEO` is the single source of truth for site-wide defaults and URL construction. See `lib/sports_fanatic_web/seo.ex`.
+
+Every public controller action should set these assigns on `conn`. All are optional — a page that sets none still renders complete OG + Twitter + canonical tags from `SportsFanaticWeb.SEO` defaults.
 
 ```elixir
 conn
-|> assign(:page_title, "...")            # used in <title> tag
-|> assign(:meta_description, "...")      # max 160 chars
-|> assign(:canonical_url, "...")         # self-referencing
-|> assign(:og_image, "...")              # Open Graph image URL
-|> assign(:json_ld, Jason.encode!(...))  # ALWAYS use Jason.encode!/1, never raw strings
+|> assign(:page_title, "...")            # used in <title> tag; defaults to SEO.default_title()
+|> assign(:meta_description, "...")      # max 160 chars; defaults to SEO.default_description()
+|> assign(:canonical_url, "...")         # self-referencing absolute URL; use :canonical_url (not :canonical)
+|> assign(:og_type, "website")          # OG type: "website" (default), "article", or "profile"
+|> assign(:og_image, "...")             # path ("/images/x.png") or absolute HTTPS URL; http:// is rejected
+|> assign(:og_image_alt, "...")         # per-page alt text; defaults to SEO.default_og_image_alt()
+|> assign(:json_ld, Jason.encode!(...)) # ALWAYS use Jason.encode!/1, never raw strings
 ```
 
-The root layout (`root.html.heex`) renders these automatically. JSON-LD must come from `Jason.encode!/1` output to prevent XSS via script injection.
+When `og_type` is `"article"`, also assign:
+
+```elixir
+|> assign(:article_published_time, "2026-05-17")  # ISO 8601 string or %DateTime{}; passed to article:published_time
+|> assign(:article_author, "...")                  # optional; omitted if nil
+|> assign(:article_section, "MLB News")            # e.g. "MLB News", "Scouting", "Game Day"
+```
+
+When `og_type` is `"profile"`, no additional assigns are required (used on player show pages).
+
+Notes:
+- `:canonical_url` is the required assign name. The legacy `:canonical` assign is no longer read by the layout.
+- `:og_image` may be a root-relative path (the site URL is prepended) or an absolute HTTPS URL (passed through unchanged). `http://` URLs are rejected and fall back to the site default.
+- `og_image_width` and `og_image_height` default to 1200 / 630 and need not be set explicitly unless overriding.
+- The root layout (`root.html.heex`) renders OG, Twitter Card, and canonical tags on every page unconditionally. JSON-LD must come from `Jason.encode!/1` output to prevent XSS via script injection.
+- `SportsFanaticWeb.SEO.absolute_url/1` builds canonical URLs. Never hardcode `https://www.sports-fan-agent.com` — use `SEO.absolute_url/1` or `SEO.site_url/0` so URLs are correct in dev (`localhost:4000`) and prod.
+
+---
+
+## Link Previews / OG Tags
+
+The default OG image is `priv/static/images/og-default.png` (1200 x 630 px, 58.5 KB, well under the 200 KB budget recommended for iMessage). It is served by `Plug.Static` at `/images/og-default.png` — no fingerprint hash in the filename so the URL remains stable for unfurler caches.
+
+The SVG source is `priv/static/images/og-default.svg`. See `priv/static/images/README.md` for regeneration instructions.
+
+**Regenerate the PNG after editing the SVG:**
+
+```bash
+# Preferred (if Pillow available — no extra dep needed in most Python envs)
+python3 scripts/build_og_image_pillow.py
+
+# Alternative (if cairosvg is installed: pip install cairosvg)
+python3 scripts/build_og_image.py
+```
+
+**Verify OG tags after deploy:**
+
+```bash
+# Check all expected meta tags on the home page
+curl -s -A "facebookexternalhit/1.1" https://www.sports-fan-agent.com/ \
+  | grep -E 'og:|twitter:|canonical|description|title'
+
+# Confirm the OG image is served correctly
+curl -sI https://www.sports-fan-agent.com/images/og-default.png
+# Expected: HTTP/2 200, content-type: image/png, content-length ≤ 200000
+```
+
+**Cache caveat:** iMessage (Apple LinkPresentation) and Facebook cache link previews aggressively — hours to days. After deploy, a URL previously shared may still show the old (broken) preview. Use the [Facebook Sharing Debugger](https://developers.facebook.com/tools/debug/) "Scrape Again" button to force a cache refresh for Facebook and iMessage. There is no mechanism to force iMessage to re-fetch a URL it has already cached on a given device.
 
 ---
 
@@ -669,6 +729,8 @@ The root layout (`root.html.heex`) renders these automatically. JSON-LD must com
 | CHAT-003 | MEDIUM | The `phx-change="update_chat_input"` event on the chat input needs a corresponding `handle_event` clause in `NewsLive` or a `phx-debounce` attribute to avoid excessive server events. |
 | CHAT-004 | LOW | Query cluster membership uses entity overlap + keyword intersection (MVP). Semantically similar queries with different surface forms may not cluster (e.g., "Harper" vs "Bryce Harper"). Upgrade to embedding-based similarity post-MVP. |
 | CHAT-005 | LOW | Jido v2.x deps (`jido`, `jido_ai`) are not installed due to Elixir 1.18 requirement. The `Action` behaviour in `agents/action.ex` is a plain-Elixir equivalent. If Elixir is upgraded to 1.18+, replace with `use Jido.Action` in each action module. |
+| OG-SEC-006 | LOW | JSON-LD payload not escape-hardened against `</script>` in user content (defense-in-depth — current data sources are trusted). One-line fix: in `root.html.heex`, replace `raw(Jason.encode!(@json_ld))` with `raw(String.replace(Jason.encode!(@json_ld), "</", "<\\/"))`. JSON-LD parsers accept escaped solidus per RFC 8259. |
+| OG-SEC-007 | LOW | `news_items.image_url` has no changeset-level URL format or length validation. Belongs to a separate hardening pass: add `validate_length(:image_url, max: 2048)` and `validate_format(:image_url, ~r/\Ahttps?:\/\//)` to `NewsItem.changeset/2`. |
 
 Full security audit is in `.on-loop/agent-notes/security.md`.
 
@@ -688,6 +750,13 @@ Full security audit is in `.on-loop/agent-notes/security.md`.
 4. Set SEO assigns (`page_title`, `meta_description`, `canonical_url`, `json_ld`).
 5. Add cache read/write in the controller action.
 6. Update `GenerateSitemapWorker` to include new URLs.
+
+**Add a new shareable page with branded link previews:**
+1. Assign `:page_title`, `:meta_description`, `:canonical_url` in the controller or LiveView.
+2. Optional: `:og_type` (defaults `"website"`), `:og_image` (defaults to site default), `:og_image_alt`, `:json_ld`.
+3. For `og_type: "article"`, also assign `:article_published_time` (ISO 8601 string or `%DateTime{}`), `:article_section`.
+4. Use `SportsFanaticWeb.SEO.absolute_url/1` to build canonical URLs — never hardcode `https://www.sports-fan-agent.com`.
+5. Omitting all SEO assigns is also valid — the root layout will still emit complete branded OG + Twitter tags from the site defaults.
 
 **Update subscription tier logic:**
 - `SportsFanatic.Accounts.has_active_subscription?/1` is the single source of truth.

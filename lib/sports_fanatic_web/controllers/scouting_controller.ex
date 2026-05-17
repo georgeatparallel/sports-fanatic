@@ -21,7 +21,7 @@ defmodule SportsFanaticWeb.ScoutingController do
       |> limit(1)
       |> Repo.one()
 
-    canonical = "https://sportsfanatic.com/mlb/scouting/#{team_slug}/#{player_slug}"
+    canonical = SportsFanaticWeb.SEO.absolute_url("/mlb/scouting/#{team_slug}/#{player_slug}")
 
     conn
     |> assign(:page_title, "#{player.full_name} Scouting Report | Sports Fan Agent")
@@ -29,7 +29,8 @@ defmodule SportsFanaticWeb.ScoutingController do
       :meta_description,
       "AI-powered scouting report for #{player.full_name} of the #{team.name}. Grade, strengths, weaknesses, and prediction analysis."
     )
-    |> assign(:canonical, canonical)
+    |> assign(:canonical_url, canonical)
+    |> assign(:og_type, "article")
     |> render(:show,
       player: player,
       team: team,

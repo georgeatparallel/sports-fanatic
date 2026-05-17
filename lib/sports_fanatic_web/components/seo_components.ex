@@ -8,31 +8,62 @@ defmodule SportsFanaticWeb.SEOComponents do
 
   attr :title, :string, required: true
   attr :description, :string, required: true
-  attr :canonical, :string, required: true
+  attr :canonical_url, :string, required: true
   attr :og_type, :string, default: "website"
-  attr :og_image, :string, default: nil
+  attr :og_image, :string, required: true
+  attr :og_image_width, :integer, default: 1200
+  attr :og_image_height, :integer, default: 630
+  attr :og_image_alt, :string, required: true
   attr :twitter_card, :string, default: "summary_large_image"
+  attr :twitter_site, :string, default: nil
+  attr :article_published_time, :any, default: nil
+  attr :article_author, :string, default: nil
+  attr :article_section, :string, default: nil
 
   def seo_meta(assigns) do
     ~H"""
     <meta name="description" content={@description} />
-    <link rel="canonical" href={@canonical} />
+    <link rel="canonical" href={@canonical_url} />
+    <%!-- Open Graph (Facebook, LinkedIn, iMessage, Slack, Discord) --%>
+    <meta property="og:site_name" content="Sports Fan Agent" />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:type" content={@og_type} />
     <meta property="og:title" content={@title} />
     <meta property="og:description" content={@description} />
-    <meta property="og:url" content={@canonical} />
-    <meta property="og:type" content={@og_type} />
-    <meta property="og:site_name" content="Sports Fan Agent" />
-    <%= if @og_image do %>
-      <meta property="og:image" content={@og_image} />
+    <meta property="og:url" content={@canonical_url} />
+    <meta property="og:image" content={@og_image} />
+    <meta property="og:image:secure_url" content={@og_image} />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content={to_string(@og_image_width)} />
+    <meta property="og:image:height" content={to_string(@og_image_height)} />
+    <meta property="og:image:alt" content={@og_image_alt} />
+    <%= if @og_type == "article" do %>
+      <%= if @article_published_time do %>
+        <meta property="article:published_time" content={iso8601(@article_published_time)} />
+      <% end %>
+      <%= if @article_author do %>
+        <meta property="article:author" content={@article_author} />
+      <% end %>
+      <%= if @article_section do %>
+        <meta property="article:section" content={@article_section} />
+      <% end %>
     <% end %>
+    <%!-- Twitter / X --%>
     <meta name="twitter:card" content={@twitter_card} />
     <meta name="twitter:title" content={@title} />
     <meta name="twitter:description" content={@description} />
-    <%= if @og_image do %>
-      <meta name="twitter:image" content={@og_image} />
+    <meta name="twitter:image" content={@og_image} />
+    <meta name="twitter:image:alt" content={@og_image_alt} />
+    <%= if @twitter_site do %>
+      <meta name="twitter:site" content={@twitter_site} />
     <% end %>
     """
   end
+
+  # Coerce an %DateTime{}, %Date{}, or already-formatted string to an ISO 8601 string.
+  defp iso8601(%DateTime{} = dt), do: DateTime.to_iso8601(dt)
+  defp iso8601(%Date{} = d), do: Date.to_iso8601(d)
+  defp iso8601(s) when is_binary(s), do: s
 
   attr :data, :map, required: true
 

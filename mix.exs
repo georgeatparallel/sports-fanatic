@@ -109,6 +109,8 @@ defmodule SportsFanatic.MixProject do
       test/sports_fanatic_web/controllers/lineup_html_test.exs
       test/sports_fanatic_web/controllers/news_html_test.exs
       test/sports_fanatic_web/components/seo_components_test.exs
+      test/sports_fanatic_web/seo_test.exs
+      test/sports_fanatic_web/og_image_test.exs
       test/sports_fanatic/feeds/csv_parser_test.exs
       test/sports_fanatic/feeds/user_feed_test.exs
       test/sports_fanatic/chat_bot/skill_router_test.exs

@@ -4,35 +4,44 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="csrf-token" content={get_csrf_token()} />
-    <%= if assigns[:meta_description] do %>
-      <meta name="description" content={@meta_description} />
-    <% end %>
-    <%= if assigns[:canonical_url] do %>
-      <link rel="canonical" href={@canonical_url} />
-    <% end %>
-    <%= if assigns[:og_title] do %>
-      <meta property="og:title" content={@og_title} />
-      <meta property="og:type" content={assigns[:og_type] || "website"} />
-      <meta property="og:description" content={assigns[:og_description] || @meta_description} />
-      <meta property="og:url" content={assigns[:canonical_url]} />
-      <meta property="og:site_name" content="Sports Fan Agent" />
-    <% end %>
-    <%= if assigns[:twitter_card] do %>
-      <meta name="twitter:card" content={@twitter_card} />
-      <meta name="twitter:title" content={assigns[:og_title]} />
-      <meta
-        name="twitter:description"
-        content={assigns[:og_description] || assigns[:meta_description]}
-      />
-    <% end %>
-    <.live_title suffix=" | Sports Fan Agent">
-      <%= assigns[:page_title] || "Sports Fan Agent" %>
+    <meta name="theme-color" content="#2563eb" />
+
+    <.live_title suffix={SportsFanaticWeb.SEO.title_suffix()}>
+      <%= assigns[:page_title] || SportsFanaticWeb.SEO.default_title() %>
     </.live_title>
+
+    <.seo_meta
+      title={assigns[:og_title] || assigns[:page_title] || SportsFanaticWeb.SEO.default_title()}
+      description={
+        assigns[:og_description] || assigns[:meta_description] ||
+          SportsFanaticWeb.SEO.default_description()
+      }
+      canonical_url={SportsFanaticWeb.SEO.canonical_or_request_url(assigns)}
+      og_type={assigns[:og_type] || "website"}
+      og_image={
+        SportsFanaticWeb.SEO.absolute_image_url(
+          assigns[:og_image] || SportsFanaticWeb.SEO.default_og_image_path()
+        )
+      }
+      og_image_width={assigns[:og_image_width] || 1200}
+      og_image_height={assigns[:og_image_height] || 630}
+      og_image_alt={assigns[:og_image_alt] || SportsFanaticWeb.SEO.default_og_image_alt()}
+      twitter_card={assigns[:twitter_card] || "summary_large_image"}
+      twitter_site={SportsFanaticWeb.SEO.twitter_handle()}
+      article_published_time={assigns[:article_published_time]}
+      article_author={assigns[:article_author]}
+      article_section={assigns[:article_section]}
+    />
+
+    <link rel="apple-touch-icon" href={~p"/images/og-default.png"} />
+    <link rel="icon" type="image/x-icon" href={~p"/favicon.ico"} />
+
     <%= if assigns[:json_ld] do %>
       <script type="application/ld+json">
         <%= raw(if is_binary(@json_ld), do: @json_ld, else: Jason.encode!(@json_ld)) %>
       </script>
     <% end %>
+
     <link phx-track-static rel="stylesheet" href={~p"/assets/app.css"} />
     <script defer phx-track-static type="text/javascript" src={~p"/assets/app.js"}>
     </script>
