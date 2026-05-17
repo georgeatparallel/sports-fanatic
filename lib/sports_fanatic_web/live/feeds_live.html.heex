@@ -218,16 +218,10 @@
                 <div class="flex items-center gap-2">
                   <%= if player.team_slug && player.slug do %>
                     <a
-                      href={"/mlb/scouting/#{player.team_slug}/#{player.slug}"}
-                      class="text-xs text-blue-600 hover:text-blue-800 font-medium"
-                    >
-                      Scouting
-                    </a>
-                    <a
                       href={"/mlb/players/#{player.team_slug}/#{player.slug}"}
                       class="text-xs text-blue-600 hover:text-blue-800 font-medium"
                     >
-                      Profile
+                      Scouting
                     </a>
                   <% end %>
                   <button
