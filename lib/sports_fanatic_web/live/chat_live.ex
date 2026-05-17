@@ -179,6 +179,15 @@ defmodule SportsFanaticWeb.ChatLive do
     {:noreply, socket}
   end
 
+  # Auto-process CSV as soon as a file is selected (no Process button)
+  def handle_event("auto_upload_csv", _params, socket) do
+    if socket.assigns.uploads.roster_csv.entries != [] do
+      handle_event("upload_csv", %{}, socket)
+    else
+      {:noreply, socket}
+    end
+  end
+
   # -- Chat Submission Logic --
 
   defp handle_chat_submit(text, socket) do
