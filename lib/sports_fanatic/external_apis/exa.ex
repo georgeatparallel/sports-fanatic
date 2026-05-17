@@ -47,39 +47,67 @@ defmodule SportsFanatic.ExternalApis.Exa do
         category: "news"
       }
 
-      case Req.post("#{@base_url}/search",
-             json: body,
-             headers: [
-               {"x-api-key", api_key},
-               {"content-type", "application/json"}
-             ],
-             receive_timeout: @timeout
-           ) do
-        {:ok, %Req.Response{status: 200, body: %{"results" => results}}} ->
-          parsed =
-            Enum.map(results, fn r ->
-              %{
-                title: r["title"] || "",
-                url: r["url"] || "",
-                author: r["author"],
-                published_date: r["publishedDate"],
-                text: get_in(r, ["text"]) || "",
-                highlights: r["highlights"] || [],
-                score: r["score"]
-              }
-            end)
-            |> Enum.filter(&valid_url?(&1.url))
+      do_search_with_retry(body, api_key, _attempt = 1)
+    end
+  end
 
-          {:ok, parsed}
+  @max_retries 3
+  @retry_base_ms 500
 
-        {:ok, %Req.Response{status: status, body: body}} ->
-          Logger.error("Exa API error: status=#{status} body=#{inspect(body)}")
-          {:error, {:api_error, status}}
+  defp do_search_with_retry(body, api_key, attempt) do
+    case Req.post("#{@base_url}/search",
+           json: body,
+           headers: [
+             {"x-api-key", api_key},
+             {"content-type", "application/json"}
+           ],
+           receive_timeout: @timeout
+         ) do
+      {:ok, %Req.Response{status: 200, body: %{"results" => results}}} when results != [] ->
+        parsed =
+          Enum.map(results, fn r ->
+            %{
+              title: r["title"] || "",
+              url: r["url"] || "",
+              author: r["author"],
+              published_date: r["publishedDate"],
+              text: get_in(r, ["text"]) || "",
+              highlights: r["highlights"] || [],
+              score: r["score"]
+            }
+          end)
+          |> Enum.filter(&valid_url?(&1.url))
 
-        {:error, reason} ->
-          Logger.error("Exa API request failed: #{inspect(reason)}")
-          {:error, reason}
-      end
+        {:ok, parsed}
+
+      {:ok, %Req.Response{status: 200, body: %{"results" => []}}} when attempt < @max_retries ->
+        backoff = @retry_base_ms * attempt
+        Logger.info("Exa returned 0 results, retrying in #{backoff}ms (attempt #{attempt}/#{@max_retries})")
+        Process.sleep(backoff)
+        do_search_with_retry(body, api_key, attempt + 1)
+
+      {:ok, %Req.Response{status: 200, body: _}} ->
+        {:ok, []}
+
+      {:ok, %Req.Response{status: status}} when attempt < @max_retries ->
+        backoff = @retry_base_ms * attempt
+        Logger.warning("Exa API error status=#{status}, retrying in #{backoff}ms (attempt #{attempt}/#{@max_retries})")
+        Process.sleep(backoff)
+        do_search_with_retry(body, api_key, attempt + 1)
+
+      {:ok, %Req.Response{status: status, body: resp_body}} ->
+        Logger.error("Exa API error: status=#{status} body=#{inspect(resp_body)}")
+        {:error, {:api_error, status}}
+
+      {:error, reason} when attempt < @max_retries ->
+        backoff = @retry_base_ms * attempt
+        Logger.warning("Exa request failed: #{inspect(reason)}, retrying in #{backoff}ms (attempt #{attempt}/#{@max_retries})")
+        Process.sleep(backoff)
+        do_search_with_retry(body, api_key, attempt + 1)
+
+      {:error, reason} ->
+        Logger.error("Exa API request failed after #{@max_retries} attempts: #{inspect(reason)}")
+        {:error, reason}
     end
   end
 
