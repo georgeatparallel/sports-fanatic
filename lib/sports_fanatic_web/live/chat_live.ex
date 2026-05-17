@@ -60,6 +60,7 @@ defmodule SportsFanaticWeb.ChatLive do
 
         # Subscribe to chat PubSub channel
         Phoenix.PubSub.subscribe(SportsFanatic.PubSub, "chat:#{user_id}")
+        socket = assign(socket, :chat_subscribed, true)
 
         # Load or create chat session
         case ChatBot.get_or_create_session(user_id) do
