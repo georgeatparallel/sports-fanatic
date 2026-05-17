@@ -54,7 +54,12 @@ defmodule SportsFanaticWeb.Router do
   scope "/", SportsFanaticWeb do
     pipe_through :browser
 
-    live "/", NewsLive, :home
+    live "/", ChatLive, :index
+    live "/chat", ChatLive, :index
+
+    # Feed management
+    live "/feeds", FeedsLive, :index
+    live "/feeds/:id", FeedsLive, :show
 
     # Player pages
     get "/mlb/players", PlayerController, :index

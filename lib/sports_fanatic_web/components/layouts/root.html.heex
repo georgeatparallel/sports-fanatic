@@ -56,19 +56,11 @@
                 Teams
               </a>
               <a
-                href="/mlb/players"
+                href="/chat"
                 class="text-gray-600 hover:text-gray-900 hover:bg-gray-100 text-sm font-medium px-3 py-2 rounded-lg transition"
               >
-                Players
+                Chat
               </a>
-              <!--
-              <a
-                href={"/mlb/lineups/#{Date.to_iso8601(SportsFanatic.DateHelper.today())}"}
-                class="text-gray-600 hover:text-gray-900 hover:bg-gray-100 text-sm font-medium px-3 py-2 rounded-lg transition"
-              >
-                Lineups
-              </a>
-              -->
               <a
                 href="/mlb/news"
                 class="text-gray-600 hover:text-gray-900 hover:bg-gray-100 text-sm font-medium px-3 py-2 rounded-lg transition"
@@ -86,6 +78,12 @@
                 class="text-gray-600 hover:text-gray-900 hover:bg-gray-100 text-sm font-medium px-3 py-2 rounded-lg transition"
               >
                 Game Day
+              </a>
+              <a
+                href="/feeds"
+                class="text-gray-600 hover:text-gray-900 hover:bg-gray-100 text-sm font-medium px-3 py-2 rounded-lg transition"
+              >
+                Manage Feeds
               </a>
             </div>
           </div>
@@ -151,19 +149,11 @@
             Teams
           </a>
           <a
-            href="/mlb/players"
+            href="/chat"
             class="block text-gray-600 hover:text-gray-900 hover:bg-gray-50 text-sm font-medium px-3 py-2 rounded-lg"
           >
-            Players
+            Chat
           </a>
-          <!--
-          <a
-            href={"/mlb/lineups/#{Date.to_iso8601(SportsFanatic.DateHelper.today())}"}
-            class="block text-gray-600 hover:text-gray-900 hover:bg-gray-50 text-sm font-medium px-3 py-2 rounded-lg"
-          >
-            Lineups
-          </a>
-          -->
           <a
             href="/mlb/news"
             class="block text-gray-600 hover:text-gray-900 hover:bg-gray-50 text-sm font-medium px-3 py-2 rounded-lg"
@@ -181,6 +171,12 @@
             class="block text-gray-600 hover:text-gray-900 hover:bg-gray-50 text-sm font-medium px-3 py-2 rounded-lg"
           >
             Game Day
+          </a>
+          <a
+            href="/feeds"
+            class="block text-gray-600 hover:text-gray-900 hover:bg-gray-50 text-sm font-medium px-3 py-2 rounded-lg"
+          >
+            Manage Feeds
           </a>
           <%= if !assigns[:current_user] && SportsFanatic.FeatureFlags.enabled?("subscriptions_enabled") do %>
             <a
