@@ -1,20 +1,45 @@
 defmodule SportsFanatic.PythonBridge do
   @moduledoc """
-  HTTP client for the Python bridge FastAPI service.
-  Uses circuit breaker pattern for fault tolerance.
+  HTTP client for the (narrowed) Python bridge FastAPI service.
+
+  After the Elixir-native hit-predictions migration the Python bridge only
+  serves:
+
+    * `/inference/hit`      — ML inference (single endpoint going forward)
+    * `/news/analyze`       — Claude tool_use news classification
+    * `/scouting/search`    — Exa search (via Python)
+    * `/scouting/search_multi` — multi-query Exa search (legacy scouting flow)
+    * `/scouting/classify`  — Claude content classification (legacy scouting flow)
+    * `/scouting/generate`  — Claude prose for scouting reports
+    * `/gameday/generate`   — Claude prose for Game Day Magazine
+    * `/agents/parse-setting` — Claude Haiku parser for legacy agent settings
+    * `/chat/resolve-context`, `/chat/synthesize-research` — Claude calls for chatbot
+
+  Removed (superseded by Elixir):
+    * `/predict/hit`, `/predict/hr`
+    * `/schedule/*`
+    * `/simulation/run`
+    * `/agents/execute` (stub)
   """
 
   alias SportsFanatic.PythonBridge.CircuitBreaker
 
   @timeout 60_000
 
-  def predict_hits(players) do
-    post("/predict/hit", %{players: players})
+  ## --- Inference ----------------------------------------------------------
+
+  @doc """
+  Score hits via the Python helper. Lightweight wrapper around the
+  `/inference/hit` endpoint used by `SportsFanatic.Predictions.Inference`.
+  """
+  def score_hits(training_rows, inference_rows) do
+    post("/inference/hit", %{
+      training_rows: training_rows,
+      inference_rows: inference_rows
+    })
   end
 
-  def predict_hrs(players) do
-    post("/predict/hr", %{players: players})
-  end
+  ## --- Scouting (Claude / Exa) -------------------------------------------
 
   def generate_scouting(player_name, player_id, sources_text) do
     post("/scouting/generate", %{
@@ -40,21 +65,7 @@ defmodule SportsFanatic.PythonBridge do
     post("/gameday/generate", game_data)
   end
 
-  def fetch_schedule(date) do
-    post("/schedule/fetch", %{date: date})
-  end
-
-  def fetch_mlb_teams do
-    post("/schedule/teams", %{})
-  end
-
-  def fetch_roster(team_id) do
-    post("/schedule/roster", %{team_id: team_id})
-  end
-
-  def run_simulation(players, n_simulations \\ 10_000) do
-    post("/simulation/run", %{players: players, n_simulations: n_simulations})
-  end
+  ## --- News / Agents ------------------------------------------------------
 
   def analyze_news(headline, excerpt) do
     post("/news/analyze", %{headline: headline, excerpt: excerpt})
@@ -65,10 +76,7 @@ defmodule SportsFanatic.PythonBridge do
     post("/agents/parse-setting", %{raw_prompt: raw_prompt, context: context})
   end
 
-  @doc "Execute agent settings against news data (Phase 2 stub)."
-  def execute_agents(settings, date_range) do
-    post("/agents/execute", %{settings: settings, date_range: date_range})
-  end
+  ## --- Chat ---------------------------------------------------------------
 
   @doc "Resolve chat context: detect topic continuation, resolve pronouns, generate search prompts."
   def resolve_chat_context(query, conversation) do
@@ -84,6 +92,48 @@ defmodule SportsFanatic.PythonBridge do
     })
   end
 
+  @doc "Draft a daily X tweet (main + URL-bearing self-reply)."
+  def draft_x_post(post_type, context, link_url) do
+    post("/x-agent/draft-post", %{
+      post_type: post_type,
+      context: context,
+      link_url: link_url,
+      max_main_chars: 270,
+      max_reply_chars: 270
+    })
+  end
+
+  @doc "Draft a single X reply tweet given a target tweet + local facts."
+  def draft_x_reply(target_tweet, our_context) do
+    post("/x-agent/draft-reply", %{
+      target_tweet: target_tweet,
+      our_context: our_context,
+      max_chars: 270
+    })
+  end
+
+  @doc "Generate a per-player injury report from local news + Exa research."
+  def generate_injury_report(player, local_news_items, exa_results) do
+    post("/injury-report/generate", %{
+      player: player,
+      local_news_items: local_news_items,
+      exa_results: exa_results
+    })
+  end
+
+  @doc "Generate a per-team daily magazine update."
+  def generate_team_magazine(team, scheduled_game, lineup, exa_results, injury_watch) do
+    post("/team-magazine/generate", %{
+      team: team,
+      scheduled_game: scheduled_game,
+      lineup: lineup,
+      exa_results: exa_results,
+      injury_watch: injury_watch
+    })
+  end
+
+  ## --- Health -------------------------------------------------------------
+
   def health_check do
     base_url = base_url()
 
@@ -93,6 +143,8 @@ defmodule SportsFanatic.PythonBridge do
       {:error, reason} -> {:error, reason}
     end
   end
+
+  ## --- Internals ----------------------------------------------------------
 
   defp post(path, body) do
     cb_available = Process.whereis(SportsFanatic.PythonBridge.CircuitBreaker) != nil

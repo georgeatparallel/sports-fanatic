@@ -1,0 +1,102 @@
+<SportsFanaticWeb.SEOComponents.breadcrumbs items={[
+  %{label: "Home", href: "/"},
+  %{label: "Baseball", href: "/mlb/teams"},
+  %{label: "Injury Report", href: "/mlb/injury-report"},
+  %{label: @player.full_name}
+]} />
+
+<article class="max-w-3xl mx-auto px-4 py-8">
+  <header class="mb-6">
+    <h1 class="text-3xl font-bold text-gray-900"><%= @player.full_name %></h1>
+    <%= if @team do %>
+      <p class="text-gray-600">
+        <a href={"/mlb/teams/" <> @team.slug} class="text-blue-700 hover:underline">
+          <%= @team.name %>
+        </a>
+      </p>
+    <% end %>
+  </header>
+
+  <section class="bg-white rounded-lg border border-gray-200 p-6 mb-6">
+    <div class="flex items-center justify-between mb-4">
+      <span class="inline-flex items-center rounded-full bg-amber-100 px-3 py-1 text-sm font-medium text-amber-800">
+        <%= @report.current_status %>
+      </span>
+      <span class="text-xs text-gray-500">
+        Updated <%= Date.to_iso8601(@report.run_date) %>
+      </span>
+    </div>
+
+    <h2 class="text-lg font-semibold text-gray-900 mb-2">Summary</h2>
+    <p class="text-gray-700 leading-relaxed mb-6"><%= @report.tldr %></p>
+
+    <%= if @report.expected_return && @report.expected_return != "" do %>
+      <div class="mb-4">
+        <h3 class="font-medium text-gray-900 mb-1">Expected Return</h3>
+        <p class="text-gray-700 text-sm"><%= @report.expected_return %></p>
+      </div>
+    <% end %>
+
+    <%= if @report.fantasy_impact && @report.fantasy_impact != "" do %>
+      <div class="mb-4">
+        <h3 class="font-medium text-gray-900 mb-1">Fantasy Impact</h3>
+        <p class="text-gray-700 text-sm"><%= @report.fantasy_impact %></p>
+      </div>
+    <% end %>
+  </section>
+
+  <%= if @report.timeline && @report.timeline != [] do %>
+    <section class="bg-white rounded-lg border border-gray-200 p-6 mb-6">
+      <h2 class="text-lg font-semibold text-gray-900 mb-3">Timeline</h2>
+      <ol class="space-y-3">
+        <%= for entry <- @report.timeline do %>
+          <li class="flex items-start gap-3 text-sm">
+            <span class="text-gray-500 w-24 shrink-0">
+              <%= entry["date"] || "" %>
+            </span>
+            <div>
+              <p class="text-gray-800"><%= entry["event"] || "" %></p>
+              <%= if entry["source_url"] do %>
+                <a
+                  href={entry["source_url"]}
+                  rel="noopener noreferrer nofollow"
+                  target="_blank"
+                  class="text-xs text-blue-700 hover:underline"
+                >
+                  source
+                </a>
+              <% end %>
+            </div>
+          </li>
+        <% end %>
+      </ol>
+    </section>
+  <% end %>
+
+  <%= if @report.sources && @report.sources != [] do %>
+    <section class="bg-white rounded-lg border border-gray-200 p-6">
+      <h2 class="text-lg font-semibold text-gray-900 mb-3">Sources</h2>
+      <ul class="space-y-2">
+        <%= for source <- @report.sources do %>
+          <li class="text-sm">
+            <%= if source["url"] do %>
+              <a
+                href={source["url"]}
+                rel="noopener noreferrer nofollow"
+                target="_blank"
+                class="text-blue-700 hover:underline"
+              >
+                <%= source["title"] || source["url"] %>
+              </a>
+            <% else %>
+              <span class="text-gray-700"><%= source["title"] || "" %></span>
+            <% end %>
+            <%= if source["domain"] do %>
+              <span class="ml-2 text-xs text-gray-500"><%= source["domain"] %></span>
+            <% end %>
+          </li>
+        <% end %>
+      </ul>
+    </section>
+  <% end %>
+</article>

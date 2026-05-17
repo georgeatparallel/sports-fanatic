@@ -7,7 +7,15 @@ defmodule SportsFanatic.Workers.GenerateSitemapWorker do
     unique: [period: 3600]
 
   import Ecto.Query
-  alias SportsFanatic.Content.{GameDayMagazine, NewsItem, ScoutingReport, Sitemap}
+
+  alias SportsFanatic.Content.{
+    GameDayMagazine,
+    InjuryReport,
+    NewsItem,
+    ScoutingReport,
+    Sitemap
+  }
+
   alias SportsFanatic.Mlb.{Player, Team}
   alias SportsFanatic.Repo
 
@@ -27,6 +35,7 @@ defmodule SportsFanatic.Workers.GenerateSitemapWorker do
     generate_sitemap("news", &news_urls/0)
     generate_sitemap("scouting", &scouting_urls/0)
     generate_sitemap("gameday", &gameday_urls/0)
+    generate_sitemap("injury_report", &injury_report_urls/0)
     generate_index_sitemap()
 
     Logger.info("All sitemaps regenerated")
@@ -48,7 +57,7 @@ defmodule SportsFanatic.Workers.GenerateSitemapWorker do
   end
 
   defp generate_index_sitemap do
-    types = ["players", "teams", "lineups", "news", "scouting", "gameday"]
+    types = ["players", "teams", "lineups", "news", "scouting", "gameday", "injury_report"]
 
     xml = """
     <?xml version="1.0" encoding="UTF-8"?>
@@ -147,6 +156,33 @@ defmodule SportsFanatic.Workers.GenerateSitemapWorker do
     |> Enum.map(fn {date, slug} ->
       %{loc: "#{base_url()}/mlb/game-day/#{date}/#{slug}", lastmod: date, changefreq: "daily"}
     end)
+  end
+
+  defp injury_report_urls do
+    thirty_days_ago = Date.add(Date.utc_today(), -30)
+
+    index = %{
+      loc: "#{base_url()}/mlb/injury-report",
+      lastmod: Date.utc_today(),
+      changefreq: "hourly"
+    }
+
+    details =
+      InjuryReport
+      |> join(:inner, [ir], p in Player, on: ir.player_id == p.id)
+      |> where([ir, p], ir.run_date >= ^thirty_days_ago and not is_nil(p.slug))
+      |> select([ir, p], {p.slug, ir.inserted_at})
+      |> distinct([ir, p], p.slug)
+      |> Repo.all()
+      |> Enum.map(fn {slug, lastmod} ->
+        %{
+          loc: "#{base_url()}/mlb/injury-report/#{slug}",
+          lastmod: lastmod,
+          changefreq: "daily"
+        }
+      end)
+
+    [index | details]
   end
 
   defp build_sitemap_xml(urls) do

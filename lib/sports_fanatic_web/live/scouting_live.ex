@@ -4,6 +4,7 @@ defmodule SportsFanaticWeb.ScoutingLive do
   import Ecto.Query
   alias SportsFanatic.Content.ScoutingReport
   alias SportsFanatic.Mlb.{Player, Team}
+  alias SportsFanatic.Predictions
   alias SportsFanatic.Repo
 
   @impl true
@@ -22,12 +23,22 @@ defmodule SportsFanaticWeb.ScoutingLive do
       |> limit(1)
       |> Repo.one()
 
+    today_hit_prediction =
+      case get_in(player.external_ids, ["mlb_id"]) do
+        nil ->
+          nil
+
+        mlb_id ->
+          Predictions.get_for_player(String.to_integer(to_string(mlb_id)), Date.utc_today())
+      end
+
     {:ok,
      assign(socket,
        page_title: "#{player.full_name} - Full Scouting Report",
        player: player,
        team: team,
-       report: report
+       report: report,
+       today_hit_prediction: today_hit_prediction
      )}
   end
 
@@ -35,6 +46,7 @@ defmodule SportsFanaticWeb.ScoutingLive do
   def render(assigns) do
     ~H"""
     <div class="max-w-4xl mx-auto px-4 py-8">
+      <SportsFanaticWeb.PredictionComponents.today_hit_banner prediction={@today_hit_prediction} />
       <div class="flex items-center gap-4 mb-6">
         <div class="text-center">
           <span class="text-4xl font-bold text-blue-600">

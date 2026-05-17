@@ -57,12 +57,15 @@ defmodule SportsFanaticWeb.Router do
     live "/", ChatLive, :index
     live "/chat", ChatLive, :index
 
+    # Hit predictions (top-level)
+    live "/predictions", PredictionsLive, :index
+
     # Feed management
     live "/feeds", FeedsLive, :index
     live "/feeds/:id", FeedsLive, :show
 
-    # Player pages
-    get "/mlb/players", PlayerController, :index
+    # Player pages — /mlb/players index 301-redirects to /predictions
+    get "/mlb/players", PredictionsRedirectController, :redirect_to_predictions
     get "/mlb/players/:team_slug/:player_slug", PlayerController, :show
     get "/mlb/players/:team_slug/:player_slug/sources/:category", PlayerController, :sources
 
@@ -84,6 +87,11 @@ defmodule SportsFanaticWeb.Router do
 
     # Game Day Magazine preview (public)
     get "/mlb/game-day/:date/:slug", GameDayController, :show
+
+    # Injury Report (public)
+    get "/mlb/injury-report", InjuryReportController, :index
+    get "/mlb/injury-report/og/:player_slug", InjuryReportController, :og_image
+    get "/mlb/injury-report/:player_slug", InjuryReportController, :show
 
     # Sitemaps
     get "/sitemap.xml", SitemapController, :index
@@ -154,6 +162,10 @@ defmodule SportsFanaticWeb.Router do
   # --- Admin Routes (protected by Joshua auth) ---
   scope "/admin", SportsFanaticWeb do
     pipe_through [:browser, :require_joshua]
+
+    # X (Twitter) OAuth 2.0 PKCE flow — single org account
+    get "/x/oauth/start", XOAuthController, :start
+    get "/x/oauth/callback", XOAuthController, :callback
 
     live_session :admin do
       live "/", AdminLive

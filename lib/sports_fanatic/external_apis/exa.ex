@@ -123,6 +123,51 @@ defmodule SportsFanatic.ExternalApis.Exa do
     end
   end
 
+  @doc """
+  Caps Exa search results to at most `max_per_domain` entries per host,
+  preserving the input order (which is already ranked by relevance/score).
+
+  Useful when a single domain dominates an Exa response and we want a more
+  diverse mix of sources before storing or summarising.
+
+  ## Parameters
+    * `results` — list of result maps as returned by `search/2`. Each map is
+      expected to have a `:url` key (string).
+    * `max_per_domain` — positive integer cap per host. Default `2`.
+
+  Entries whose URL cannot be parsed into a `%URI{host: host}` (host is nil
+  or empty) are kept and counted under an empty-string bucket so a flood of
+  unparseable URLs is also capped.
+  """
+  @spec dedup_by_domain([map()], pos_integer()) :: [map()]
+  def dedup_by_domain(results, max_per_domain \\ 2)
+      when is_list(results) and is_integer(max_per_domain) and max_per_domain > 0 do
+    {kept, _counts} =
+      Enum.reduce(results, {[], %{}}, fn result, {acc, counts} ->
+        host = result_host(result)
+        current = Map.get(counts, host, 0)
+
+        if current < max_per_domain do
+          {[result | acc], Map.put(counts, host, current + 1)}
+        else
+          {acc, counts}
+        end
+      end)
+
+    Enum.reverse(kept)
+  end
+
+  defp result_host(%{url: url}) when is_binary(url), do: extract_host(url)
+  defp result_host(%{"url" => url}) when is_binary(url), do: extract_host(url)
+  defp result_host(_), do: ""
+
+  defp extract_host(url) do
+    case URI.parse(url) do
+      %URI{host: host} when is_binary(host) and host != "" -> String.downcase(host)
+      _ -> ""
+    end
+  end
+
   defp get_api_key do
     Application.get_env(:sports_fanatic, :exa, [])[:api_key]
   end

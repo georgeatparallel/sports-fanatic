@@ -4,6 +4,7 @@ defmodule SportsFanaticWeb.PlayerController do
   import Ecto.Query
   alias SportsFanatic.Content.{NewsItem, ScoutingReport}
   alias SportsFanatic.Mlb.{HrPick, Lineup, Pick, Player, Team}
+  alias SportsFanatic.Predictions
   alias SportsFanatic.Repo
   alias SportsFanatic.Scouting
 
@@ -116,6 +117,12 @@ defmodule SportsFanaticWeb.PlayerController do
         |> Repo.one()
       end
 
+    today_hit_prediction =
+      if mlb_id do
+        parsed_id = String.to_integer(to_string(mlb_id))
+        Predictions.get_for_player(parsed_id, today)
+      end
+
     # Player news
     news =
       NewsItem
@@ -164,6 +171,7 @@ defmodule SportsFanaticWeb.PlayerController do
       scouting_pending: scouting_pending,
       hit_pick: hit_pick,
       hr_pick: hr_pick,
+      today_hit_prediction: today_hit_prediction,
       news: news,
       scouting_categories: scouting_categories
     )

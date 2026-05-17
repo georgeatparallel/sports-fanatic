@@ -1,0 +1,54 @@
+2026-05-17T15:29:07Z architect: wrote specification to agent-notes/architect.md (Elixir-native hit predictions pipeline; new mlb.hit_predictions table; DailyHitPredictionsWorker + 8 supporting workers; Predictions context + LiveView; admin tab; Python bridge narrowed to single /inference/hit endpoint)
+2026-05-17T16:50:00Z coding: priv/repo/migrations/20260518000001_create_hit_predictions_table.exs
+2026-05-17T16:50:01Z coding: priv/repo/migrations/20260518000002_add_pitcher_training_tables.exs
+2026-05-17T16:50:02Z coding: lib/sports_fanatic/predictions.ex
+2026-05-17T16:50:03Z coding: lib/sports_fanatic/predictions/hit_prediction.ex
+2026-05-17T16:50:04Z coding: lib/sports_fanatic/predictions/feature_loader.ex
+2026-05-17T16:50:05Z coding: lib/sports_fanatic/predictions/features.ex
+2026-05-17T16:50:06Z coding: lib/sports_fanatic/predictions/inference.ex
+2026-05-17T16:50:07Z coding: lib/sports_fanatic/predictions/park_factors.ex
+2026-05-17T16:50:08Z coding: lib/sports_fanatic/predictions/stadiums.ex
+2026-05-17T16:50:09Z coding: lib/sports_fanatic/mlb/pitcher_game_log.ex
+2026-05-17T16:50:10Z coding: lib/sports_fanatic/mlb/player_statcast.ex
+2026-05-17T16:50:11Z coding: lib/sports_fanatic/external_apis/mlb_stats.ex
+2026-05-17T16:50:12Z coding: lib/sports_fanatic/external_apis/open_meteo.ex
+2026-05-17T16:50:13Z coding: lib/sports_fanatic/workers/daily_hit_predictions_worker.ex
+2026-05-17T16:50:14Z coding: lib/sports_fanatic/workers/fetch_pitcher_stats_worker.ex
+2026-05-17T16:50:15Z coding: lib/sports_fanatic/workers/fetch_bvp_worker.ex
+2026-05-17T16:50:16Z coding: lib/sports_fanatic/workers/seed_pitcher_history_worker.ex
+2026-05-17T16:50:17Z coding: lib/sports_fanatic/workers/seed_statcast_worker.ex
+2026-05-17T16:50:18Z coding: lib/sports_fanatic/workers/forecast_weather_worker.ex
+2026-05-17T16:50:19Z coding: lib/sports_fanatic/workers/predict_hits_worker.ex
+2026-05-17T16:50:20Z coding: lib/sports_fanatic/workers/fetch_schedule_worker.ex (modified)
+2026-05-17T16:50:21Z coding: lib/sports_fanatic/workers/fetch_lineups_worker.ex (modified)
+2026-05-17T16:50:22Z coding: lib/sports_fanatic/workers/generate_predictions_worker.ex (modified)
+2026-05-17T16:50:23Z coding: lib/sports_fanatic/python_bridge.ex (modified)
+2026-05-17T16:50:24Z coding: lib/sports_fanatic_web/live/predictions_live.ex
+2026-05-17T16:50:25Z coding: lib/sports_fanatic_web/components/prediction_components.ex
+2026-05-17T16:50:26Z coding: lib/sports_fanatic_web/controllers/predictions_redirect_controller.ex
+2026-05-17T16:50:27Z coding: lib/sports_fanatic_web/router.ex (modified)
+2026-05-17T16:50:28Z coding: lib/sports_fanatic_web/controllers/player_controller.ex (modified)
+2026-05-17T16:50:29Z coding: lib/sports_fanatic_web/controllers/player_html/show.html.heex (modified)
+2026-05-17T16:50:30Z coding: lib/sports_fanatic_web/controllers/scouting_controller.ex (modified)
+2026-05-17T16:50:31Z coding: lib/sports_fanatic_web/controllers/scouting_html/show.html.heex (modified)
+2026-05-17T16:50:32Z coding: lib/sports_fanatic_web/components/layouts/root.html.heex (modified)
+2026-05-17T16:50:33Z coding: lib/sports_fanatic_web/live/admin_live.ex (modified)
+2026-05-17T16:50:34Z coding: config/config.exs (modified)
+2026-05-17T16:50:35Z coding: config/runtime.exs (modified)
+2026-05-17T16:50:36Z coding: docker-compose.yml (modified)
+2026-05-17T16:50:37Z coding: .env.example (modified)
+2026-05-17T16:50:38Z coding: python_bridge/src/api/inference.py
+2026-05-17T16:50:39Z coding: python_bridge/src/main.py (modified)
+2026-05-17T16:50:40Z coding: python_bridge/src/api/agents.py (modified)
+2026-05-17T16:50:41Z coding: python_bridge/src/api/predict.py (DELETED)
+2026-05-17T16:50:42Z coding: python_bridge/src/api/schedule.py (DELETED)
+2026-05-17T16:50:43Z coding: python_bridge/src/simulation/ (DELETED)
+2026-05-17T13:12:00Z orchestrator-remediation: lib/sports_fanatic/predictions/hit_prediction.ex — fix HIT-PRED-001 ~w sigil → list literal ["Hit","No Hit"]
+2026-05-17T13:12:00Z orchestrator-remediation: lib/sports_fanatic/predictions/park_factors.ex — fix HIT-PRED-003 hit_factor(venue_id, nil) routes to hit_factor_static(venue_id)
+2026-05-17T13:12:00Z orchestrator-remediation: lib/sports_fanatic/predictions/features.ex — fix HIT-PRED-002 docstring 38→44
+2026-05-17T13:12:00Z orchestrator-remediation: test/sports_fanatic/predictions/hit_prediction_test.exs — flip "No Hit" test from refute→assert valid
+2026-05-17T13:12:00Z orchestrator-remediation: test/sports_fanatic/predictions/park_factors_test.exs — flip nil-season tests to expect static venue lookup
+2026-05-17T17:19:26Z build: .on-loop/sessions/20260517_111655_elixir-hit-predictions-pipeline/agent-notes/build.md (created)
+2026-05-17T17:45:00Z documentation: CLAUDE.md — added Hit Predictions Pipeline section; updated File Structure, Routing Conventions, Database Schemas, Valkey Caching, Python Bridge, Oban Workers, Testing Strategy, Known Issues, Common Tasks, env vars table
+2026-05-17T17:45:01Z documentation: .on-loop/sessions/20260517_111655_elixir-hit-predictions-pipeline/agent-notes/documentation.md — created
+2026-05-17T13:30:00Z orchestrator-remediation: lib/sports_fanatic_web/live/scouting_live.ex — add today_hit_prediction assign + render today_hit_banner (review FAIL on AC line 794 fixed)

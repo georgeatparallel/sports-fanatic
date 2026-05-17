@@ -1,0 +1,103 @@
+<SportsFanaticWeb.SEOComponents.breadcrumbs items={[
+  %{label: "Home", href: "/"},
+  %{label: "Baseball", href: "/mlb/teams"},
+  %{label: "Injury Report"}
+]} />
+
+<article class="max-w-5xl mx-auto px-4 py-8">
+  <header class="mb-8">
+    <h1 class="text-3xl font-bold text-gray-900">MLB Injury Report</h1>
+    <p class="mt-2 text-gray-600">
+      Players with injury-related news in the last 3 days. Players in today's
+      lineup appear first; the rest are ordered by most recent update.
+    </p>
+  </header>
+
+  <%= if @rows == [] do %>
+    <div class="bg-gray-50 rounded-lg p-8 text-center">
+      <p class="text-gray-600">
+        No injury news in the last 3 days. Check back as updates roll in.
+      </p>
+    </div>
+  <% else %>
+    <div class="overflow-hidden rounded-lg border border-gray-200">
+      <table class="min-w-full divide-y divide-gray-200 bg-white">
+        <thead class="bg-gray-50">
+          <tr>
+            <th
+              scope="col"
+              class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600"
+            >
+              Player
+            </th>
+            <th
+              scope="col"
+              class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600"
+            >
+              In Lineup Today
+            </th>
+            <th
+              scope="col"
+              class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600"
+            >
+              Latest Status
+            </th>
+            <th
+              scope="col"
+              class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600"
+            >
+              Last Update
+            </th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-100">
+          <%= for row <- @rows do %>
+            <tr>
+              <td class="px-4 py-3 text-sm">
+                <%= if row.player.slug do %>
+                  <a
+                    href={"/mlb/injury-report/" <> row.player.slug}
+                    class="font-medium text-blue-700 hover:underline"
+                  >
+                    <%= row.player.full_name %>
+                  </a>
+                <% else %>
+                  <span class="font-medium text-gray-900"><%= row.player.full_name %></span>
+                <% end %>
+                <%= if row.team do %>
+                  <span class="ml-2 text-gray-500 text-xs">
+                    <%= row.team.abbreviation || row.team.name %>
+                  </span>
+                <% end %>
+              </td>
+              <td class="px-4 py-3 text-sm">
+                <%= if row.in_lineup_today do %>
+                  <span class="inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800">
+                    Yes
+                  </span>
+                <% else %>
+                  <span class="text-xs text-gray-500">No</span>
+                <% end %>
+              </td>
+              <td class="px-4 py-3 text-sm">
+                <% latest = List.first(row.trail) %>
+                <%= if latest do %>
+                  <span class="text-gray-900"><%= latest.category %></span>
+                  <%= if latest.injury_grade do %>
+                    <span class="ml-1 text-gray-500 text-xs">(<%= latest.injury_grade %>)</span>
+                  <% end %>
+                <% end %>
+              </td>
+              <td class="px-4 py-3 text-sm text-gray-600">
+                <% latest = List.first(row.trail) %>
+                <%= if latest && latest.date do %>
+                  <%= Date.to_iso8601(latest.date) %>
+                <% end %>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  <% end %>
+</article>

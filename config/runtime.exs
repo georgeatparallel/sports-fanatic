@@ -45,6 +45,35 @@ config :sports_fanatic, :anthropic_api_key, System.get_env("ANTHROPIC_API_KEY")
 config :sports_fanatic, :news_s3_bucket, System.get_env("NEWS_S3_BUCKET", "sports-fanatic-news")
 config :sports_fanatic, :news_s3_enabled, System.get_env("NEWS_S3_ENABLED", "false") == "true"
 
+# X (Twitter) Agent configuration — see lib/sports_fanatic/x/CLAUDE.md
+config :sports_fanatic, :x_agent,
+  client_id: System.get_env("X_CLIENT_ID"),
+  client_secret: System.get_env("X_CLIENT_SECRET"),
+  redirect_uri:
+    System.get_env(
+      "X_REDIRECT_URI",
+      "https://sportsfanatic.com/admin/x/oauth/callback"
+    ),
+  token_encryption_key: System.get_env("X_TOKEN_ENCRYPTION_KEY"),
+  daily_cap_mills: System.get_env("X_DAILY_CAP_MILLS", "5000") |> String.to_integer(),
+  account_handle: System.get_env("X_ACCOUNT_HANDLE", "")
+
+# Predictions pipeline (concurrency + cron override + Open-Meteo key)
+config :sports_fanatic, :predictions,
+  concurrency: String.to_integer(System.get_env("PREDICTIONS_CONCURRENCY", "8")),
+  pitcher_stats_concurrency:
+    String.to_integer(System.get_env("PREDICTIONS_PITCHER_STATS_CONCURRENCY", "4")),
+  bvp_concurrency: String.to_integer(System.get_env("PREDICTIONS_BVP_CONCURRENCY", "6")),
+  statcast_concurrency:
+    String.to_integer(System.get_env("PREDICTIONS_STATCAST_CONCURRENCY", "4")),
+  seed_pitcher_concurrency:
+    String.to_integer(System.get_env("PREDICTIONS_SEED_PITCHER_CONCURRENCY", "4")),
+  weather_concurrency: String.to_integer(System.get_env("PREDICTIONS_WEATHER_CONCURRENCY", "8")),
+  feature_compute_concurrency:
+    String.to_integer(System.get_env("PREDICTIONS_FEATURE_COMPUTE_CONCURRENCY", "16")),
+  cron: System.get_env("PREDICTIONS_CRON_OVERRIDE", "0 12 * * *"),
+  open_meteo_api_key: System.get_env("OPENMETEO_API_KEY")
+
 # Stripe configuration (runtime)
 if stripe_key = System.get_env("STRIPE_SECRET_KEY") do
   config :stripity_stripe, api_key: stripe_key
