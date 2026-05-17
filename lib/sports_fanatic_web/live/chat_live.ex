@@ -521,12 +521,7 @@ defmodule SportsFanaticWeb.ChatLive do
   end
 
   defp welcome_content do
-    "How can I help you today? Try one of these:\n\n" <>
-      "- **How is Hunter Brown doing?**\n" <>
-      "- **What's the Mets injury report?**\n" <>
-      "- **Current HR streaks**\n" <>
-      "- **Upload a roster** -- drag and drop your fantasy CSV to create a player feed\n\n" <>
-      "Type **/help** for all commands."
+    "How can I help you today? Try one of the suggestions above, or type **/help** for all commands."
   end
 
   defp welcome_message do
