@@ -34,10 +34,14 @@ Phoenix controllers and their HTML modules. One controller per route group.
 conn
 |> assign(:page_title, "...")
 |> assign(:meta_description, "...")          # max 160 chars
-|> assign(:canonical_url, "...")
-|> assign(:og_image, "...")
+|> assign(:canonical_url, SEO.absolute_url("/path"))  # NOT :canonical
+|> assign(:og_type, "article")               # or "website" / "profile"
+|> assign(:og_image, "...")                  # optional, defaults to site OG image
 |> assign(:json_ld, Jason.encode!(...))      # NEVER raw strings
 ```
+
+See `../CLAUDE.md` for the full set of optional assigns (article fields,
+og_image_alt, etc.) and the `SportsFanaticWeb.SEO` helper API.
 
 ## Cache-read pattern
 

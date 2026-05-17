@@ -54,6 +54,7 @@ defmodule SportsFanaticWeb.PlayerController do
       :meta_description,
       "Browse all MLB players with stats, scouting reports, and analysis. Find your favorite player."
     )
+    |> assign(:canonical_url, SportsFanaticWeb.SEO.absolute_url("/mlb/players"))
     |> render(:index,
       players: players,
       lineup_players: lineup_players,
@@ -133,7 +134,7 @@ defmodule SportsFanaticWeb.PlayerController do
     # Categories that have source content (for Quick Links)
     scouting_categories = Scouting.categories_for_player(player.id)
 
-    canonical = "https://sportsfanatic.com/mlb/players/#{team_slug}/#{player_slug}"
+    canonical = SportsFanaticWeb.SEO.absolute_url("/mlb/players/#{team_slug}/#{player_slug}")
 
     json_ld = %{
       "@context" => "https://schema.org",
@@ -160,7 +161,8 @@ defmodule SportsFanaticWeb.PlayerController do
         160
       )
     )
-    |> assign(:canonical, canonical)
+    |> assign(:canonical_url, canonical)
+    |> assign(:og_type, "profile")
     |> assign(:json_ld, Jason.encode!(json_ld))
     |> render(:show,
       player: player,
@@ -195,7 +197,9 @@ defmodule SportsFanaticWeb.PlayerController do
     scouting_categories = Scouting.categories_for_player(player.id)
 
     canonical =
-      "https://sportsfanatic.com/mlb/players/#{team_slug}/#{player_slug}/sources/#{category}"
+      SportsFanaticWeb.SEO.absolute_url(
+        "/mlb/players/#{team_slug}/#{player_slug}/sources/#{category}"
+      )
 
     category_label = SportsFanaticWeb.PlayerHTML.category_label(category)
 
@@ -221,7 +225,7 @@ defmodule SportsFanaticWeb.PlayerController do
         160
       )
     )
-    |> assign(:canonical, canonical)
+    |> assign(:canonical_url, canonical)
     |> assign(:json_ld, Jason.encode!(json_ld))
     |> render(:sources,
       player: player,

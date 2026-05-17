@@ -17,6 +17,7 @@ defmodule SportsFanaticWeb.TeamController do
     conn
     |> assign(:page_title, "MLB Teams | Sports Fan Agent")
     |> assign(:meta_description, "All 30 MLB teams with rosters, schedules, and team statistics.")
+    |> assign(:canonical_url, SportsFanaticWeb.SEO.absolute_url("/mlb/teams"))
     |> render(:index, teams: teams)
   end
 
@@ -44,7 +45,7 @@ defmodule SportsFanaticWeb.TeamController do
 
     team_magazine = load_team_magazine(team.id)
 
-    canonical = "https://sportsfanatic.com/mlb/teams/#{team_slug}"
+    canonical = SportsFanaticWeb.SEO.absolute_url("/mlb/teams/#{team_slug}")
 
     json_ld = %{
       "@context" => "https://schema.org",
@@ -64,7 +65,7 @@ defmodule SportsFanaticWeb.TeamController do
       :meta_description,
       "#{team.name} roster, upcoming schedule, team stats, and player analysis."
     )
-    |> assign(:canonical, canonical)
+    |> assign(:canonical_url, canonical)
     |> assign(:json_ld, json_ld)
     |> render(:show,
       team: team,

@@ -208,6 +208,7 @@ defmodule SportsFanatic.News do
         "ai_summary" => item.ai_summary,
         "source" => item.source,
         "source_url" => item.source_url,
+        "image_url" => item.image_url,
         "author" => item.author,
         "ai_processed" => item.ai_processed,
         "injury_area" => item.injury_area,

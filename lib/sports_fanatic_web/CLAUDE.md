@@ -27,17 +27,55 @@ lib/sports_fanatic_web/
 
 ## SEO assigns (every public controller action)
 
+`SportsFanaticWeb.SEO` (`lib/sports_fanatic_web/seo.ex`) is the single source
+of truth for site-wide defaults and absolute-URL construction. All assigns are
+optional — a page that sets none still renders complete OG + Twitter Card +
+canonical tags from `SEO` defaults via `root.html.heex`.
+
 ```elixir
 conn
-|> assign(:page_title, "...")            # used in <title>
-|> assign(:meta_description, "...")      # max 160 chars
-|> assign(:canonical_url, "...")         # self-referencing
-|> assign(:og_image, "...")              # Open Graph image URL
-|> assign(:json_ld, Jason.encode!(...))  # ALWAYS via Jason.encode!/1
+|> assign(:page_title, "...")            # <title>; default SEO.default_title/0
+|> assign(:meta_description, "...")      # max 160 chars; default SEO.default_description/0
+|> assign(:canonical_url, "...")         # use :canonical_url (NOT :canonical)
+|> assign(:og_type, "website")           # "website" (default), "article", or "profile"
+|> assign(:og_image, "...")              # path ("/images/x.png") or absolute HTTPS URL; http:// rejected
+|> assign(:og_image_alt, "...")          # default SEO.default_og_image_alt/0
+|> assign(:json_ld, Jason.encode!(...))  # ALWAYS via Jason.encode!/1, never raw strings
 ```
 
-The root layout (`root.html.heex`) renders these automatically. JSON-LD must
-come from `Jason.encode!/1` output to prevent XSS via script injection.
+When `og_type` is `"article"`, also assign:
+
+```elixir
+|> assign(:article_published_time, "2026-05-17")  # ISO 8601 string or %DateTime{}
+|> assign(:article_author, "...")                  # optional; omitted if nil
+|> assign(:article_section, "MLB News")            # e.g. "MLB News", "Scouting", "Game Day"
+```
+
+The root layout renders these automatically through `<.seo_meta>`. JSON-LD
+must come from `Jason.encode!/1` output to prevent XSS via script injection.
+Never hardcode `https://www.sports-fan-agent.com` — use `SEO.absolute_url/1`
+or `SEO.site_url/0` so URLs are correct in dev (`localhost:4000`) and prod.
+
+## Link previews (Open Graph / Twitter Card / iMessage)
+
+Default OG image: `priv/static/images/og-default.png` (1200×630, 58.5 KB,
+served at `/images/og-default.png` — stable URL, not fingerprinted, so
+unfurler caches stay valid). SVG source at `priv/static/images/og-default.svg`;
+regenerate via `python3 scripts/build_og_image_pillow.py` (Pillow) or
+`python3 scripts/build_og_image.py` (cairosvg).
+
+Verify after deploy:
+
+```bash
+curl -s -A "facebookexternalhit/1.1" https://www.sports-fan-agent.com/ \
+  | grep -E 'og:|twitter:|canonical'
+curl -sI https://www.sports-fan-agent.com/images/og-default.png
+```
+
+iMessage and Facebook cache previews aggressively (hours to days). Use the
+[Facebook Sharing Debugger](https://developers.facebook.com/tools/debug/)
+"Scrape Again" button to force-flush. iMessage cache cannot be flushed
+remotely.
 
 ## Date navigation
 

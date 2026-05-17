@@ -21,7 +21,24 @@ defmodule SportsFanaticWeb.NewsController do
       |> put_view(SportsFanaticWeb.ErrorHTML)
       |> render(:"404")
     else
-      canonical = "https://sportsfanatic.com/mlb/news/#{date_str}/#{slug}"
+      canonical = SportsFanaticWeb.SEO.absolute_url("/mlb/news/#{date_str}/#{slug}")
+
+      # Article image: fall back to site default when missing. Helper rejects
+      # http:// URLs (mixed-content) and passes https:// through unchanged.
+      og_image = SportsFanaticWeb.SEO.absolute_image_url(news_item["image_url"])
+
+      description =
+        (news_item["ai_summary"] || news_item["summary"] || news_item["body"] || "")
+        |> String.slice(0, 160)
+
+      article_section =
+        case news_item["category"] do
+          nil ->
+            "MLB News"
+
+          cat ->
+            cat |> to_string() |> String.replace("_", " ") |> String.capitalize()
+        end
 
       json_ld =
         Jason.encode!(%{
@@ -33,17 +50,19 @@ defmodule SportsFanaticWeb.NewsController do
             "@type" => "Organization",
             "name" => "Sports Fan Agent"
           },
-          "url" => canonical
+          "url" => canonical,
+          "image" => og_image,
+          "mainEntityOfPage" => canonical
         })
-
-      description =
-        (news_item["ai_summary"] || news_item["summary"] || news_item["body"] || "")
-        |> String.slice(0, 160)
 
       conn
       |> assign(:page_title, "#{news_item["title"]} | Sports Fan Agent")
       |> assign(:meta_description, description)
       |> assign(:canonical_url, canonical)
+      |> assign(:og_type, "article")
+      |> assign(:og_image, og_image)
+      |> assign(:article_published_time, news_item["published_date"])
+      |> assign(:article_section, article_section)
       |> assign(:json_ld, json_ld)
       |> render(:show,
         news_item: news_item,
