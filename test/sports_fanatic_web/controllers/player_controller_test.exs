@@ -43,14 +43,14 @@ defmodule SportsFanaticWeb.PlayerControllerTest do
   end
 
   describe "GET /mlb/players" do
-    test "renders 200 with player listing", %{conn: conn} do
+    test "redirects (301) to /predictions", %{conn: conn} do
       conn = get(conn, "/mlb/players")
-      assert html_response(conn, 200) =~ "MLB Players"
+      assert redirected_to(conn, 301) == "/predictions"
     end
 
-    test "renders page with pagination params", %{conn: conn} do
+    test "redirect ignores pagination params", %{conn: conn} do
       conn = get(conn, "/mlb/players?page=1")
-      assert html_response(conn, 200) =~ "MLB Players"
+      assert redirected_to(conn, 301) == "/predictions"
     end
   end
 
@@ -228,24 +228,6 @@ defmodule SportsFanaticWeb.PlayerControllerTest do
       response = html_response(conn, 200)
       assert response =~ player.full_name
       assert response =~ "/mlb/players/#{team.slug}/#{player.slug}"
-    end
-  end
-
-  describe "GET /mlb/players (index active filter)" do
-    test "does not include inactive players in listing", %{conn: conn} do
-      team = create_team(%{slug: "boston-red-sox"})
-
-      _active =
-        create_player(team, %{full_name: "Active Star", slug: "active-star", status: "active"})
-
-      _inactive =
-        create_player(team, %{full_name: "Bench Warmer", slug: "bench-warmer", status: "inactive"})
-
-      conn = get(conn, "/mlb/players")
-      response = html_response(conn, 200)
-
-      assert response =~ "Active Star"
-      refute response =~ "Bench Warmer"
     end
   end
 end

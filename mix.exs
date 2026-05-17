@@ -123,6 +123,13 @@ defmodule SportsFanatic.MixProject do
       test/sports_fanatic/content/injury_report_test.exs
       test/sports_fanatic/content/team_magazine_test.exs
       test/sports_fanatic/workers/x_post_scheduler_worker_test.exs
+      test/sports_fanatic/predictions/hit_prediction_test.exs
+      test/sports_fanatic/predictions/park_factors_test.exs
+      test/sports_fanatic/predictions/stadiums_test.exs
+      test/sports_fanatic/predictions/features_test.exs
+      test/sports_fanatic/external_apis/open_meteo_test.exs
+      test/sports_fanatic/external_apis/mlb_stats_test.exs
+      test/sports_fanatic/workers/daily_hit_predictions_worker_test.exs
     )
 
     [

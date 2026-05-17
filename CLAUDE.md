@@ -161,7 +161,8 @@ When updating any `CLAUDE.md` content, follow these rules in order:
 - [`lib/sports_fanatic/CLAUDE.md`](lib/sports_fanatic/CLAUDE.md) — Elixir contexts, cache, storage, file layout
 - [`lib/sports_fanatic/agents/CLAUDE.md`](lib/sports_fanatic/agents/CLAUDE.md) — Jido-pattern action behaviour, NewsAgent
 - [`lib/sports_fanatic/chat_bot/CLAUDE.md`](lib/sports_fanatic/chat_bot/CLAUDE.md) — chat history, query clustering
-- [`lib/sports_fanatic/external_apis/CLAUDE.md`](lib/sports_fanatic/external_apis/CLAUDE.md) — Exa, FantasyNerds clients
+- [`lib/sports_fanatic/external_apis/CLAUDE.md`](lib/sports_fanatic/external_apis/CLAUDE.md) — Exa, FantasyNerds, MLB Stats, Open-Meteo clients
+- [`lib/sports_fanatic/predictions/CLAUDE.md`](lib/sports_fanatic/predictions/CLAUDE.md) — Hit predictions pipeline (`/predictions`)
 - [`lib/sports_fanatic/workers/CLAUDE.md`](lib/sports_fanatic/workers/CLAUDE.md) — Oban workers + crontab
 - [`lib/sports_fanatic/x/CLAUDE.md`](lib/sports_fanatic/x/CLAUDE.md) — X (Twitter) marketing agent
 - [`lib/sports_fanatic_web/CLAUDE.md`](lib/sports_fanatic_web/CLAUDE.md) — SEO + date nav conventions

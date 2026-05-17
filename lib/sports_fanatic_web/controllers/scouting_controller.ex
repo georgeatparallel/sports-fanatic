@@ -4,6 +4,7 @@ defmodule SportsFanaticWeb.ScoutingController do
   import Ecto.Query
   alias SportsFanatic.Content.ScoutingReport
   alias SportsFanatic.Mlb.{Player, Team}
+  alias SportsFanatic.Predictions
   alias SportsFanatic.Repo
 
   def show(conn, %{"team_slug" => team_slug, "player_slug" => player_slug}) do
@@ -21,6 +22,15 @@ defmodule SportsFanaticWeb.ScoutingController do
       |> limit(1)
       |> Repo.one()
 
+    today = SportsFanatic.DateHelper.today()
+    mlb_id = get_in(player.external_ids, ["mlb_id"])
+
+    today_hit_prediction =
+      if mlb_id do
+        parsed_id = String.to_integer(to_string(mlb_id))
+        Predictions.get_for_player(parsed_id, today)
+      end
+
     canonical = "https://sportsfanatic.com/mlb/scouting/#{team_slug}/#{player_slug}"
 
     conn
@@ -33,7 +43,8 @@ defmodule SportsFanaticWeb.ScoutingController do
     |> render(:show,
       player: player,
       team: team,
-      report: report
+      report: report,
+      today_hit_prediction: today_hit_prediction
     )
   end
 end

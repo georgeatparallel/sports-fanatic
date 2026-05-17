@@ -10,6 +10,7 @@ defmodule SportsFanaticWeb.AdminLive do
 
   alias SportsFanatic.Agents
   alias SportsFanatic.ChatBot
+  alias SportsFanatic.Predictions
   alias SportsFanatic.X, as: XContext
   alias SportsFanatic.X.{Post, SpendLedger, WatchedTarget}
   import Ecto.Query, only: [from: 2]
@@ -134,7 +135,11 @@ defmodule SportsFanaticWeb.AdminLive do
        x_recent_posts: [],
        x_watched_targets: [],
        x_circuit_state: :closed,
-       x_status_message: nil
+       x_status_message: nil,
+       predictions_enabled: FeatureFlags.enabled?("hit_predictions_enabled"),
+       prediction_runs: [],
+       selected_prediction_run_id: nil,
+       prediction_run_picks: []
      )}
   end
 
@@ -215,11 +220,86 @@ defmodule SportsFanaticWeb.AdminLive do
         "x_agent" ->
           load_x_agent_state(socket)
 
+        "predictions" ->
+          runs = Predictions.list_runs(30)
+
+          assign(socket,
+            prediction_runs: runs,
+            predictions_enabled: FeatureFlags.enabled?("hit_predictions_enabled")
+          )
+
         _ ->
           socket
       end
 
     {:noreply, assign(socket, active_tab: tab)}
+  end
+
+  def handle_event("toggle_predictions_flag", _params, socket) do
+    key = "hit_predictions_enabled"
+
+    if FeatureFlags.enabled?(key) do
+      case FeatureFlags.get(key) do
+        nil -> :ok
+        _flag -> FeatureFlags.disable(key)
+      end
+    else
+      case FeatureFlags.get(key) do
+        nil ->
+          FeatureFlags.create(%{
+            key: key,
+            enabled: true,
+            description: "Enable daily hit prediction pipeline"
+          })
+
+        _flag ->
+          FeatureFlags.enable(key)
+      end
+    end
+
+    {:noreply,
+     assign(socket,
+       predictions_enabled: FeatureFlags.enabled?(key),
+       flags: FeatureFlags.list_all()
+     )}
+  end
+
+  def handle_event("run_predictions_now", _params, socket) do
+    case Predictions.run_now(:today) do
+      {:ok, _job} ->
+        {:noreply, put_flash(socket, :info, "Hit predictions pipeline enqueued.")}
+
+      {:error, reason} ->
+        {:noreply, put_flash(socket, :error, "Failed to enqueue predictions: #{inspect(reason)}")}
+    end
+  end
+
+  def handle_event("view_prediction_run", %{"run-id" => run_id}, socket) do
+    sql = """
+    SELECT player_name, player_team, vs_team, hit_prob, prediction
+      FROM mlb.hit_predictions
+     WHERE pipeline_run_id = $1
+     ORDER BY hit_prob DESC
+     LIMIT 200
+    """
+
+    picks =
+      try do
+        SportsFanatic.Repo.query!(sql, [run_id]).rows
+        |> Enum.map(fn [pn, pt, vs, prob, pred] ->
+          %{
+            player_name: pn,
+            player_team: pt,
+            vs_team: vs,
+            hit_prob: prob,
+            prediction: pred
+          }
+        end)
+      rescue
+        _ -> []
+      end
+
+    {:noreply, assign(socket, selected_prediction_run_id: run_id, prediction_run_picks: picks)}
   end
 
   def handle_event("run_feed_research", _params, socket) do
@@ -941,6 +1021,19 @@ defmodule SportsFanaticWeb.AdminLive do
             ]}
           >
             Feeds
+          </button>
+          <button
+            phx-click="switch_tab"
+            phx-value-tab="predictions"
+            class={[
+              "py-3 px-1 border-b-2 font-medium text-sm transition",
+              if(@active_tab == "predictions",
+                do: "border-blue-500 text-blue-600",
+                else: "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+              )
+            ]}
+          >
+            Predictions
           </button>
           <button
             phx-click="switch_tab"
@@ -2055,8 +2148,140 @@ defmodule SportsFanaticWeb.AdminLive do
           </div>
         </div>
       <% end %>
+
+      <%!-- Predictions Tab --%>
+      <%= if @active_tab == "predictions" do %>
+        <div class="space-y-6">
+          <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-5">
+            <div class="flex items-center justify-between mb-4">
+              <div>
+                <h3 class="text-lg font-semibold text-gray-900">Hit Predictions Pipeline</h3>
+                <p class="text-xs text-gray-500 mt-1">
+                  Default schedule: <code class="bg-gray-100 px-1 py-0.5 rounded">0 12 * * *</code>
+                  UTC (8 AM ET during EDT).
+                </p>
+              </div>
+              <div class="flex items-center gap-3">
+                <button
+                  phx-click="toggle_predictions_flag"
+                  class={[
+                    "px-3 py-1.5 rounded-md text-sm font-medium transition",
+                    if(@predictions_enabled,
+                      do: "bg-green-100 text-green-800 hover:bg-green-200",
+                      else: "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                    )
+                  ]}
+                >
+                  <%= if @predictions_enabled, do: "Enabled", else: "Disabled" %>
+                </button>
+                <button
+                  phx-click="run_predictions_now"
+                  class="bg-blue-600 text-white px-3 py-1.5 rounded-md text-sm font-medium hover:bg-blue-700"
+                >
+                  Run Now
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-5">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">Recent Runs</h3>
+            <%= if @prediction_runs == [] do %>
+              <p class="text-sm text-gray-500">No runs yet.</p>
+            <% else %>
+              <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                  <tr>
+                    <th class="px-3 py-2 text-left text-xs uppercase text-gray-500">Started</th>
+                    <th class="px-3 py-2 text-left text-xs uppercase text-gray-500">Status</th>
+                    <th class="px-3 py-2 text-left text-xs uppercase text-gray-500">Records</th>
+                    <th class="px-3 py-2 text-left text-xs uppercase text-gray-500">Duration</th>
+                    <th class="px-3 py-2 text-right text-xs uppercase text-gray-500"></th>
+                  </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-100">
+                  <%= for run <- @prediction_runs do %>
+                    <tr>
+                      <td class="px-3 py-2 text-sm text-gray-700">
+                        <%= if run.started_at, do: Calendar.strftime(run.started_at, "%Y-%m-%d %H:%M") %>
+                      </td>
+                      <td class="px-3 py-2 text-sm">
+                        <span class={[
+                          "px-2 py-0.5 rounded text-xs font-medium",
+                          run.status == "completed" && "bg-green-100 text-green-800",
+                          run.status == "failed" && "bg-red-100 text-red-800",
+                          run.status == "running" && "bg-blue-100 text-blue-800"
+                        ]}>
+                          <%= run.status %>
+                        </span>
+                      </td>
+                      <td class="px-3 py-2 text-sm text-gray-700">
+                        <%= Map.get(run.metadata || %{}, "records_processed", "—") %>
+                      </td>
+                      <td class="px-3 py-2 text-sm text-gray-500">
+                        <%= duration_ms_for(run) %>
+                      </td>
+                      <td class="px-3 py-2 text-right text-sm">
+                        <button
+                          phx-click="view_prediction_run"
+                          phx-value-run-id={run.id}
+                          class="text-blue-600 hover:text-blue-800 font-medium"
+                        >
+                          View
+                        </button>
+                      </td>
+                    </tr>
+                  <% end %>
+                </tbody>
+              </table>
+            <% end %>
+          </div>
+
+          <%= if @selected_prediction_run_id do %>
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-5">
+              <h3 class="text-lg font-semibold text-gray-900 mb-4">
+                Run <%= @selected_prediction_run_id %>
+              </h3>
+              <%= if @prediction_run_picks == [] do %>
+                <p class="text-sm text-gray-500">No predictions for this run.</p>
+              <% else %>
+                <table class="min-w-full divide-y divide-gray-200">
+                  <thead class="bg-gray-50">
+                    <tr>
+                      <th class="px-3 py-2 text-left text-xs uppercase text-gray-500">Player</th>
+                      <th class="px-3 py-2 text-left text-xs uppercase text-gray-500">Team</th>
+                      <th class="px-3 py-2 text-left text-xs uppercase text-gray-500">vs</th>
+                      <th class="px-3 py-2 text-left text-xs uppercase text-gray-500">Hit %</th>
+                    </tr>
+                  </thead>
+                  <tbody class="bg-white divide-y divide-gray-100">
+                    <%= for p <- @prediction_run_picks do %>
+                      <tr>
+                        <td class="px-3 py-2 text-sm text-gray-900"><%= p.player_name %></td>
+                        <td class="px-3 py-2 text-sm text-gray-600"><%= p.player_team %></td>
+                        <td class="px-3 py-2 text-sm text-gray-600"><%= p.vs_team %></td>
+                        <td class="px-3 py-2 text-sm font-medium text-gray-900">
+                          <%= if p.hit_prob, do: "#{Float.round(p.hit_prob * 100, 1)}%", else: "—" %>
+                        </td>
+                      </tr>
+                    <% end %>
+                  </tbody>
+                </table>
+              <% end %>
+            </div>
+          <% end %>
+        </div>
+      <% end %>
     </div>
     """
+  end
+
+  defp duration_ms_for(%{started_at: nil}), do: "—"
+  defp duration_ms_for(%{completed_at: nil}), do: "running"
+
+  defp duration_ms_for(%{started_at: s, completed_at: c}) do
+    ms = DateTime.diff(c, s, :millisecond)
+    "#{div(ms, 1000)}s"
   end
 
   defp agent_setting_status_class("pending"), do: "bg-yellow-100 text-yellow-800"

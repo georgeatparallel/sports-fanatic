@@ -57,12 +57,15 @@ defmodule SportsFanaticWeb.Router do
     live "/", ChatLive, :index
     live "/chat", ChatLive, :index
 
+    # Hit predictions (top-level)
+    live "/predictions", PredictionsLive, :index
+
     # Feed management
     live "/feeds", FeedsLive, :index
     live "/feeds/:id", FeedsLive, :show
 
-    # Player pages
-    get "/mlb/players", PlayerController, :index
+    # Player pages — /mlb/players index 301-redirects to /predictions
+    get "/mlb/players", PredictionsRedirectController, :redirect_to_predictions
     get "/mlb/players/:team_slug/:player_slug", PlayerController, :show
     get "/mlb/players/:team_slug/:player_slug/sources/:category", PlayerController, :sources
 
