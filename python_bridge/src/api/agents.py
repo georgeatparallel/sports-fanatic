@@ -18,11 +18,6 @@ class ParseSettingRequest(BaseModel):
     context: dict | None = None
 
 
-class ExecuteAgentsRequest(BaseModel):
-    settings: list[dict]
-    date_range: dict
-
-
 @router.post("/parse-setting")
 async def parse_setting_endpoint(request: ParseSettingRequest):
     """Parse a natural language agent setting into structured criteria."""
@@ -41,22 +36,3 @@ async def parse_setting_endpoint(request: ParseSettingRequest):
         raise HTTPException(status_code=422, detail=result["error"])
 
     return result
-
-
-@router.post("/execute")
-async def execute_agents_endpoint(request: ExecuteAgentsRequest):
-    """Execute agent settings against news data.
-
-    Phase 2 stub - returns empty results for now.
-    """
-    return {
-        "results": [
-            {
-                "setting_id": s.get("id"),
-                "matched_articles": [],
-                "exa_articles": [],
-                "explanation": "Agent execution is not yet implemented (Phase 2)",
-            }
-            for s in request.settings
-        ]
-    }

@@ -1,11 +1,14 @@
 <SportsFanaticWeb.SEOComponents.breadcrumbs items={[
   %{label: "Home", href: "/"},
-  %{label: "Players", href: "/mlb/players"},
+  %{label: "Predictions", href: "/predictions"},
   %{label: @team.name, href: "/mlb/teams/#{@team.slug}"},
   %{label: "#{@player.full_name} Scouting Report"}
 ]} />
 
 <article class="max-w-4xl mx-auto px-4 py-8">
+  <SportsFanaticWeb.PredictionComponents.today_hit_banner prediction={
+    assigns[:today_hit_prediction]
+  } />
   <header class="mb-6">
     <h1 class="text-3xl font-bold text-gray-900">Scouting Report: <%= @player.full_name %></h1>
     <p class="text-lg text-gray-600">

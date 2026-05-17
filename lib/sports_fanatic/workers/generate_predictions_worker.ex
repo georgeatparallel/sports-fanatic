@@ -1,39 +1,26 @@
 defmodule SportsFanatic.Workers.GeneratePredictionsWorker do
-  @moduledoc "Calls Python bridge for hit/HR predictions after lineups confirmed."
+  @moduledoc """
+  Legacy entry point preserved for the existing `/admin` "Generate Predictions"
+  button and any external cron entries. Delegates to the new
+  `DailyHitPredictionsWorker` orchestrator.
+  """
 
   use Oban.Worker,
-    queue: :content_generation,
+    queue: :predictions,
     max_attempts: 3,
     unique: [period: 300]
 
-  alias SportsFanatic.PythonBridge
-  alias SportsFanatic.Workers.WarmCacheWorker
+  alias SportsFanatic.Workers.DailyHitPredictionsWorker
 
   require Logger
 
   @impl Oban.Worker
-  def perform(%Oban.Job{args: %{"date" => _date}}) do
-    # Call Python bridge for hit predictions
-    case PythonBridge.predict_hits(%{}) do
-      {:ok, _results} ->
-        Logger.info("Hit predictions generated")
+  def perform(%Oban.Job{args: args}) do
+    Logger.info("GeneratePredictionsWorker → delegating to DailyHitPredictionsWorker")
+    date = args["date"] || SportsFanatic.DateHelper.today() |> Date.to_iso8601()
 
-      {:error, reason} ->
-        Logger.warning("Hit predictions failed: #{inspect(reason)}")
-    end
-
-    # Call Python bridge for HR predictions
-    case PythonBridge.predict_hrs(%{}) do
-      {:ok, _results} ->
-        Logger.info("HR predictions generated")
-
-      {:error, reason} ->
-        Logger.warning("HR predictions failed: #{inspect(reason)}")
-    end
-
-    # Trigger cache warming
-    %{}
-    |> WarmCacheWorker.new()
+    %{"date" => date, "force" => true}
+    |> DailyHitPredictionsWorker.new()
     |> Oban.insert()
 
     :ok
