@@ -119,40 +119,6 @@
     </div>
   </div>
 
-  <%!-- Chat articles from last agent response --%>
-  <%= if @chat_articles != [] do %>
-    <div class="flex-shrink-0 max-h-40 overflow-y-auto border-t border-gray-200 bg-gray-50 px-4 py-2">
-      <div class="max-w-3xl mx-auto space-y-1">
-        <%= for article <- @chat_articles do %>
-          <div class="bg-white border border-gray-100 rounded px-3 py-2 text-sm">
-            <div class="flex items-center gap-2">
-              <span class="font-medium text-gray-900 truncate"><%= article["title"] %></span>
-              <%= if article["category"] do %>
-                <span class="text-xs px-1.5 py-0.5 rounded bg-gray-100 text-gray-600">
-                  <%= article["category"] %>
-                </span>
-              <% end %>
-            </div>
-            <%= if article["ai_summary"] do %>
-              <p class="text-xs text-gray-500 mt-1 line-clamp-2">
-                <%= article["ai_summary"] %>
-              </p>
-            <% end %>
-            <%= if article["source_url"] do %>
-              <a
-                href={article["source_url"]}
-                target="_blank"
-                rel="noopener noreferrer"
-                class="text-xs text-blue-500 hover:text-blue-700 mt-1 inline-block"
-              >
-                <%= article["author"] || "Read more" %> &rarr;
-              </a>
-            <% end %>
-          </div>
-        <% end %>
-      </div>
-    </div>
-  <% end %>
 
   <%!-- File upload area (shown during upload skill) --%>
   <%= if @skill_state && @skill_state.skill == :upload && @skill_state.step == :await_file do %>
