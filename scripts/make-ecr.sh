@@ -82,6 +82,7 @@ build_and_push() {
 
     # Build
     docker build \
+        --no-cache \
         --platform linux/amd64 \
         -f "${PROJECT_ROOT}/${dockerfile}" \
         -t "${full_repo}:${GIT_SHA}" \
