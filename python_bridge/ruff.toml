@@ -1,3 +1,0 @@
-[lint.per-file-ignores]
-"src/api/chat.py" = ["E501"]
-"src/agents/parser.py" = ["E501"]

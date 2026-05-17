@@ -222,9 +222,13 @@ def _generate_top_factors(features: dict, prob: float) -> list[dict]:
 
     temp = features.get("temperature")
     if temp is not None and temp > 28:
-        factors.append({"feature": "temperature", "value": temp, "impact": "moderate positive"})
+        factors.append(
+            {"feature": "temperature", "value": temp, "impact": "moderate positive"}
+        )
     elif temp is not None and temp < 12:
-        factors.append({"feature": "temperature", "value": temp, "impact": "moderate negative"})
+        factors.append(
+            {"feature": "temperature", "value": temp, "impact": "moderate negative"}
+        )
 
     return factors[:5]
 

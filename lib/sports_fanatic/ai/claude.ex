@@ -301,8 +301,7 @@ defmodule SportsFanatic.AI.Claude do
         text =
           content
           |> Enum.filter(&(&1["type"] == "text"))
-          |> Enum.map(& &1["text"])
-          |> Enum.join("")
+          |> Enum.map_join("", & &1["text"])
 
         if text != "", do: {:ok, text}, else: {:error, :empty_response}
 

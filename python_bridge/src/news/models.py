@@ -48,7 +48,9 @@ class NewsAnalysis(BaseModel):
     """Structured result from AI news analysis."""
 
     category: str = Field(description="Article category classification")
-    sentiment: str = Field(description="Article sentiment: negative, neutral, or positive")
+    sentiment: str = Field(
+        description="Article sentiment: negative, neutral, or positive"
+    )
     summary: str = Field(description="One-sentence summary of the article")
     player_names: list[str] = Field(
         default_factory=list,
