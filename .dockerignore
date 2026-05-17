@@ -1,0 +1,12 @@
+.git
+_build
+deps
+node_modules
+.elixir_ls
+.claude
+.on-loop
+infra
+backups
+*.dump
+.env
+tmp
