@@ -73,13 +73,26 @@ defmodule SportsFanaticWeb.PlayerController do
 
     today = SportsFanatic.DateHelper.today()
 
-    # Latest scouting report
+    # Latest scouting report — check for today first, then any recent
     scouting =
       ScoutingReport
       |> where([sr], sr.player_id == ^player.id)
       |> order_by([sr], desc: sr.report_date)
       |> limit(1)
       |> Repo.one()
+
+    # If no report exists for today, trigger on-demand generation
+    scouting_pending =
+      if is_nil(scouting) or Date.compare(scouting.report_date, today) != :eq do
+        # Enqueue generation (Oban unique constraint prevents duplicates)
+        %{"player_id" => player.id}
+        |> SportsFanatic.Workers.GenerateScoutingOnDemandWorker.new()
+        |> Oban.insert()
+
+        true
+      else
+        false
+      end
 
     # Today's predictions
     mlb_id = get_in(player.external_ids, ["mlb_id"])
@@ -146,6 +159,7 @@ defmodule SportsFanaticWeb.PlayerController do
       player: player,
       team: team,
       scouting: scouting,
+      scouting_pending: scouting_pending,
       hit_pick: hit_pick,
       hr_pick: hr_pick,
       news: news,

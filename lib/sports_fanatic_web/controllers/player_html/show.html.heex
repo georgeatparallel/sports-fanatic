@@ -178,19 +178,24 @@
         <% end %>
       <% end %>
 
-      <%= if is_nil(@scouting) do %>
+      <%= if @scouting_pending do %>
         <section class="mb-8">
-          <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-800">
-            <p class="font-medium">AI Scouting Report</p>
-            <p class="mt-1">
-              A detailed scouting report for <%= @player.full_name %> will be available once generated.
-              <%= if SportsFanatic.FeatureFlags.enabled?("subscriptions_enabled") do %>
-                <a href="/subscribe" class="underline font-medium">
-                  Subscribe for premium daily analysis.
-                </a>
-              <% end %>
-            </p>
+          <div class="bg-amber-50 border border-amber-200 rounded-lg p-4 text-sm text-amber-800">
+            <div class="flex items-center gap-3">
+              <svg class="animate-spin h-5 w-5 text-amber-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+              </svg>
+              <div>
+                <p class="font-semibold">Generating Scouting Report</p>
+                <p class="mt-0.5">
+                  Creating a fresh scouting report for <%= @player.full_name %>. This page will refresh automatically when ready.
+                </p>
+              </div>
+            </div>
           </div>
+          <%!-- Auto-refresh every 10 seconds to check if report is ready --%>
+          <meta http-equiv="refresh" content="10" />
         </section>
       <% end %>
 
