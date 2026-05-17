@@ -9,7 +9,7 @@ defmodule SportsFanatic.Workers.GenerateScoutingOnDemandWorker do
   use Oban.Worker,
     queue: :content_generation,
     max_attempts: 2,
-    unique: [period: 86_400, fields: [:args], keys: [:player_id]]
+    unique: [period: 300, fields: [:args], keys: [:player_id], states: [:available, :scheduled, :executing]]
 
   import Ecto.Query
 
@@ -74,8 +74,8 @@ defmodule SportsFanatic.Workers.GenerateScoutingOnDemandWorker do
         end
 
       _ ->
-        Logger.info("ScoutingOnDemand: no sources found for #{player.full_name}")
-        :ok
+        Logger.warning("ScoutingOnDemand: no sources found for #{player.full_name}, will retry")
+        {:error, :no_sources}
     end
   end
 end
