@@ -11,6 +11,12 @@ defmodule SportsFanaticWeb.AdminLive do
   alias SportsFanatic.Agents
   alias SportsFanatic.ChatBot
   alias SportsFanatic.Predictions
+  alias SportsFanatic.X, as: XContext
+  alias SportsFanatic.X.{Post, SpendLedger, WatchedTarget}
+  import Ecto.Query, only: [from: 2]
+
+  @x_rate_limit_table :x_admin_rate_limit
+  @x_admin_topic "admin:x_agent"
 
   @workers [
     %{key: "cleanup", module: SportsFanatic.Workers.CleanupWorker, label: "Cleanup"},
@@ -80,6 +86,8 @@ defmodule SportsFanaticWeb.AdminLive do
 
     if connected?(socket) do
       Pipeline.subscribe()
+      :ok = ensure_x_rate_limit_table()
+      Phoenix.PubSub.subscribe(SportsFanatic.PubSub, @x_admin_topic)
     end
 
     statuses = load_initial_statuses()
@@ -118,6 +126,16 @@ defmodule SportsFanaticWeb.AdminLive do
          pending_today: 0,
          total_players: 0
        },
+       x_agent_enabled: FeatureFlags.enabled?("x_agent_enabled"),
+       x_approval_required: FeatureFlags.enabled?("x_agent_approval_required"),
+       x_outbound_enabled: FeatureFlags.enabled?("x_agent_outbound_replies_enabled"),
+       x_today_mills: 0,
+       x_daily_cap_mills: SpendLedger.daily_cap_mills(),
+       x_pending_posts: [],
+       x_recent_posts: [],
+       x_watched_targets: [],
+       x_circuit_state: :closed,
+       x_status_message: nil,
        predictions_enabled: FeatureFlags.enabled?("hit_predictions_enabled"),
        prediction_runs: [],
        selected_prediction_run_id: nil,
@@ -198,6 +216,9 @@ defmodule SportsFanaticWeb.AdminLive do
             all_feeds: all_feeds,
             feed_research_stats: stats
           )
+
+        "x_agent" ->
+          load_x_agent_state(socket)
 
         "predictions" ->
           runs = Predictions.list_runs(30)
@@ -541,6 +562,130 @@ defmodule SportsFanaticWeb.AdminLive do
     {:noreply, assign(socket, selected_run_id: nil, pipeline_logs: [])}
   end
 
+  # ── X Agent tab ─────────────────────────────────────────────
+
+  def handle_event("toggle_x_agent", %{"enabled" => enabled_str}, socket) do
+    set_x_flag("x_agent_enabled", enabled_str == "true", socket, :x_agent_enabled)
+  end
+
+  def handle_event("toggle_x_approval", %{"required" => required_str}, socket) do
+    set_x_flag("x_agent_approval_required", required_str == "true", socket, :x_approval_required)
+  end
+
+  def handle_event("toggle_x_outbound", %{"enabled" => enabled_str}, socket) do
+    set_x_flag(
+      "x_agent_outbound_replies_enabled",
+      enabled_str == "true",
+      socket,
+      :x_outbound_enabled
+    )
+  end
+
+  def handle_event("approve_post", %{"post_id" => post_id}, socket) do
+    XContext.approve_post(post_id)
+    {:noreply, load_x_agent_state(socket) |> put_flash(:info, "Post approved.")}
+  end
+
+  def handle_event("reject_post", %{"post_id" => post_id}, socket) do
+    case Repo.get(Post, post_id) do
+      nil ->
+        {:noreply, socket}
+
+      %Post{} = post ->
+        post
+        |> Post.changeset(%{status: "rejected"})
+        |> Repo.update()
+
+        {:noreply, load_x_agent_state(socket) |> put_flash(:info, "Post rejected.")}
+    end
+  end
+
+  def handle_event("post_now", %{"type" => post_type}, socket)
+      when post_type in ["top_hits", "injury", "team_magazine"] do
+    if rate_limited?({:post_now, post_type}, 60_000) do
+      {:noreply, put_flash(socket, :error, "Please wait before doing that again.")}
+    else
+      now = DateTime.utc_now() |> DateTime.truncate(:second)
+      actor = "joshua:#{System.system_time(:second)}"
+
+      {:ok, post} =
+        %Post{}
+        |> Post.changeset(%{
+          post_type: post_type,
+          status: "pending",
+          scheduled_at: now,
+          main_body: "",
+          context: %{actor: actor}
+        })
+        |> Repo.insert()
+
+      %{"post_id" => post.id, "post_type" => post_type}
+      |> SportsFanatic.Workers.MainPostWorker.new()
+      |> Oban.insert()
+
+      {:noreply, load_x_agent_state(socket) |> put_flash(:info, "Post enqueued.")}
+    end
+  end
+
+  def handle_event("post_now", _params, socket) do
+    {:noreply, put_flash(socket, :error, "Unknown post type.")}
+  end
+
+  def handle_event("reschedule_day", _params, socket) do
+    if rate_limited?(:reschedule, 5 * 60_000) do
+      {:noreply, put_flash(socket, :error, "Please wait before doing that again.")}
+    else
+      case %{} |> SportsFanatic.Workers.XPostSchedulerWorker.new() |> Oban.insert() do
+        {:ok, _job} ->
+          {:noreply, load_x_agent_state(socket) |> put_flash(:info, "Scheduler re-run enqueued.")}
+
+        {:error, _} ->
+          {:noreply, put_flash(socket, :error, "Failed to enqueue scheduler.")}
+      end
+    end
+  end
+
+  def handle_event("add_watched_target", %{"handle" => handle} = params, socket) do
+    handle = handle |> String.trim() |> String.replace_prefix("@", "")
+
+    if Regex.match?(~r/^[A-Za-z0-9_]{1,15}$/, handle) do
+      focus = Map.get(params, "focus", "")
+
+      %WatchedTarget{}
+      |> WatchedTarget.changeset(%{handle: handle, focus: focus, enabled: true})
+      |> Repo.insert(on_conflict: :nothing, conflict_target: :handle)
+
+      {:noreply, load_x_agent_state(socket) |> put_flash(:info, "Watched target added.")}
+    else
+      {:noreply, put_flash(socket, :error, "Invalid X handle.")}
+    end
+  end
+
+  def handle_event("remove_watched_target", %{"id" => id}, socket) do
+    case Repo.get(WatchedTarget, id) do
+      nil ->
+        {:noreply, socket}
+
+      %WatchedTarget{} = target ->
+        Repo.delete(target)
+        {:noreply, load_x_agent_state(socket) |> put_flash(:info, "Watched target removed.")}
+    end
+  end
+
+  def handle_event("refresh_oauth", _params, socket) do
+    case XContext.refresh_if_needed() do
+      {:ok, _} ->
+        {:noreply, assign(socket, x_status_message: "OAuth token refreshed.")}
+
+      {:error, reason} ->
+        {:noreply, assign(socket, x_status_message: "Refresh failed: #{inspect(reason)}")}
+    end
+  end
+
+  def handle_event("connect_x_account", _params, socket) do
+    {:noreply, push_navigate(socket, to: "/admin/x/oauth/start")}
+  end
+
   @impl true
   def handle_info({:pipeline_started, payload}, socket) do
     {:noreply,
@@ -635,6 +780,32 @@ defmodule SportsFanaticWeb.AdminLive do
     else
       {:noreply, socket}
     end
+  end
+
+  # ── PubSub handlers for "admin:x_agent" topic ──────────────
+
+  def handle_info({:post_state_change, _post}, socket) do
+    {:noreply, load_x_agent_state(socket)}
+  end
+
+  def handle_info({:budget_exceeded, mills}, socket) do
+    {:noreply,
+     assign(socket,
+       x_today_mills: mills,
+       x_status_message: "Daily budget cap exceeded (#{mills} mills)."
+     )}
+  end
+
+  def handle_info({:token_failure, reason}, socket) do
+    {:noreply, assign(socket, x_status_message: "OAuth token failure: #{inspect(reason)}")}
+  end
+
+  def handle_info({:circuit_state_change, state}, socket) do
+    {:noreply, assign(socket, x_circuit_state: state)}
+  end
+
+  def handle_info(:plan_updated, socket) do
+    {:noreply, load_x_agent_state(socket)}
   end
 
   defp format_changeset_errors(changeset) do
@@ -879,6 +1050,19 @@ defmodule SportsFanaticWeb.AdminLive do
             <span class="ml-2 bg-gray-100 text-gray-600 py-0.5 px-2 rounded-full text-xs">
               <%= length(@flags) %>
             </span>
+          </button>
+          <button
+            phx-click="switch_tab"
+            phx-value-tab="x_agent"
+            class={[
+              "py-3 px-1 border-b-2 font-medium text-sm transition",
+              if(@active_tab == "x_agent",
+                do: "border-blue-500 text-blue-600",
+                else: "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+              )
+            ]}
+          >
+            X Agent
           </button>
         </nav>
       </div>
@@ -1748,6 +1932,223 @@ defmodule SportsFanaticWeb.AdminLive do
         </div>
       <% end %>
 
+      <%!-- X Agent Tab --%>
+      <%= if @active_tab == "x_agent" do %>
+        <div class="space-y-6">
+          <div class="bg-white rounded-lg border border-gray-200 p-5">
+            <h2 class="text-lg font-semibold text-gray-900 mb-3">Status</h2>
+
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 text-sm">
+              <div>
+                <p class="text-gray-500 text-xs uppercase">Enabled</p>
+                <p class="text-gray-900 font-medium">
+                  <%= if @x_agent_enabled, do: "On", else: "Off" %>
+                </p>
+              </div>
+              <div>
+                <p class="text-gray-500 text-xs uppercase">Approval</p>
+                <p class="text-gray-900 font-medium">
+                  <%= if @x_approval_required, do: "Required", else: "Off" %>
+                </p>
+              </div>
+              <div>
+                <p class="text-gray-500 text-xs uppercase">Outbound</p>
+                <p class="text-gray-900 font-medium">
+                  <%= if @x_outbound_enabled, do: "On", else: "Off" %>
+                </p>
+              </div>
+              <div>
+                <p class="text-gray-500 text-xs uppercase">Today's Spend</p>
+                <p class="text-gray-900 font-medium">
+                  <%= @x_today_mills %> / <%= @x_daily_cap_mills %> mills
+                </p>
+              </div>
+            </div>
+
+            <div class="mt-4 flex flex-wrap gap-2 text-sm">
+              <button
+                phx-click="toggle_x_agent"
+                phx-value-enabled={to_string(not @x_agent_enabled)}
+                class="px-3 py-1 rounded bg-blue-600 text-white hover:bg-blue-700"
+              >
+                <%= if @x_agent_enabled, do: "Disable Agent", else: "Enable Agent" %>
+              </button>
+              <button
+                phx-click="toggle_x_approval"
+                phx-value-required={to_string(not @x_approval_required)}
+                class="px-3 py-1 rounded bg-gray-200 text-gray-800 hover:bg-gray-300"
+              >
+                <%= if @x_approval_required, do: "Drop Approval", else: "Require Approval" %>
+              </button>
+              <button
+                phx-click="toggle_x_outbound"
+                phx-value-enabled={to_string(not @x_outbound_enabled)}
+                class="px-3 py-1 rounded bg-gray-200 text-gray-800 hover:bg-gray-300"
+              >
+                <%= if @x_outbound_enabled, do: "Disable Outbound", else: "Enable Outbound" %>
+              </button>
+              <button
+                phx-click="connect_x_account"
+                class="px-3 py-1 rounded bg-indigo-600 text-white hover:bg-indigo-700"
+              >
+                Connect X
+              </button>
+              <button
+                phx-click="refresh_oauth"
+                class="px-3 py-1 rounded bg-gray-200 text-gray-800 hover:bg-gray-300"
+              >
+                Refresh Token
+              </button>
+              <button
+                phx-click="reschedule_day"
+                class="px-3 py-1 rounded bg-gray-200 text-gray-800 hover:bg-gray-300"
+              >
+                Reschedule Today
+              </button>
+            </div>
+
+            <%= if @x_status_message do %>
+              <p class="mt-3 text-sm text-amber-700"><%= @x_status_message %></p>
+            <% end %>
+          </div>
+
+          <div class="bg-white rounded-lg border border-gray-200 p-5">
+            <h2 class="text-lg font-semibold text-gray-900 mb-3">Approval Queue</h2>
+            <%= if @x_pending_posts == [] do %>
+              <p class="text-sm text-gray-500">No pending posts.</p>
+            <% else %>
+              <div class="space-y-3">
+                <%= for post <- @x_pending_posts do %>
+                  <div class="border border-gray-200 rounded-md p-3">
+                    <div class="flex items-center justify-between text-xs text-gray-500 mb-1">
+                      <span><%= post.post_type %></span>
+                      <span>
+                        <%= post.scheduled_at &&
+                          Calendar.strftime(post.scheduled_at, "%Y-%m-%d %H:%M UTC") %>
+                      </span>
+                    </div>
+                    <p class="text-sm text-gray-800 whitespace-pre-line"><%= post.main_body %></p>
+                    <%= if post.reply_body do %>
+                      <p class="mt-2 text-xs text-gray-600">Reply: <%= post.reply_body %></p>
+                    <% end %>
+                    <div class="mt-2 flex gap-2 text-xs">
+                      <button
+                        phx-click="approve_post"
+                        phx-value-post_id={post.id}
+                        class="px-2 py-1 rounded bg-emerald-600 text-white hover:bg-emerald-700"
+                      >
+                        Approve
+                      </button>
+                      <button
+                        phx-click="reject_post"
+                        phx-value-post_id={post.id}
+                        class="px-2 py-1 rounded bg-rose-600 text-white hover:bg-rose-700"
+                      >
+                        Reject
+                      </button>
+                    </div>
+                  </div>
+                <% end %>
+              </div>
+            <% end %>
+          </div>
+
+          <div class="bg-white rounded-lg border border-gray-200 p-5">
+            <h2 class="text-lg font-semibold text-gray-900 mb-3">Post Now</h2>
+            <div class="flex gap-2 text-sm">
+              <button
+                phx-click="post_now"
+                phx-value-type="top_hits"
+                class="px-3 py-1 rounded bg-gray-200 text-gray-800 hover:bg-gray-300"
+              >
+                Top Hits
+              </button>
+              <button
+                phx-click="post_now"
+                phx-value-type="injury"
+                class="px-3 py-1 rounded bg-gray-200 text-gray-800 hover:bg-gray-300"
+              >
+                Injury
+              </button>
+              <button
+                phx-click="post_now"
+                phx-value-type="team_magazine"
+                class="px-3 py-1 rounded bg-gray-200 text-gray-800 hover:bg-gray-300"
+              >
+                Team Magazine
+              </button>
+            </div>
+          </div>
+
+          <div class="bg-white rounded-lg border border-gray-200 p-5">
+            <h2 class="text-lg font-semibold text-gray-900 mb-3">Watched Targets</h2>
+
+            <form phx-submit="add_watched_target" class="flex flex-wrap gap-2 mb-4 text-sm">
+              <input
+                type="text"
+                name="handle"
+                placeholder="@handle"
+                class="border border-gray-300 rounded px-2 py-1"
+              />
+              <input
+                type="text"
+                name="focus"
+                placeholder="focus (free text)"
+                class="border border-gray-300 rounded px-2 py-1 flex-1"
+              />
+              <button type="submit" class="px-3 py-1 rounded bg-blue-600 text-white hover:bg-blue-700">
+                Add
+              </button>
+            </form>
+
+            <%= if @x_watched_targets == [] do %>
+              <p class="text-sm text-gray-500">No watched targets.</p>
+            <% else %>
+              <ul class="divide-y divide-gray-100 text-sm">
+                <%= for target <- @x_watched_targets do %>
+                  <li class="flex items-center justify-between py-2">
+                    <span>
+                      @<%= target.handle %>
+                      <%= if target.focus && target.focus != "" do %>
+                        <span class="text-gray-500 ml-2"><%= target.focus %></span>
+                      <% end %>
+                    </span>
+                    <button
+                      phx-click="remove_watched_target"
+                      phx-value-id={target.id}
+                      class="text-xs text-rose-600 hover:underline"
+                    >
+                      Remove
+                    </button>
+                  </li>
+                <% end %>
+              </ul>
+            <% end %>
+          </div>
+
+          <div class="bg-white rounded-lg border border-gray-200 p-5">
+            <h2 class="text-lg font-semibold text-gray-900 mb-3">Recent Posts</h2>
+            <%= if @x_recent_posts == [] do %>
+              <p class="text-sm text-gray-500">No posts yet.</p>
+            <% else %>
+              <ul class="divide-y divide-gray-100 text-sm">
+                <%= for post <- @x_recent_posts do %>
+                  <li class="py-2">
+                    <div class="flex items-center justify-between text-xs text-gray-500">
+                      <span><%= post.post_type %> · <%= post.status %></span>
+                      <span>
+                        <%= post.posted_at && Calendar.strftime(post.posted_at, "%Y-%m-%d %H:%M UTC") %>
+                      </span>
+                    </div>
+                    <p class="text-gray-800 mt-1"><%= post.main_body %></p>
+                  </li>
+                <% end %>
+              </ul>
+            <% end %>
+          </div>
+        </div>
+      <% end %>
+
       <%!-- Predictions Tab --%>
       <%= if @active_tab == "predictions" do %>
         <div class="space-y-6">
@@ -1895,6 +2296,73 @@ defmodule SportsFanaticWeb.AdminLive do
   defp status_badge_class(:running), do: "bg-blue-100 text-blue-700"
   defp status_badge_class(:completed), do: "bg-green-100 text-green-700"
   defp status_badge_class(:failed), do: "bg-red-100 text-red-700"
+
+  # ── X agent helpers ─────────────────────────────────────────
+
+  defp ensure_x_rate_limit_table do
+    if :ets.whereis(@x_rate_limit_table) == :undefined do
+      :ets.new(@x_rate_limit_table, [:named_table, :public, :set])
+    end
+
+    :ok
+  rescue
+    ArgumentError -> :ok
+  end
+
+  defp rate_limited?(key, window_ms) do
+    ensure_x_rate_limit_table()
+    now = System.monotonic_time(:millisecond)
+
+    case :ets.lookup(@x_rate_limit_table, key) do
+      [{^key, last_at}] when now - last_at < window_ms ->
+        true
+
+      _ ->
+        :ets.insert(@x_rate_limit_table, {key, now})
+        false
+    end
+  end
+
+  defp set_x_flag(key, value, socket, assign_key) do
+    if value do
+      FeatureFlags.enable(key)
+    else
+      FeatureFlags.disable(key)
+    end
+
+    {:noreply, assign(socket, assign_key, value)}
+  end
+
+  defp load_x_agent_state(socket) do
+    pending =
+      Repo.all(
+        from p in Post,
+          where: p.status == "pending",
+          order_by: [asc: p.scheduled_at],
+          limit: 20
+      )
+
+    recent =
+      Repo.all(
+        from p in Post,
+          where: p.status in ["posted", "failed", "rejected"],
+          order_by: [desc: p.updated_at],
+          limit: 20
+      )
+
+    targets = Repo.all(from t in WatchedTarget, order_by: [asc: t.handle])
+
+    assign(socket,
+      x_agent_enabled: FeatureFlags.enabled?("x_agent_enabled"),
+      x_approval_required: FeatureFlags.enabled?("x_agent_approval_required"),
+      x_outbound_enabled: FeatureFlags.enabled?("x_agent_outbound_replies_enabled"),
+      x_today_mills: SpendLedger.today_mills(),
+      x_daily_cap_mills: SpendLedger.daily_cap_mills(),
+      x_pending_posts: pending,
+      x_recent_posts: recent,
+      x_watched_targets: targets
+    )
+  end
 
   defp status_label(:idle), do: "Idle"
   defp status_label(:running), do: "Running"

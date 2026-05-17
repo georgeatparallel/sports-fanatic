@@ -64,3 +64,7 @@ infra/terraform/crash.log
 
 # Worktrees
 .claude/worktrees/
+
+# Python bytecode
+__pycache__/
+*.pyc

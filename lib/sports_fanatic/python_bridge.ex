@@ -92,6 +92,46 @@ defmodule SportsFanatic.PythonBridge do
     })
   end
 
+  @doc "Draft a daily X tweet (main + URL-bearing self-reply)."
+  def draft_x_post(post_type, context, link_url) do
+    post("/x-agent/draft-post", %{
+      post_type: post_type,
+      context: context,
+      link_url: link_url,
+      max_main_chars: 270,
+      max_reply_chars: 270
+    })
+  end
+
+  @doc "Draft a single X reply tweet given a target tweet + local facts."
+  def draft_x_reply(target_tweet, our_context) do
+    post("/x-agent/draft-reply", %{
+      target_tweet: target_tweet,
+      our_context: our_context,
+      max_chars: 270
+    })
+  end
+
+  @doc "Generate a per-player injury report from local news + Exa research."
+  def generate_injury_report(player, local_news_items, exa_results) do
+    post("/injury-report/generate", %{
+      player: player,
+      local_news_items: local_news_items,
+      exa_results: exa_results
+    })
+  end
+
+  @doc "Generate a per-team daily magazine update."
+  def generate_team_magazine(team, scheduled_game, lineup, exa_results, injury_watch) do
+    post("/team-magazine/generate", %{
+      team: team,
+      scheduled_game: scheduled_game,
+      lineup: lineup,
+      exa_results: exa_results,
+      injury_watch: injury_watch
+    })
+  end
+
   ## --- Health -------------------------------------------------------------
 
   def health_check do

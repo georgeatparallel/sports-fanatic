@@ -45,6 +45,19 @@ config :sports_fanatic, :anthropic_api_key, System.get_env("ANTHROPIC_API_KEY")
 config :sports_fanatic, :news_s3_bucket, System.get_env("NEWS_S3_BUCKET", "sports-fanatic-news")
 config :sports_fanatic, :news_s3_enabled, System.get_env("NEWS_S3_ENABLED", "false") == "true"
 
+# X (Twitter) Agent configuration — see lib/sports_fanatic/x/CLAUDE.md
+config :sports_fanatic, :x_agent,
+  client_id: System.get_env("X_CLIENT_ID"),
+  client_secret: System.get_env("X_CLIENT_SECRET"),
+  redirect_uri:
+    System.get_env(
+      "X_REDIRECT_URI",
+      "https://sportsfanatic.com/admin/x/oauth/callback"
+    ),
+  token_encryption_key: System.get_env("X_TOKEN_ENCRYPTION_KEY"),
+  daily_cap_mills: System.get_env("X_DAILY_CAP_MILLS", "5000") |> String.to_integer(),
+  account_handle: System.get_env("X_ACCOUNT_HANDLE", "")
+
 # Predictions pipeline (concurrency + cron override + Open-Meteo key)
 config :sports_fanatic, :predictions,
   concurrency: String.to_integer(System.get_env("PREDICTIONS_CONCURRENCY", "8")),

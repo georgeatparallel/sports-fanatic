@@ -112,6 +112,17 @@ defmodule SportsFanatic.MixProject do
       test/sports_fanatic/feeds/csv_parser_test.exs
       test/sports_fanatic/feeds/user_feed_test.exs
       test/sports_fanatic/chat_bot/skill_router_test.exs
+      test/sports_fanatic/x/scheduler_test.exs
+      test/sports_fanatic/x/spend_ledger_test.exs
+      test/sports_fanatic/x/token_vault_test.exs
+      test/sports_fanatic/x/post_changeset_test.exs
+      test/sports_fanatic/x/sanitizer_test.exs
+      test/sports_fanatic/x/exa_dedup_test.exs
+      test/sports_fanatic/x/injury_classification_flattener_test.exs
+      test/sports_fanatic/x/credentials_test.exs
+      test/sports_fanatic/content/injury_report_test.exs
+      test/sports_fanatic/content/team_magazine_test.exs
+      test/sports_fanatic/workers/x_post_scheduler_worker_test.exs
       test/sports_fanatic/predictions/hit_prediction_test.exs
       test/sports_fanatic/predictions/park_factors_test.exs
       test/sports_fanatic/predictions/stadiums_test.exs
