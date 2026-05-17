@@ -180,9 +180,12 @@ defmodule SportsFanaticWeb.ChatLive do
     {:noreply, socket}
   end
 
-  # Auto-process CSV as soon as a file is selected (no Process button)
+  # Auto-process CSV once file upload is complete
   def handle_event("auto_upload_csv", _params, socket) do
-    if socket.assigns.uploads.roster_csv.entries != [] do
+    entries = socket.assigns.uploads.roster_csv.entries
+    all_done = entries != [] and Enum.all?(entries, &(&1.done?))
+
+    if all_done do
       handle_event("upload_csv", %{}, socket)
     else
       {:noreply, socket}
