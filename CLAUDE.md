@@ -16,7 +16,7 @@ mix phx.server          # http://localhost:4000
 iex -S mix phx.server   # interactive shell
 
 # Tests
-mix test.unit           # 63 pure unit tests, no database required
+mix test.unit           # 545 pure unit tests, no database required
 mix test                # all tests (requires PostgreSQL)
 
 # Database
@@ -188,6 +188,121 @@ Player and team associations resolved by `EntityMatcher` are now visible in news
 
 ---
 
+## Hit Predictions Pipeline
+
+A daily Elixir-native pipeline that seeds hitter and pitcher data, computes 44-column feature vectors per player, scores them via a GradientBoosting model in the Python bridge, and persists per-player hit probabilities to `mlb.hit_predictions`. Results are surfaced on a new public `/predictions` LiveView and as a "Today's Hit Prediction" banner on player detail and scouting report pages.
+
+**Data flow (daily, 8:00 AM ET):**
+
+```
+Oban Cron (0 12 * * * UTC)
+  → DailyHitPredictionsWorker (orchestrator)
+      ├── FetchScheduleWorker     → MLB Stats API → mlb.scheduled_games
+      ├── FetchLineupsWorker      → FantasyNerds  → mlb.lineups
+      ├── SeedPitcherHistoryWorker → MLB Stats API → mlb.pitcher_game_logs
+      ├── SeedStatcastWorker      → Baseball Savant CSV → mlb.player_statcast
+      ├── FetchPitcherStatsWorker → MLB Stats API → mlb.pitcher_stats
+      ├── FetchBvPWorker          → MLB Stats API → mlb.batter_vs_pitcher
+      ├── ForecastWeatherWorker   → Open-Meteo API → mlb.game_weather_forecast
+      └── PredictHitsWorker
+            ├── Features.build_inference_row/3 (44 columns per player)
+            ├── POST /inference/hit → Python bridge (GBT fit+predict)
+            ├── Repo.insert_all mlb.hit_predictions (ON CONFLICT upsert)
+            ├── Valkey DEL sf:page:player:*, sf:data:hit_prediction:*, sf:data:predictions:*
+            └── PubSub broadcast "predictions:hits:{date}" → PredictionsLive re-renders
+```
+
+### Feature Flag
+
+`hit_predictions_enabled` — toggled via the Joshua admin Predictions tab at `/admin`. When disabled, `DailyHitPredictionsWorker` returns `:ok` immediately without writing any rows.
+
+### Cron
+
+Default cron: `0 12 * * *` (8:00 AM EDT = 12:00 UTC). For winter operation override to `0 13 * * *` via `PREDICTIONS_CRON_OVERRIDE`. Loaded from env at startup in `config/runtime.exs`; no rebuild required.
+
+### New Elixir Modules
+
+| Module | File | Purpose |
+|--------|------|---------|
+| `SportsFanatic.Predictions` | `predictions.ex` | Context API: `list_for_date/2`, `get_for_player/2`, `list_today/1`, `list_runs/1`, `run_now/1`, `stream_player_results/1` |
+| `SportsFanatic.Predictions.HitPrediction` | `predictions/hit_prediction.ex` | Ecto schema for `mlb.hit_predictions`; `tier_for_prob/1` (S/A/B/C/D) |
+| `SportsFanatic.Predictions.FeatureLoader` | `predictions/feature_loader.ex` | SQL aggregations for training and inference data |
+| `SportsFanatic.Predictions.Features` | `predictions/features.ex` | 44-column feature row builder; `feature_cols/0`; `build_inference_row/3`; `build_training_rows/2` |
+| `SportsFanatic.Predictions.Inference` | `predictions/inference.ex` | HTTP client to `POST /inference/hit`; uses existing circuit breaker |
+| `SportsFanatic.Predictions.ParkFactors` | `predictions/park_factors.ex` | Static `DEFAULT_PARK_HIT_FACTORS` table + DB lookup; `hit_factor_static/1` returns 1.0 for unknown venues |
+| `SportsFanatic.Predictions.Stadiums` | `predictions/stadiums.ex` | Venue-ID → lat/lon map (port of `stadiums.py`) |
+| `SportsFanatic.Mlb.PitcherGameLog` | `mlb/pitcher_game_log.ex` | Ecto schema for `mlb.pitcher_game_logs` |
+| `SportsFanatic.Mlb.PlayerStatcast` | `mlb/player_statcast.ex` | Ecto schema for `mlb.player_statcast` |
+| `SportsFanatic.ExternalApis.MlbStats` | `external_apis/mlb_stats.ex` | MLB Stats API client via `Req`: `fetch_schedule/1`, `fetch_boxscore/1`, `fetch_pitcher_season_stats/2`, `fetch_player_statcast/2`, `fetch_batter_vs_pitcher/3`, `lookup_player/1` |
+| `SportsFanatic.ExternalApis.OpenMeteo` | `external_apis/open_meteo.ex` | Open-Meteo forecast + archive client; `extract_at_game_time/2` |
+| `SportsFanaticWeb.PredictionsLive` | `live/predictions_live.ex` | `/predictions` LiveView; sorted by `hit_prob` desc; team/league/batting-order filters; re-renders on `{:hits_ready, date}` PubSub |
+| `SportsFanaticWeb.PredictionComponents` | `components/prediction_components.ex` | `today_hit_banner/1` component rendered on player detail + scouting pages |
+| `SportsFanaticWeb.PredictionsRedirectController` | `controllers/predictions_redirect_controller.ex` | Issues 301 redirect from `/mlb/players` to `/predictions` |
+
+### New Workers
+
+All use `queue: :predictions, max_attempts: 3`. The orchestrator (`DailyHitPredictionsWorker`) calls the other workers' `perform/1` functions directly (sequentially) to ensure ordered execution. Step parallelism is via `Task.async_stream` inside each worker.
+
+| Worker | File | Purpose |
+|--------|------|---------|
+| `DailyHitPredictionsWorker` | `workers/daily_hit_predictions_worker.ex` | Cron orchestrator; opens `system.pipeline_runs` row; sequences all steps |
+| `FetchPitcherStatsWorker` | `workers/fetch_pitcher_stats_worker.ex` | Upserts probable-pitcher season stats into `mlb.pitcher_stats` |
+| `FetchBvPWorker` | `workers/fetch_bvp_worker.ex` | Upserts batter-vs-pitcher records into `mlb.batter_vs_pitcher` |
+| `SeedPitcherHistoryWorker` | `workers/seed_pitcher_history_worker.ex` | Backfills `mlb.pitcher_game_logs` for the last 30 days |
+| `SeedStatcastWorker` | `workers/seed_statcast_worker.ex` | Upserts Statcast aggregates into `mlb.player_statcast` via Baseball Savant CSV |
+| `ForecastWeatherWorker` | `workers/forecast_weather_worker.ex` | Upserts game-time weather into `mlb.game_weather_forecast` via Open-Meteo |
+| `PredictHitsWorker` | `workers/predict_hits_worker.ex` | Builds features, calls `/inference/hit`, upserts `mlb.hit_predictions`, invalidates cache, broadcasts PubSub |
+
+### New Routes
+
+- `/predictions` — `PredictionsLive` (LiveView, public). Today's predictions sorted by hit % desc.
+- `GET /mlb/players` — 301 redirect to `/predictions` via `PredictionsRedirectController`. (Player detail `/mlb/players/:team/:player` is unchanged.)
+
+### Scouting + Player Detail Banner
+
+`PlayerController.show/2` and `ScoutingController.show/2` both assign `@today_hit_prediction` via `Predictions.get_for_player(player_mlb_id, today)`. The `<.today_hit_banner prediction={@today_hit_prediction} />` component renders hit %, matchup (Team vs OppTeam), local game time, probable opposing pitcher, and a weather one-liner. When the player has no game today the banner shows "No game today."
+
+### Admin Predictions Tab
+
+`/admin` gains a "Predictions" tab with: feature flag toggle (`hit_predictions_enabled`), run history table (last 30 runs of type `hit_predict_daily` from `system.pipeline_runs`), per-run drill-down of all `mlb.hit_predictions` for that run, and a "Run Now" button.
+
+**Deferred** (env vars are the source of truth): cron-override input field and concurrency-override input field — those are set via `PREDICTIONS_CRON_OVERRIDE` and the concurrency env vars rather than the admin UI.
+
+**AdminLive events** (Predictions tab):
+
+| Event | Payload | Description |
+|-------|---------|-------------|
+| `switch_tab` (tab: "predictions") | — | Load run history + flag value |
+| `toggle_predictions_flag` | `%{"enabled" => bool}` | Toggle `hit_predictions_enabled` in `feature_flags` table |
+| `run_predictions_now` | `%{"date" => iso}` | Enqueue `DailyHitPredictionsWorker` with `force: true` |
+| `view_run` | `%{"run_id" => uuid}` | Drill-down into per-player results for a run |
+
+### Python Bridge Changes
+
+**Added**: `POST /inference/hit` (`python_bridge/src/api/inference.py`) — fits a `GradientBoostingClassifier` on the supplied training rows and predicts on inference rows. Response: `{model_version, training_metrics, predictions: [{player_mlb_id, hit_prob, prediction}]}`.
+
+**Deleted**: `python_bridge/src/api/predict.py` (`/predict/hit`, `/predict/hr`), `python_bridge/src/api/schedule.py`, `python_bridge/src/simulation/` (entire directory). `/agents/execute` route removed from `api/agents.py`.
+
+**Kept** (still called by legacy scouting pipeline): `search_player_multi/1`, `classify_content/2` on the Elixir bridge; `/scouting/search`, `/scouting/generate`, `/news/analyze`, `/gameday/generate`, `/agents/parse-setting` on the Python side.
+
+### Tunable Concurrency
+
+All values are read from `Application.get_env(:sports_fanatic, :predictions)` at runtime (set in `config/runtime.exs`). Changing env vars and restarting applies immediately; no recompile needed.
+
+| Env Var | Default | Controls |
+|---------|---------|---------|
+| `PREDICTIONS_CONCURRENCY` | `8` | Default for steps without a step-specific override |
+| `PREDICTIONS_CRON_OVERRIDE` | `0 12 * * *` | Oban cron expression for `DailyHitPredictionsWorker` |
+| `PREDICTIONS_PITCHER_STATS_CONCURRENCY` | `4` | `FetchPitcherStatsWorker` `Task.async_stream` concurrency |
+| `PREDICTIONS_BVP_CONCURRENCY` | `6` | `FetchBvPWorker` `Task.async_stream` concurrency |
+| `PREDICTIONS_STATCAST_CONCURRENCY` | `4` | `SeedStatcastWorker` `Task.async_stream` concurrency |
+| `PREDICTIONS_SEED_PITCHER_CONCURRENCY` | `4` | `SeedPitcherHistoryWorker` `Task.async_stream` concurrency |
+| `PREDICTIONS_WEATHER_CONCURRENCY` | `8` | `ForecastWeatherWorker` `Task.async_stream` concurrency |
+| `PREDICTIONS_FEATURE_COMPUTE_CONCURRENCY` | `16` | `PredictHitsWorker` per-player feature computation concurrency |
+| `OPENMETEO_API_KEY` | _(blank)_ | Optional — Open-Meteo free tier requires no key |
+
+---
+
 ## Architecture Summary
 
 ```
@@ -227,14 +342,21 @@ Oban workers (background)
                                      → PostgreSQL INSERT news_agent_results
   ConsolidateQueriesWorker (hourly) → ChatBot context → entity+keyword clustering → PostgreSQL
   ScheduledExaSearchWorker (per cluster) → ExternalApis.Exa → classify + store new articles
-  GeneratePredictions → Python Bridge (FastAPI :8000)
+  DailyHitPredictionsWorker (daily 8am ET) → FetchScheduleWorker → FetchLineupsWorker
+                                           → SeedPitcherHistoryWorker → SeedStatcastWorker
+                                           → FetchPitcherStatsWorker → FetchBvPWorker
+                                           → ForecastWeatherWorker → PredictHitsWorker
+                                           → POST /inference/hit (Python GBT) → mlb.hit_predictions
+                                           → Valkey invalidate → PubSub "predictions:hits:{date}"
+                                           → PredictionsLive re-renders
   GenerateScouting / GenerateGameDay → Python Bridge → Claude API → PostgreSQL
   WarmCache → Valkey
   GenerateSitemap → PostgreSQL
 
-Python Bridge (python_bridge/ → Docker service on internal network)
-  FastAPI + GradientBoosting ML models + Monte Carlo simulation
-  Calls: Claude API, Exa AI search (scouting only), MLB Stats API
+Python Bridge (python_bridge/ → Docker service on internal network, expose: only — not host-bound)
+  FastAPI + GradientBoosting ML model (inference only via /inference/hit)
+  Calls: Claude API, Exa AI search (scouting only)
+  Deleted: /predict/hit, /predict/hr, /schedule/*, /simulation/*, /agents/execute
 ```
 
 ---
@@ -271,7 +393,10 @@ lib/sports_fanatic/
                        Sitemap schemas
   external_apis/      FantasyNerds HTTP client
                        exa.ex — direct Exa.ai HTTP client via Req (chatbot discovery path)
-  mlb/                Sport, Team, Player, Venue, Game, ScheduledGame, Lineup, Pick, HrPick
+                       mlb_stats.ex — MLB Stats API client via Req (schedule, boxscore, season stats, statcast, BvP)
+                       open_meteo.ex — Open-Meteo forecast + archive client; extract_at_game_time/2
+  mlb/                Sport, Team, Player, Venue, Game, ScheduledGame, Lineup, Pick, HrPick,
+                       PitcherGameLog (mlb.pitcher_game_logs), PlayerStatcast (mlb.player_statcast)
   news.ex             News context — cached feed reads, entity-resolved list, get_cached_feed/1,
                        nearest_news_date_before/1, nearest_news_date_after/1, exists_by_source_url?/1
                        Feed data includes domain_tags and team.league for badge display
@@ -281,41 +406,60 @@ lib/sports_fanatic/
   python_bridge/      CircuitBreaker GenServer + HealthCheck GenServer
   storage.ex          S3 storage module — put_object/3, get_object/2, news_article_key/2 (date-partitioned)
                        Deps: ex_aws ~> 2.5, ex_aws_s3 ~> 2.5, sweet_xml ~> 0.7 (added to mix.exs)
-  workers/            14 Oban workers (fetch_lineups, fetch_schedule, fetch_news,
-                       generate_predictions, generate_scouting, generate_game_day,
-                       generate_player_seo, warm_cache, generate_sitemap, cleanup,
+  workers/            21 Oban workers:
+                       fetch_lineups (modified — accepts date arg, removed auto-chain),
+                       fetch_schedule (modified — uses MlbStats Elixir client),
+                       fetch_news, generate_predictions (delegates to DailyHitPredictionsWorker),
+                       generate_scouting, generate_game_day, generate_player_seo,
+                       warm_cache, generate_sitemap, cleanup,
                        parse_setting, run_news_agents,
-                       consolidate_queries, scheduled_exa_search)
+                       consolidate_queries, scheduled_exa_search,
+                       daily_hit_predictions (orchestrator, queue: predictions),
+                       fetch_pitcher_stats, fetch_bvp, seed_pitcher_history,
+                       seed_statcast, forecast_weather, predict_hits
+  predictions/        hit_prediction.ex — Ecto schema (mlb.hit_predictions); tier_for_prob/1
+                       feature_loader.ex — SQL aggregations for training/inference data
+                       features.ex — 44-column feature row builder; feature_cols/0
+                       inference.ex — HTTP client to POST /inference/hit; uses circuit breaker
+                       park_factors.ex — static park hit factors + DB lookup; 1.0 for unknown venues
+                       stadiums.ex — venue-ID → lat/lon map
+  predictions.ex      Predictions context — list_for_date/2, get_for_player/2, list_today/1,
+                       list_runs/1, run_now/1, stream_player_results/1; cache TTL 5 min
 
 lib/sports_fanatic_web/
   components/         seo_components.ex — json_ld/2, breadcrumbs/1, subscribe_cta/1, date_nav/1
-  controllers/        Page, Player, Team, Lineup, News, Scouting, GameDay, Sitemap,
-                       Auth, Subscription, StripeWebhook controllers + HTML modules
+  controllers/        Page, Player (assigns today_hit_prediction), Team, Lineup, News,
+                       Scouting (assigns today_hit_prediction), GameDay, Sitemap,
+                       Auth, Subscription, StripeWebhook, PredictionsRedirect controllers + HTML modules
   live/               NewsLive — chat mode (news_chatbot_enabled) OR legacy command mode;
                          subscribes to agent:settings:{user_id} and chat:agent:{user_id} PubSub topics
+                       PredictionsLive — /predictions; sorted by hit_prob desc; subscribes to
+                         PubSub "predictions:hits:{date}" for live re-render
                        DashboardLive, ScoutingLive, GameDayLive, GameDayIndexLive,
                        ArchiveScoutingLive, ArchiveGameDayLive,
                        AdminLive (+ Agents tab: settings flag, Run All; + Queries tab: clusters,
-                         schedules, chatbot flag, session browser)
+                         schedules, chatbot flag, session browser; + Predictions tab: flag toggle,
+                         Run Now, run history, per-run drill-down)
   plugs/              FetchCurrentUser, RequireAuthenticated, RequireAdmin, SubscriptionGate,
                        VerifyStripeWebhook, CacheRawBody
   router.ex           Route definitions — see Routing section below
 
 python_bridge/src/
-  api/predict.py      POST /predict/hit, /predict/hr
+  api/inference.py    POST /inference/hit — GradientBoostingClassifier fit+predict; accepts
+                       {training_rows, inference_rows}; returns {model_version, training_metrics, predictions}
   api/scouting.py     POST /scouting/search (Exa), /scouting/generate (Claude)
   api/gameday.py      POST /gameday/generate (Claude)
   api/news.py         POST /news/analyze — Claude tool_use classification (category, sentiment, summary,
                        domain_tags)
-  api/agents.py       POST /agents/parse-setting, POST /agents/execute (Phase 2 stub)
+  api/agents.py       POST /agents/parse-setting (Claude Haiku) — /agents/execute stub DELETED
   agents/__init__.py  Empty module init
   agents/parser.py    parse_setting() — Claude Haiku tool_use parser; returns structured criteria JSON;
                        includes prompt injection guardrails; rejects prompts > 500 chars
   news/analyzer.py    analyze_article() with classify_article tool definition (+ domain_tags output)
   news/models.py      Pydantic models: NewsCategory enum, NewsSentiment enum, NewsAnalysis (+ domain_tags)
-  simulation/engine.py  Monte Carlo engine, NumPy-vectorized, 10k trials
   config.py           Settings from environment variables
-  main.py             FastAPI app, routers registered (+ agents router), /health endpoint
+  main.py             FastAPI app, routers registered, /health endpoint
+  DELETED: api/predict.py, api/schedule.py, simulation/ (entire directory)
 ```
 
 ---
@@ -324,7 +468,9 @@ python_bridge/src/
 
 ```
 /                         PageController :home  (renders home.html.heex directly — no redirect)
-/mlb/players              PlayerController :index
+/predictions              PredictionsLive :index  (LiveView; today's hit predictions sorted by hit_prob desc;
+                            re-renders on PubSub "predictions:hits:{date}")
+/mlb/players              PredictionsRedirectController → 301 /predictions
 /mlb/players/:team/:player PlayerController :show
 /mlb/teams                TeamController :index
 /mlb/teams/:team          TeamController :show
@@ -441,7 +587,7 @@ Six PostgreSQL schemas. Migrations are in `priv/repo/migrations/`, init SQL in `
 | Schema | Tables | Description |
 |--------|--------|-------------|
 | `public` | sports, teams, players, venues | Core MLB entities |
-| `mlb` | games, scheduled_games, lineups, player_boxscores, player_season_stats, picks, hr_picks, game_weather, park_hr_factors | Game data and predictions |
+| `mlb` | games, scheduled_games, lineups, player_boxscores, player_season_stats, picks, hr_picks, game_weather, park_hr_factors, hit_predictions, pitcher_game_logs, player_statcast, batter_vs_pitcher, game_weather_forecast | Game data and predictions |
 | `content` | scouting_reports, game_day_magazines, news_items, sitemaps | AI-generated content |
 | `accounts` | users, subscriptions, sessions, news_agent_settings, news_agent_results, chat_sessions, chat_messages, query_clusters, query_cluster_members | Auth, billing, agent settings, and chat |
 | `system` | pipeline_runs, pipeline_steps, cache_invalidations | Operations |
@@ -537,10 +683,67 @@ Indexes: `(scheduled) WHERE scheduled = true`, GIN on `entity_player_ids`.
 | `raw_query` | TEXT | |
 | `inserted_at` | TIMESTAMPTZ | |
 
+**`mlb.hit_predictions`** (new): One row per `(prediction_date, player_mlb_id)`. Unique index enforces one prediction per player per date.
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | UUID PK | |
+| `pipeline_run_id` | UUID | FK to `system.pipeline_runs` |
+| `prediction_date` | DATE | |
+| `player_mlb_id` | INTEGER | Not null |
+| `player_name` | VARCHAR(200) | |
+| `player_team` / `player_team_id` | VARCHAR / INTEGER | |
+| `vs_team` / `vs_team_id` | VARCHAR / INTEGER | |
+| `game_id` / `game_datetime` | INTEGER / TIMESTAMPTZ | |
+| `is_home` / `batting_order` | BOOLEAN / INTEGER | |
+| `probable_pitcher_name` / `probable_pitcher_mlb_id` | VARCHAR / INTEGER | |
+| `venue_id` / `venue_name` | INTEGER / VARCHAR | |
+| `hit_prob` | DOUBLE PRECISION | 0.0–1.0 |
+| `prediction` | VARCHAR(10) | `"Hit"` or `"No Hit"` |
+| `confidence_tier` | VARCHAR(5) | S / A / B / C / D |
+| `temperature`, `wind_speed`, `wind_direction`, `precipitation`, `weathercode`, `surface_pressure` | DOUBLE PRECISION / INTEGER | Weather snapshot at game time |
+| `bvp_avg`, `bvp_at_bats`, `bvp_home_runs` | DOUBLE PRECISION / INTEGER | Batter-vs-pitcher summary |
+| `features` | JSONB | 44-column feature snapshot for offline analytics |
+| `model_version` | VARCHAR(40) | |
+| `actual_result` / `actual_hits` | VARCHAR / INTEGER | Backfilled by future ResolveBetsWorker |
+| `inserted_at` / `updated_at` | TIMESTAMPTZ | |
+
+Indexes: unique `(prediction_date, player_mlb_id)`, `(prediction_date, hit_prob DESC)`, `player_mlb_id`, `pipeline_run_id`.
+
+**`mlb.pitcher_game_logs`** (new): Per-game pitching stats used for recent-form features.
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `pitcher_mlb_id` | INTEGER | |
+| `game_id` | INTEGER | |
+| `game_date` | DATE | |
+| `innings_pitched`, `hits_allowed`, `hr_allowed`, `bb_allowed`, `strikeouts`, `earned_runs`, `pitches_thrown` | NUMERIC / INTEGER | |
+
+Unique index: `(pitcher_mlb_id, game_id)`. Index: `(pitcher_mlb_id, game_date)`.
+
+**`mlb.player_statcast`** (new): Season-level Statcast aggregates from Baseball Savant CSV.
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `player_mlb_id` | INTEGER | |
+| `season` | INTEGER | |
+| `avg_exit_velocity`, `max_exit_velocity` | DOUBLE PRECISION | |
+| `barrel_pct`, `hard_hit_pct` | DOUBLE PRECISION | |
+| `avg_launch_angle`, `fb_pct` | DOUBLE PRECISION | |
+| `pulled_at` | TIMESTAMPTZ | Last refresh timestamp |
+
+Unique index: `(player_mlb_id, season)`.
+
+**`mlb.park_hr_factors`** (altered): Added `hit_factor DOUBLE PRECISION` column (additive; existing `hr_factor` column unchanged).
+
+**`mlb.pitcher_stats`** (altered): Added `pitcher_mlb_id INTEGER` column to support the pipeline (existing `player_id` UUID FK still present; new rows write via `pitcher_mlb_id`).
+
 Migrations:
 - `priv/repo/migrations/20260515190000_create_news_agent_tables.exs` — agent settings/results tables
 - `priv/repo/migrations/20260516100000_create_chat_tables.exs` — chat + query cluster tables
 - `priv/repo/migrations/20260516100001_add_news_items_search_vector.exs` — tsvector + GIN index, Exa URL unique index
+- `priv/repo/migrations/20260518000001_create_hit_predictions_table.exs` — `mlb.hit_predictions` with all indexes
+- `priv/repo/migrations/20260518000002_add_pitcher_training_tables.exs` — `mlb.pitcher_game_logs`, `mlb.player_statcast`, added columns on `mlb.pitcher_stats` and `mlb.park_hr_factors` (all idempotent `ADD COLUMN IF NOT EXISTS`)
 
 ---
 
@@ -556,16 +759,19 @@ Migrations:
 ## Valkey Caching
 
 ```
-sf:page:player:{team}:{slug}      TTL 5 min
-sf:page:team:{slug}               TTL 10 min
-sf:page:lineup:today              TTL 2 min
-sf:page:lineup:{past-date}        TTL 24 hours
-sf:page:news:{date}:{slug}        TTL 5 min
-sf:page:scouting:{team}:{slug}    TTL 15 min
-sf:page:gameday:{date}:{slug}     TTL 10 min
-sf:data:predictions:*             TTL 5 min
-sf:data:news:feed:{date}          TTL 60 s  (enriched JSON news feed; invalidated by FetchNewsWorker on new articles)
-sf:sitemap:*                      TTL 6 hours
+sf:page:player:{team}:{slug}              TTL 5 min
+sf:page:team:{slug}                       TTL 10 min
+sf:page:lineup:today                      TTL 2 min
+sf:page:lineup:{past-date}               TTL 24 hours
+sf:page:news:{date}:{slug}               TTL 5 min
+sf:page:scouting:{team}:{slug}           TTL 15 min
+sf:page:gameday:{date}:{slug}            TTL 10 min
+sf:data:predictions:*                     TTL 5 min
+sf:data:hit_prediction:{mlb_id}:{date}   TTL 5 min  (per-player hit prediction; read by get_for_player/2;
+                                                      invalidated by PredictHitsWorker on daily run)
+sf:page:predictions:*                     TTL 5 min  (PredictionsLive page cache)
+sf:data:news:feed:{date}                  TTL 60 s   (enriched JSON news feed; invalidated by FetchNewsWorker on new articles)
+sf:sitemap:*                              TTL 6 hours
 ```
 
 Use `SportsFanatic.Cache.get/1`, `put/3`, `delete/1`, `invalidate_pattern/1`.
@@ -581,34 +787,46 @@ Agent settings and results are not cached in Valkey — they are read directly f
 `SportsFanatic.PythonBridge` is the Elixir-side HTTP client. It calls `http://python-bridge:8000` (Docker internal) via `Req`. The circuit breaker (`SportsFanatic.PythonBridge.CircuitBreaker`) trips after 3 consecutive failures and stays open for 5 minutes. `SportsFanatic.PythonBridge.HealthCheck` pings `/health` every 30 seconds.
 
 Available endpoints (called via `PythonBridge.*` functions):
-- `POST /predict/hit`, `POST /predict/hr` — ML game predictions
+- `POST /inference/hit` — GBT fit+predict (batch). Called by `PythonBridge.score_hits/2` from `Predictions.Inference`. Request: `{training_rows, inference_rows}`; response: `{model_version, training_metrics, predictions: [{player_mlb_id, hit_prob, prediction}]}`. Added in the predictions pipeline migration.
 - `POST /scouting/search`, `POST /scouting/generate` — AI scouting reports
 - `POST /gameday/generate` — AI Game Day Magazine generation
 - `POST /news/analyze` — Claude tool_use classification; returns `{category, sentiment, summary, domain_tags}` for a news headline + excerpt. Called by `FetchNewsWorker` via `PythonBridge.analyze_news/2`. If the circuit breaker is open, articles are stored with `ai_processed: false` for later backfill.
 - `POST /agents/parse-setting` — Claude Haiku tool_use parser; accepts `{raw_prompt, context}` and returns structured criteria including `target_players`, `target_teams`, `target_leagues`, `stat_filters`, `categories`, `domain_tags`, `requires_exa_search`, `exa_query`, `confidence`, `interpretation`. Called by `ParseSettingWorker` via `PythonBridge.parse_setting/2`. Rejects prompts over 500 characters. Includes prompt injection guardrails in the system prompt.
-- `POST /agents/execute` — Phase 2 stub; currently returns empty results. Will support Exa.ai search and batched user execution in Phase 2. Called by `RunNewsAgentsWorker` via `PythonBridge.execute_agents/2`.
 
-In production, the `python-bridge` service should not expose port 8000 to the host. The `docker-compose.yml` currently exposes it — remove the `ports` entry for production (SEC-007).
+**Deleted endpoints** (removed in the predictions pipeline migration): `POST /predict/hit`, `POST /predict/hr`, all `/schedule/*`, `/simulation/*`, `POST /agents/execute`.
+
+**Kept for legacy scouting pipeline** (callers in `lib/sports_fanatic/scouting/pipeline.ex`): `PythonBridge.search_player_multi/1`, `PythonBridge.classify_content/2`. Remove when scouting pipeline is migrated (PRED-002).
+
+The `python-bridge` service uses `expose:` (internal-only) in `docker-compose.yml` — port 8000 is not bound to the host (SEC-007 addressed in this branch).
 
 ---
 
 ## Oban Workers
 
-All workers live in `lib/sports_fanatic/workers/`. They use `use Oban.Worker, queue: :default, max_attempts: 3`.
+All workers live in `lib/sports_fanatic/workers/`. They use `use Oban.Worker, queue: :default, max_attempts: 3` unless otherwise noted.
 
 Cron schedules are defined in `config/config.exs` under `Oban.crontab`. Times are UTC (convert from ET accordingly).
+
+Queues: `default: 10`, `predictions: 4` (heavy ML/DB workers, capped). Additional queues may be defined in `config/config.exs`.
 
 Scheduled cron entries:
 - `FetchNewsWorker` — every 1 minute (`* * * * *`). Uses `unique: [period: 55]` to prevent overlap. Most runs are no-ops when no new articles are found.
 - `GeneratePlayerSeoWorker` — 4:00 AM UTC daily
-- `GeneratePredictionsWorker` — 9:30 AM UTC daily
+- `DailyHitPredictionsWorker` — cron from `PREDICTIONS_CRON_OVERRIDE` env var (default `0 12 * * *` = 8:00 AM EDT). Queue `:predictions`. Gated by `hit_predictions_enabled` feature flag. Args: `%{"date" => iso8601, "force" => boolean}`. Unique `period: 3600`; use `force: true` to bypass within the same hour. Orchestrates all prediction pipeline steps sequentially; each step uses `Task.async_stream` internally.
+- `GeneratePredictionsWorker` — 9:30 AM UTC daily (now delegates to `DailyHitPredictionsWorker`)
 - `WarmCacheWorker` — every 15 minutes
 - `RunNewsAgentsWorker` — `0 13 * * *` (9:00 AM ET during EDT = 13:00 UTC). Gated by `news_agents_enabled` feature flag. Processes each user with active settings sequentially; failures for one user do not block others. Schedule override is configurable via the Joshua admin Agents tab.
 - `ConsolidateQueriesWorker` — hourly. Groups new chat messages into `accounts.query_clusters` by entity overlap + keyword similarity (jaro_distance + lowercased keyword intersection). Runs after every batch of new chat messages. Re-clusters incrementally rather than from scratch.
 - `ScheduledExaSearchWorker` — per-cluster; enqueued by `ConsolidateQueriesWorker` or admin "Run Now". Calls `ExternalApis.Exa` using the cluster's `representative_query`, runs new articles through the full classify/store pipeline, and updates `last_run_at`. Frequency (hourly/daily/disabled) is stored on the cluster.
 
-Non-scheduled workers (enqueued on demand):
+Non-scheduled workers (enqueued on demand or by the orchestrator):
 - `ParseSettingWorker` — enqueued by `Agents.create_setting/2` immediately after INSERT. Calls `/agents/parse-setting` on the Python Bridge and updates the setting's `parsed_criteria` and `status`. Broadcasts `{:setting_updated, setting}` on `"agent:settings:{user_id}"` PubSub on completion. Error messages stored are generic (internal error details are logged via `Logger.error`).
+- `FetchPitcherStatsWorker` — called by orchestrator; queue `:predictions`. Reads probable pitchers from `mlb.scheduled_games`, skips rows refreshed within 24h, upserts into `mlb.pitcher_stats`.
+- `FetchBvPWorker` — called by orchestrator; queue `:predictions`. Fetches batter-vs-pitcher stats for all lineup × probable-pitcher pairs; upserts into `mlb.batter_vs_pitcher`.
+- `SeedPitcherHistoryWorker` — called by orchestrator; queue `:predictions`. Backfills `mlb.pitcher_game_logs` for last 30 days from `mlb.games` missing starter IDs.
+- `SeedStatcastWorker` — called by orchestrator; queue `:predictions`. Fetches Baseball Savant CSV for all lineup hitters not refreshed within 7 days; upserts into `mlb.player_statcast`.
+- `ForecastWeatherWorker` — called by orchestrator; queue `:predictions`. Fetches game-time weather from Open-Meteo for each unique venue in today's scheduled games; upserts into `mlb.game_weather_forecast`.
+- `PredictHitsWorker` — called by orchestrator; queue `:predictions`. Loads features, calls `Predictions.Inference.score/2` (→ `/inference/hit`), upserts `mlb.hit_predictions`, invalidates Valkey cache, broadcasts `{:hits_ready, date}` on `"predictions:hits:{date}"` PubSub.
 
 To manually enqueue a worker in IEx:
 ```elixir
@@ -617,13 +835,17 @@ To manually enqueue a worker in IEx:
 %{"setting_id" => "uuid"} |> SportsFanatic.Workers.ParseSettingWorker.new() |> Oban.insert()
 %{} |> SportsFanatic.Workers.ConsolidateQueriesWorker.new() |> Oban.insert()
 %{"cluster_id" => "uuid"} |> SportsFanatic.Workers.ScheduledExaSearchWorker.new() |> Oban.insert()
+# Run the hit predictions pipeline for today (force: true bypasses uniqueness guard)
+%{"date" => Date.to_iso8601(Date.utc_today()), "force" => true}
+|> SportsFanatic.Workers.DailyHitPredictionsWorker.new()
+|> Oban.insert()
 ```
 
 ---
 
 ## Testing Strategy
 
-- **Pure unit tests** (`mix test.unit`): Schema changesets, `Slug.slugify/1`, `has_active_subscription?/1`, cache key builders, circuit breaker state machine, `date_nav/1` component, chat schemas, Exa client, Action behaviour, consolidate/scheduled worker structure (396 tests total). No PostgreSQL required. Note: Oban is set to `testing: :disabled` in `config/test.exs` because Oban 2.22's `verify_migrated!` requires a live DB even for unit tests.
+- **Pure unit tests** (`mix test.unit`): Schema changesets, `Slug.slugify/1`, `has_active_subscription?/1`, cache key builders, circuit breaker state machine, `date_nav/1` component, chat schemas, Exa client, Action behaviour, consolidate/scheduled worker structure, `HitPrediction.tier_for_prob/1`, `OpenMeteo.extract_at_game_time/2`, `Features.feature_cols/0` (count + order), `ParkFactors.hit_factor_static/1` (unknown venue returns 1.0), `Stadiums.coordinates/1` (545 tests total). No PostgreSQL required. Note: Oban is set to `testing: :disabled` in `config/test.exs` because Oban 2.22's `verify_migrated!` requires a live DB even for unit tests.
 - **Integration tests** (`mix test`): Accounts context, billing webhook handlers, controllers, auth plugs. Require PostgreSQL.
 - Test data uses `SportsFanatic.DataCase` (SQL sandbox) for DB tests.
 - No Mox dependency. Worker tests verify Oban job structure, not external API calls.
@@ -658,7 +880,7 @@ The root layout (`root.html.heex`) renders these automatically. JSON-LD must com
 | SEC-004 | MEDIUM | Stripe webhook idempotency not implemented — duplicate events can cause redundant writes. |
 | SEC-005 | MEDIUM | `SubscriptionGate` allows access when `subscription_expires_at` is nil for non-free tier. |
 | SEC-006 | MEDIUM | `.env` not in `.gitignore`. |
-| SEC-007 | MEDIUM | Python bridge port 8000 exposed to host in `docker-compose.yml`. |
+| SEC-007 | MEDIUM | Python bridge port 8000 exposed to host in `docker-compose.yml`. **Addressed in predictions pipeline branch** — `docker-compose.yml` now uses `expose:` instead of `ports:`. |
 | CODE-001 | LOW | `Slug` module is not namespaced (`defmodule Slug` in `team.ex`). Works correctly but should be `SportsFanatic.Slug`. |
 | CODE-002 | LOW | `Billing.handle_checkout_completed/1` checks wrong path for trial detection. Trial status should come from `customer.subscription.updated` webhook with `status: "trialing"`. |
 | AGENTS-001 | LOW | `RunNewsAgentsWorker` matches players/teams via ILIKE text search on `parsed_criteria` JSON values. Phase 2 should resolve to `player_ids`/`team_ids` via `EntityMatcher` for accurate matching. |
@@ -669,8 +891,15 @@ The root layout (`root.html.heex`) renders these automatically. JSON-LD must com
 | CHAT-003 | MEDIUM | The `phx-change="update_chat_input"` event on the chat input needs a corresponding `handle_event` clause in `NewsLive` or a `phx-debounce` attribute to avoid excessive server events. |
 | CHAT-004 | LOW | Query cluster membership uses entity overlap + keyword intersection (MVP). Semantically similar queries with different surface forms may not cluster (e.g., "Harper" vs "Bryce Harper"). Upgrade to embedding-based similarity post-MVP. |
 | CHAT-005 | LOW | Jido v2.x deps (`jido`, `jido_ai`) are not installed due to Elixir 1.18 requirement. The `Action` behaviour in `agents/action.ex` is a plain-Elixir equivalent. If Elixir is upgraded to 1.18+, replace with `use Jido.Action` in each action module. |
+| PRED-001 | LOW | Admin Predictions tab cron-override and concurrency-override input fields are deferred — env vars (`PREDICTIONS_CRON_OVERRIDE`, etc.) are the source of truth. The flag toggle and Run Now button are wired. UI inputs tracked for a follow-up iteration. |
+| PRED-002 | LOW | `python_bridge.ex` still exports `search_player_multi/1` and `classify_content/2` because `lib/sports_fanatic/scouting/pipeline.ex` actively calls them. Remove when the scouting pipeline is migrated off the Python bridge. |
+| PRED-003 | LOW | `system.pipeline_steps` table does not exist. Step metadata is appended into `system.pipeline_runs.metadata` JSONB instead. Create the table in a follow-up if richer per-step telemetry is needed. |
+| MED-PRED-001 | MEDIUM | `filter_min_prob` in `PredictionsLive` accepts unbounded float with no clamp to `[0.0, 1.0]` and no NaN/Infinity rejection. Not exploitable today (in-memory filter only) but a defense-in-depth gap. Clamp and reject non-finite before assigning. |
+| LOW-PRED-004 | LOW | No global timeout on `DailyHitPredictionsWorker.do_run/1`. Each step has its own `Task.async_stream` timeout, but the orchestrator has no cumulative ceiling. Oban `max_attempts: 3` provides eventual termination; add a 15-minute soft timeout for tighter observability. |
+| LOW-PRED-005 | LOW | `Predictions.run_now/1` ("Run Now" in admin) is not rate-limited per admin session beyond Oban's uniqueness window. An admin clicking repeatedly creates redundant jobs. Add a per-session token bucket or tighter Oban `unique: [period: 60]` for the manual-trigger path. |
+| LOW-PRED-008 | LOW | Python `/inference/hit` has no per-request row-count cap. FastAPI's 25MB body limit provides some protection; add explicit `len(training_rows) <= 200_000` and `len(inference_rows) <= 5_000` guards to prevent DoS from inside the Docker network. |
 
-Full security audit is in `.on-loop/agent-notes/security.md`.
+Full security audit is in `.on-loop/sessions/20260517_111655_elixir-hit-predictions-pipeline/agent-notes/security.md`.
 
 ---
 
@@ -740,6 +969,33 @@ docker compose --profile dev up stripe-cli
 # news_items WHERE domain_tags = '{}' and re-calls PythonBridge.analyze_news/2
 ```
 
+**Enable/disable hit predictions:**
+- Toggle `hit_predictions_enabled` via the Joshua admin Predictions tab at `/admin`.
+- When disabled, `DailyHitPredictionsWorker` returns `:ok` immediately without writing any rows.
+
+**Manually run hit predictions for today:**
+```elixir
+# IEx
+%{"date" => Date.to_iso8601(Date.utc_today()), "force" => true}
+|> SportsFanatic.Workers.DailyHitPredictionsWorker.new()
+|> Oban.insert()
+```
+
+**Manually run hit predictions for a specific date:**
+```elixir
+# IEx
+%{"date" => "2026-05-10", "force" => true}
+|> SportsFanatic.Workers.DailyHitPredictionsWorker.new()
+|> Oban.insert()
+```
+
+**Read today's predictions from context:**
+```elixir
+# IEx
+SportsFanatic.Predictions.list_today([])
+SportsFanatic.Predictions.get_for_player(592450, Date.utc_today())
+```
+
 ---
 
 ## Database Backup & Restore
@@ -793,6 +1049,20 @@ mix db.restore backups/sports_fanatic_20260426_090000.dump
 |----------|-------------|---------|----------|
 | `ANTHROPIC_API_KEY` | Claude API key used by the Python Bridge (news classify, scouting, game day) and by the Elixir-side agent reasoning | — | Yes |
 | `EXA_API_KEY` | Exa.ai API key for the Elixir-side `ExternalApis.Exa` client (chatbot article discovery) | — | Yes when chatbot enabled |
+
+**Hit Predictions environment variables:**
+
+| Variable | Description | Default | Required |
+|----------|-------------|---------|----------|
+| `OPENMETEO_API_KEY` | Open-Meteo API key (free tier requires no key; set only for paid plan) | _(blank)_ | No |
+| `PREDICTIONS_CONCURRENCY` | Default `max_concurrency` for steps without a step-specific override | `8` | No |
+| `PREDICTIONS_CRON_OVERRIDE` | Oban cron expression for `DailyHitPredictionsWorker` | `0 12 * * *` | No |
+| `PREDICTIONS_PITCHER_STATS_CONCURRENCY` | `FetchPitcherStatsWorker` step concurrency | `4` | No |
+| `PREDICTIONS_BVP_CONCURRENCY` | `FetchBvPWorker` step concurrency | `6` | No |
+| `PREDICTIONS_STATCAST_CONCURRENCY` | `SeedStatcastWorker` step concurrency | `4` | No |
+| `PREDICTIONS_SEED_PITCHER_CONCURRENCY` | `SeedPitcherHistoryWorker` step concurrency | `4` | No |
+| `PREDICTIONS_WEATHER_CONCURRENCY` | `ForecastWeatherWorker` step concurrency | `8` | No |
+| `PREDICTIONS_FEATURE_COMPUTE_CONCURRENCY` | Per-player feature computation concurrency in `PredictHitsWorker` | `16` | No |
 
 **News S3 environment variables:**
 

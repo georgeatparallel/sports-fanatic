@@ -1,6 +1,8 @@
 """FastAPI Python Bridge for Sports Fanatic.
 
-Provides ML prediction endpoints and AI content generation.
+Provides ML inference and AI content generation endpoints. The hits-prediction
+pipeline now lives entirely in Elixir; this bridge only exposes a single
+inference endpoint (`/inference/hit`) plus the Claude-driven content endpoints.
 """
 
 import logging
@@ -10,30 +12,29 @@ from fastapi import FastAPI
 from src.api.agents import router as agents_router
 from src.api.chat import router as chat_router
 from src.api.gameday import router as gameday_router
+from src.api.inference import router as inference_router
 from src.api.news import router as news_router
-from src.api.predict import router as predict_router
-from src.api.schedule import router as schedule_router
 from src.api.scouting import router as scouting_router
 from src.config import settings
-from src.simulation.engine import router as simulation_router
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title="Sports Fanatic Python Bridge",
-    version="1.0.0",
+    version="2.0.0",
     docs_url="/docs" if settings.debug else None,
 )
 
+# ML inference (single supported endpoint for predictions)
+app.include_router(inference_router, prefix="/inference", tags=["inference"])
+
+# Claude-driven content endpoints (kept on the Python bridge)
 app.include_router(agents_router, prefix="/agents", tags=["agents"])
 app.include_router(chat_router, prefix="/chat", tags=["chat"])
-app.include_router(predict_router, prefix="/predict", tags=["predictions"])
 app.include_router(scouting_router, prefix="/scouting", tags=["scouting"])
 app.include_router(gameday_router, prefix="/gameday", tags=["gameday"])
 app.include_router(news_router, prefix="/news", tags=["news"])
-app.include_router(schedule_router, prefix="/schedule", tags=["schedule"])
-app.include_router(simulation_router, prefix="/simulation", tags=["simulation"])
 
 
 @app.get("/health")

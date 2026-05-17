@@ -79,10 +79,18 @@ config :sports_fanatic, Oban,
        {"0 13 * * *", SportsFanatic.Workers.RunNewsAgentsWorker},
        {"0 * * * *", SportsFanatic.Workers.ConsolidateQueriesWorker},
        {"0 14 * * *", SportsFanatic.Workers.ScheduledExaSearchWorker},
-       {"0 13 * * *", SportsFanatic.Workers.FeedResearchWorker}
+       {"0 13 * * *", SportsFanatic.Workers.FeedResearchWorker},
+       {"0 12 * * *", SportsFanatic.Workers.DailyHitPredictionsWorker}
      ]}
   ],
-  queues: [data_fetch: 5, content_generation: 3, cache: 2, system: 1, default: 10]
+  queues: [
+    data_fetch: 5,
+    content_generation: 3,
+    cache: 2,
+    system: 1,
+    default: 10,
+    predictions: 4
+  ]
 
 # Stripe configuration
 config :stripity_stripe,

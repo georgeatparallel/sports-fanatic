@@ -11,17 +11,19 @@ defmodule SportsFanatic.Workers.FetchLineupsWorker do
   alias SportsFanatic.ExternalApis.FantasyNerds
   alias SportsFanatic.Mlb.{Lineup, Player}
   alias SportsFanatic.Repo
-  alias SportsFanatic.Workers.GeneratePredictionsWorker
 
   require Logger
 
   @impl Oban.Worker
-  def perform(%Oban.Job{}) do
-    today = SportsFanatic.DateHelper.today() |> Date.to_iso8601()
+  def perform(%Oban.Job{args: args}) do
+    date = parse_date(args["date"]) || SportsFanatic.DateHelper.today()
+    fetch_for_date(date)
+  end
 
-    case FantasyNerds.fetch_lineups(today) do
+  @spec fetch_for_date(Date.t()) :: {:ok, integer} | {:error, term}
+  def fetch_for_date(%Date{} = date) do
+    case FantasyNerds.fetch_lineups(Date.to_iso8601(date)) do
       {:ok, players} ->
-        # Build name-based lookup: {lowercase_full_name, team_code} => player_id
         players_by_name = resolve_players_by_name(players)
 
         Enum.each(players, fn player ->
@@ -30,7 +32,7 @@ defmodule SportsFanatic.Workers.FetchLineupsWorker do
 
           %Lineup{}
           |> Lineup.changeset(%{
-            game_date: SportsFanatic.DateHelper.today(),
+            game_date: date,
             player_nerds_id: player.player_id,
             player_name: name,
             team_code: player.team_code,
@@ -55,20 +57,23 @@ defmodule SportsFanatic.Workers.FetchLineupsWorker do
           )
         end)
 
-        Logger.info("Fetched #{length(players)} lineup entries")
-
-        # Trigger predictions after lineups confirmed
-        if length(players) > 0 do
-          %{date: today}
-          |> GeneratePredictionsWorker.new()
-          |> Oban.insert()
-        end
-
-        :ok
+        Logger.info("Fetched #{length(players)} lineup entries for #{date}")
+        # NOTE: hit-prediction chaining lives in DailyHitPredictionsWorker.
+        {:ok, length(players)}
 
       {:error, reason} ->
         Logger.error("Failed to fetch lineups: #{inspect(reason)}")
         {:error, reason}
+    end
+  end
+
+  defp parse_date(nil), do: nil
+  defp parse_date(%Date{} = d), do: d
+
+  defp parse_date(s) when is_binary(s) do
+    case Date.from_iso8601(s) do
+      {:ok, d} -> d
+      _ -> nil
     end
   end
 
