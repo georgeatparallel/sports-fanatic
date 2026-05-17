@@ -23,7 +23,10 @@ defmodule SportsFanatic.Agents.Actions.SearchExa do
 
     case Exa.search(query, num_results: num_results, days_back: days_back) do
       {:ok, results} when results != [] ->
-        urls = Enum.map(results, & &1.url) |> Enum.filter(&is_binary/1)
+        urls =
+          results
+          |> Enum.map(& &1.url)
+          |> Enum.filter(&is_binary/1)
 
         existing_urls =
           if urls != [] do
