@@ -52,7 +52,7 @@ defmodule SportsFanaticWeb.Plugs.RequireAdminTest do
         |> fetch_flash()
         |> RequireAdmin.call([])
 
-      assert get_flash(conn, :error) == "Unauthorized."
+      assert Phoenix.Flash.get(conn.assigns.flash, :error) == "Unauthorized."
     end
 
     test "sets Unauthorized error flash when current_user is nil", %{conn: conn} do
@@ -63,7 +63,7 @@ defmodule SportsFanaticWeb.Plugs.RequireAdminTest do
         |> fetch_flash()
         |> RequireAdmin.call([])
 
-      assert get_flash(conn, :error) == "Unauthorized."
+      assert Phoenix.Flash.get(conn.assigns.flash, :error) == "Unauthorized."
     end
 
     test "does not set flash when admin user passes through", %{conn: conn} do
@@ -76,7 +76,7 @@ defmodule SportsFanaticWeb.Plugs.RequireAdminTest do
         |> fetch_flash()
         |> RequireAdmin.call([])
 
-      assert get_flash(conn, :error) == nil
+      assert Phoenix.Flash.get(conn.assigns.flash, :error) == nil
     end
   end
 end

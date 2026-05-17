@@ -117,30 +117,28 @@ defmodule SportsFanaticWeb.PlayerControllerTest do
       end
     end
 
-    test "returns 404 for inactive player", %{conn: conn, team: team} do
-      inactive_player =
+    test "shows inactive player page (IL players are still viewable)", %{conn: conn, team: team} do
+      _inactive_player =
         create_player(team, %{
           full_name: "Inactive Player",
           slug: "inactive-player",
           status: "inactive"
         })
 
-      assert_raise Ecto.NoResultsError, fn ->
-        get(conn, "/mlb/players/#{team.slug}/#{inactive_player.slug}")
-      end
+      conn = get(conn, "/mlb/players/#{team.slug}/inactive-player")
+      assert html_response(conn, 200) =~ "Inactive Player"
     end
 
-    test "returns 404 for retired player", %{conn: conn, team: team} do
-      retired_player =
+    test "shows retired player page", %{conn: conn, team: team} do
+      _retired_player =
         create_player(team, %{
           full_name: "Retired Player",
           slug: "retired-player",
           status: "retired"
         })
 
-      assert_raise Ecto.NoResultsError, fn ->
-        get(conn, "/mlb/players/#{team.slug}/#{retired_player.slug}")
-      end
+      conn = get(conn, "/mlb/players/#{team.slug}/retired-player")
+      assert html_response(conn, 200) =~ "Retired Player"
     end
 
     test "renders player overview section", %{conn: conn, team: team, player: player} do
