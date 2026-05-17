@@ -128,17 +128,16 @@ defmodule SportsFanatic.AI.Claude do
       sources
       |> Enum.take(15)
       |> Enum.with_index(1)
-      |> Enum.map(fn {src, i} ->
+      |> Enum.map_join("\n\n", fn {src, i} ->
         title = src[:title] || src["title"] || ""
         text = src[:text] || src["text"] || ""
         "--- Source #{i}: #{title} ---\n#{String.slice(text, 0, 2000)}"
       end)
-      |> Enum.join("\n\n")
 
     local_text =
       if local_summaries != [] do
         "\n\nArticles in our database:\n" <>
-          Enum.join(Enum.map(local_summaries, &"- #{&1}"), "\n")
+          Enum.map_join(local_summaries, "\n", &"- #{&1}")
       else
         ""
       end
