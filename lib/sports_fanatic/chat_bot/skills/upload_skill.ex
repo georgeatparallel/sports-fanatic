@@ -97,11 +97,7 @@ defmodule SportsFanatic.ChatBot.Skills.UploadSkill do
       summary =
         if unmatched != [] do
           names = Enum.take(unmatched, 10) |> Enum.join(", ")
-          more = if length(unmatched) > 10, do: " (+#{length(unmatched) - 10} more)", else: ""
-
-          summary <>
-            "\n\nNot in our player database: #{names}#{more}" <>
-            "\n*(These players may not be on an active MLB roster yet, or their name may be spelled differently.)*"
+          summary <> "\n\nSkipped: #{names}"
         else
           summary
         end
