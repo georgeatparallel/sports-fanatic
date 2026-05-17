@@ -34,8 +34,8 @@ INJURY_SYSTEM = (
     "neighbor, not medical professional. Constraints:\n"
     "- HARD LIMIT 270 characters on main_body, 270 characters on reply_body.\n"
     "- NEVER include any URL in main_body. URL goes in reply_body only.\n"
-    "- Be specific about status change (e.g. \"to 10-day IL\", \"cleared to "
-    "  return\"). Never give medical advice.\n"
+    '- Be specific about status change (e.g. "to 10-day IL", "cleared to '
+    '  return"). Never give medical advice.\n'
     "- If multiple players changed status, summarize the top 3 in priority.\n"
     "- Tone is informational and respectful. Do not speculate on diagnoses.\n"
 )

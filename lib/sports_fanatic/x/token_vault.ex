@@ -110,7 +110,7 @@ defmodule SportsFanatic.X.TokenVault do
     end
   end
 
-  # TODO(VAULT-001): the `> @tag_length` guard rejects ciphertexts that wrap an
+  # Deferred (VAULT-001): the `> @tag_length` guard rejects ciphertexts that wrap an
   # empty plaintext (AES-256-GCM of "" produces exactly 16 bytes — tag only).
   # Production OAuth tokens are never empty so this is a deferred edge case;
   # see docs/KNOWN_ISSUES.md (X agent / Deferred).

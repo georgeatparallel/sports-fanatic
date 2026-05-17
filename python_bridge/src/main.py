@@ -38,8 +38,12 @@ app.include_router(news_router, prefix="/news", tags=["news"])
 app.include_router(schedule_router, prefix="/schedule", tags=["schedule"])
 app.include_router(simulation_router, prefix="/simulation", tags=["simulation"])
 app.include_router(x_agent_router, prefix="/x-agent", tags=["x-agent"])
-app.include_router(injury_report_router, prefix="/injury-report", tags=["injury-report"])
-app.include_router(team_magazine_router, prefix="/team-magazine", tags=["team-magazine"])
+app.include_router(
+    injury_report_router, prefix="/injury-report", tags=["injury-report"]
+)
+app.include_router(
+    team_magazine_router, prefix="/team-magazine", tags=["team-magazine"]
+)
 
 
 @app.get("/health")

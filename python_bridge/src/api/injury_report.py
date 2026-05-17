@@ -62,15 +62,15 @@ async def generate_injury_report(request: InjuryReportRequest):
             "External sources:\n"
             f"{json.dumps(request.exa_results)[:8000]}\n\n"
             "Return ONLY a JSON object with these fields:\n"
-            '  - tldr (string, <= 240 chars)\n'
-            '  - current_status (one of: active, day-to-day, '
-            'injured-list-10, injured-list-15, injured-list-60, recovering, '
-            'cleared, unknown)\n'
-            '  - timeline (array of {date: YYYY-MM-DD, event: string, '
-            'source_url: string|null})\n'
-            '  - expected_return (string|null, free text)\n'
-            '  - fantasy_impact (string, 1-2 sentences)\n'
-            '  - sources (array of {title, url, domain, published_at})\n'
+            "  - tldr (string, <= 240 chars)\n"
+            "  - current_status (one of: active, day-to-day, "
+            "injured-list-10, injured-list-15, injured-list-60, recovering, "
+            "cleared, unknown)\n"
+            "  - timeline (array of {date: YYYY-MM-DD, event: string, "
+            "source_url: string|null})\n"
+            "  - expected_return (string|null, free text)\n"
+            "  - fantasy_impact (string, 1-2 sentences)\n"
+            "  - sources (array of {title, url, domain, published_at})\n"
         )
 
         message = await client.messages.create(

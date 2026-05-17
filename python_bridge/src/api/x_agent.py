@@ -65,7 +65,9 @@ async def draft_post(request: DraftPostRequest):
     try:
         body = await _call_claude(system_prompt, user_prompt, max_tokens=600)
         main_body = _strip_urls(body.get("main_body", ""), limit=request.max_main_chars)
-        reply_body = _truncate(body.get("reply_body", ""), limit=request.max_reply_chars)
+        reply_body = _truncate(
+            body.get("reply_body", ""), limit=request.max_reply_chars
+        )
         had_url = bool(URL_REGEX.search(body.get("main_body", "")))
 
         return {
@@ -165,8 +167,12 @@ async def _call_claude(system: str, user: str, max_tokens: int = 600) -> dict:
     text = _unwrap_code_block(text)
 
     parsed = json.loads(text)
-    parsed["input_tokens"] = getattr(message, "usage", None) and message.usage.input_tokens or 0
-    parsed["output_tokens"] = getattr(message, "usage", None) and message.usage.output_tokens or 0
+    parsed["input_tokens"] = (
+        getattr(message, "usage", None) and message.usage.input_tokens or 0
+    )
+    parsed["output_tokens"] = (
+        getattr(message, "usage", None) and message.usage.output_tokens or 0
+    )
     return parsed
 
 
