@@ -26,6 +26,14 @@ let Hooks = {}
 
 // Chat scroll: only auto-scroll when USER sends a message.
 // Agent responses stay at top so user can read and scroll at their own pace.
+Hooks.ChatInput = {
+  mounted() {
+    this.handleEvent("focus_input", () => {
+      this.el.focus()
+    })
+  }
+}
+
 Hooks.ScrollBottom = {
   mounted() {
     this._userScrolled = false

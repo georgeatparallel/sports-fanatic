@@ -2,11 +2,11 @@
   <%!-- Chat header --%>
   <div class="flex items-center justify-between px-4 py-2 border-b border-gray-200 bg-white flex-shrink-0">
     <h1 class="text-lg font-semibold text-gray-900">News Research Agent</h1>
-    <div class="flex items-center gap-2">
+    <div class="flex items-center gap-3">
       <%= if @agent_running do %>
         <button
           phx-click="cancel_agent"
-          class="text-xs text-red-500 hover:text-red-700 font-medium px-2 py-1 rounded border border-red-200 hover:bg-red-50"
+          class="text-sm text-red-600 hover:text-red-800 font-medium px-3 py-1.5 rounded-md border border-red-300 hover:bg-red-50"
         >
           Cancel
         </button>
@@ -14,9 +14,9 @@
       <%= if length(@chat_messages) > 1 do %>
         <button
           phx-click="clear_chat"
-          class="text-xs text-gray-500 hover:text-gray-700 font-medium"
+          class="text-sm text-blue-600 hover:text-blue-800 font-medium px-3 py-1.5 rounded-md border border-blue-300 hover:bg-blue-50"
         >
-          Clear Chat
+          New Chat
         </button>
       <% end %>
     </div>
@@ -192,7 +192,7 @@
     <div class="max-w-3xl mx-auto">
       <form phx-submit="submit_chat" class="relative">
         <input
-          type="text"
+          type={if @skill_state && Map.get(@skill_state, :step) == :await_password, do: "password", else: "text"}
           name="message"
           value={@chat_input}
           placeholder={
@@ -203,6 +203,8 @@
           disabled={@agent_running}
           autofocus
           autocomplete="off"
+          id="chat-input"
+          phx-hook="ChatInput"
           class={[
             "w-full rounded-lg border border-gray-300 px-3 py-2.5 pr-10 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500",
             if(@agent_running, do: "bg-gray-50 cursor-not-allowed", else: "")

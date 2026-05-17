@@ -129,7 +129,8 @@ defmodule SportsFanaticWeb.ChatLive do
      |> assign(:chat_session_id, new_session_id)
      |> assign(:agent_running, false)
      |> assign(:chat_articles, [])
-     |> assign(:chat_input, "")}
+     |> assign(:chat_input, "")
+     |> push_event("focus_input", %{})}
   end
 
   def handle_event("cancel_agent", _params, socket) do
