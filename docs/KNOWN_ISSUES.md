@@ -1,0 +1,33 @@
+# Known Issues and TODOs
+
+Cross-cutting issue tracker. New issues should be filed here; per-subsystem
+issues may be referenced from the relevant sub-folder `CLAUDE.md`.
+
+| ID | Severity | Description |
+|----|----------|-------------|
+| SEC-001 | HIGH | Stored XSS: `raw/1` used on external/AI content in news body, game day analysis, JSON-LD. Add `HtmlSanitizeEx` before storing. |
+| SEC-002 | HIGH | Open redirect: `return_to` parameter not validated as relative path in `AuthController`. |
+| SEC-003 | MEDIUM | Rate limiting not implemented on `/login` and `/register` (spec requires 5/IP/5 min). |
+| SEC-004 | MEDIUM | Stripe webhook idempotency not implemented — duplicate events can cause redundant writes. |
+| SEC-005 | MEDIUM | `SubscriptionGate` allows access when `subscription_expires_at` is nil for non-free tier. |
+| SEC-006 | MEDIUM | `.env` not in `.gitignore`. |
+| SEC-007 | MEDIUM | Python bridge port 8000 exposed to host in `docker-compose.yml`. |
+| CODE-001 | LOW | `Slug` module is not namespaced (`defmodule Slug` in `team.ex`). Works correctly but should be `SportsFanatic.Slug`. |
+| CODE-002 | LOW | `Billing.handle_checkout_completed/1` checks wrong path for trial detection. Trial status should come from `customer.subscription.updated` webhook with `status: "trialing"`. |
+| AGENTS-001 | LOW | `RunNewsAgentsWorker` matches players/teams via ILIKE text search on `parsed_criteria` JSON values. Phase 2 should resolve to `player_ids`/`team_ids` via `EntityMatcher` for accurate matching. |
+| AGENTS-002 | LOW | `POST /agents/execute` on the Python Bridge is a stub returning empty results. Phase 2 activates Exa.ai search and batched multi-user execution. |
+| AGENTS-003 | LOW | Domain tags are not backfilled for news articles classified before the `domain_tags` column was added. A one-shot backfill worker should be run post-deployment to re-classify those articles. |
+| CHAT-001 | HIGH | Agent output and Exa article content must be sanitized via `html_sanitize_ex` before rendering. The `html_sanitize_ex` dep is added; ensure `raw/1` is never called on chat message content (CHAT-SEC-001). |
+| CHAT-002 | MEDIUM | `phx-hook="ScrollBottom"` on the chat container references a JS hook added in `assets/js/app.js`. If the hook fails to register, new messages will not auto-scroll. |
+| CHAT-003 | MEDIUM | The `phx-change="update_chat_input"` event on the chat input needs a corresponding `handle_event` clause in `NewsLive` or a `phx-debounce` attribute to avoid excessive server events. |
+| CHAT-004 | LOW | Query cluster membership uses entity overlap + keyword intersection (MVP). Semantically similar queries with different surface forms may not cluster (e.g., "Harper" vs "Bryce Harper"). Upgrade to embedding-based similarity post-MVP. |
+| CHAT-005 | LOW | Jido v2.x deps (`jido`, `jido_ai`) are not installed due to Elixir 1.18 requirement. The `Action` behaviour in `agents/action.ex` is a plain-Elixir equivalent. If Elixir is upgraded to 1.18+, replace with `use Jido.Action` in each action module. |
+| X-AGENT-001 | MEDIUM | XPostSchedulerWorker cron `"30 15 * * *"` is UTC; corresponds to 11:30 ET only during EDT. During EST (Nov–early March) the post-window shifts by one hour. Document in `lib/sports_fanatic/x/CLAUDE.md` runbook; no automatic DST handling. |
+| X-AGENT-002 | LOW | Open Graph image composition for injury report detail uses static fallback PNG only. Server-side composition (player photo + status badge) is deferred. See `lib/sports_fanatic/x/CLAUDE.md`. |
+| X-AGENT-003 | LOW | `WeeklyScorecardWorker` posts a 5-tweet thread where only the third tweet carries the URL. Re-evaluate after first month — may want URL on the first tweet for crawl reasons. |
+| X-AGENT-004 | LOW | `system.x_api_calls.cost_mills` is approximated at 15 mills per text write and 200 mills per URL-carrying write. Actual X provider invoicing reconciliation belongs in a future ledger pass. |
+| VAULT-001 | LOW (DEFERRED) | `SportsFanatic.X.TokenVault.decrypt/2` cannot round-trip an empty plaintext. AES-256-GCM of `""` produces exactly 16 bytes (GCM tag only) and the `split_ciphertext/1` guard `> @tag_length` rejects it. Production OAuth tokens are never empty (the OAuth flow always returns non-empty `access_token` / `refresh_token` strings, sanity-checked at the call boundary), so this is deferred. Fix when needed by changing the guard to `>= @tag_length` in `lib/sports_fanatic/x/token_vault.ex`. |
+| X-SEC-SANITIZE-1 | MEDIUM | `MainPostWorker` persists LLM-drafted `main_body` and `reply_body` into `system.x_posts` without first calling `HtmlSanitizeEx.strip_tags/1`. Defense-in-depth gap; XSS exit paths are separately protected (HEEx auto-escape in templates, `X.sanitize_and_validate/1` before the wire). Fix: in `main_post_worker.ex` `compose_and_maybe_post/2` wrap `composed.main_body` and `composed.reply_body` in `HtmlSanitizeEx.strip_tags/1` before building the attrs map. Also apply in `outbound_reply_worker.ex:111`. |
+| X-SEC-OAUTH-1 | LOW | OAuth verifier and state session keys are not deleted on failed callback paths in `XOAuthController` (lines 36–85). On success both keys are cleared; on the four failure paths they are left in the session. X.com rejects reused authorization codes regardless, so exploitability is minimal. Fix: pipe through `delete_session(:x_oauth_verifier)` and `delete_session(:x_oauth_state)` in each failure clause before `redirect/2`. |
+
+Full security audit lives in `.on-loop/agent-notes/security.md`.

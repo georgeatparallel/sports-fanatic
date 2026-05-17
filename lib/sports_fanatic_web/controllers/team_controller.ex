@@ -2,6 +2,8 @@ defmodule SportsFanaticWeb.TeamController do
   use SportsFanaticWeb, :controller
 
   import Ecto.Query
+  alias SportsFanatic.Content.TeamMagazine
+  alias SportsFanatic.DateHelper
   alias SportsFanatic.Mlb.{Player, ScheduledGame, Team}
   alias SportsFanatic.Repo
 
@@ -34,11 +36,13 @@ defmodule SportsFanaticWeb.TeamController do
       |> where(
         [sg],
         (sg.away_mlb_id == ^mlb_id or sg.home_mlb_id == ^mlb_id) and
-          sg.game_date >= ^SportsFanatic.DateHelper.today()
+          sg.game_date >= ^DateHelper.today()
       )
       |> order_by([sg], sg.game_date)
       |> limit(10)
       |> Repo.all()
+
+    team_magazine = load_team_magazine(team.id)
 
     canonical = "https://sportsfanatic.com/mlb/teams/#{team_slug}"
 
@@ -65,8 +69,16 @@ defmodule SportsFanaticWeb.TeamController do
     |> render(:show,
       team: team,
       players: players,
-      upcoming_games: upcoming_games
+      upcoming_games: upcoming_games,
+      team_magazine: team_magazine
     )
+  end
+
+  defp load_team_magazine(team_id) do
+    today = DateHelper.today()
+    Repo.get_by(TeamMagazine, team_id: team_id, run_date: today)
+  rescue
+    _ -> nil
   end
 
   defp get_mlb_id(team) do

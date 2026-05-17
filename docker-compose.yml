@@ -19,6 +19,12 @@ services:
       - JOSHUA_PASSWORD=${JOSHUA_PASSWORD}
       - EXA_API_KEY=${EXA_API_KEY}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - X_CLIENT_ID=${X_CLIENT_ID}
+      - X_CLIENT_SECRET=${X_CLIENT_SECRET}
+      - X_REDIRECT_URI=${X_REDIRECT_URI}
+      - X_TOKEN_ENCRYPTION_KEY=${X_TOKEN_ENCRYPTION_KEY}
+      - X_DAILY_CAP_MILLS=${X_DAILY_CAP_MILLS:-5000}
+      - X_ACCOUNT_HANDLE=${X_ACCOUNT_HANDLE}
     depends_on:
       db:
         condition: service_healthy

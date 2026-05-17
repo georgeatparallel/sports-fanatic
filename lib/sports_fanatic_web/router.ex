@@ -85,6 +85,11 @@ defmodule SportsFanaticWeb.Router do
     # Game Day Magazine preview (public)
     get "/mlb/game-day/:date/:slug", GameDayController, :show
 
+    # Injury Report (public)
+    get "/mlb/injury-report", InjuryReportController, :index
+    get "/mlb/injury-report/og/:player_slug", InjuryReportController, :og_image
+    get "/mlb/injury-report/:player_slug", InjuryReportController, :show
+
     # Sitemaps
     get "/sitemap.xml", SitemapController, :index
     get "/sitemaps/:type", SitemapController, :show
@@ -154,6 +159,10 @@ defmodule SportsFanaticWeb.Router do
   # --- Admin Routes (protected by Joshua auth) ---
   scope "/admin", SportsFanaticWeb do
     pipe_through [:browser, :require_joshua]
+
+    # X (Twitter) OAuth 2.0 PKCE flow — single org account
+    get "/x/oauth/start", XOAuthController, :start
+    get "/x/oauth/callback", XOAuthController, :callback
 
     live_session :admin do
       live "/", AdminLive

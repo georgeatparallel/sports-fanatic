@@ -22,6 +22,8 @@ defmodule SportsFanatic.Application do
       {SportsFanatic.Scouting.Pipeline, []},
       # Python Bridge health check
       SportsFanatic.PythonBridge.HealthCheck,
+      # X (Twitter) agent circuit breaker — separate from python_bridge breaker
+      SportsFanatic.X.CircuitBreaker,
       # Agent infrastructure for chatbot
       {Registry, keys: :unique, name: SportsFanatic.AgentRegistry},
       {DynamicSupervisor,

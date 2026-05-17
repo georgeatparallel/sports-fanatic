@@ -3,6 +3,7 @@ defmodule SportsFanaticWeb.SitemapController do
 
   import Ecto.Query
 
+  alias SportsFanatic.Content.InjuryReport
   alias SportsFanatic.Mlb.{Player, Team}
   alias SportsFanatic.Repo
 
@@ -54,6 +55,31 @@ defmodule SportsFanaticWeb.SitemapController do
       Enum.map(teams, fn slug ->
         "  <url><loc>#{@domain}/mlb/teams/#{slug}</loc><changefreq>daily</changefreq></url>"
       end)
+
+    xml = wrap_urlset(urls)
+
+    conn
+    |> put_resp_content_type("application/xml")
+    |> send_resp(200, xml)
+  end
+
+  def show(conn, %{"type" => "injury_report"}) do
+    thirty_days_ago = Date.add(Date.utc_today(), -30)
+
+    rows =
+      InjuryReport
+      |> join(:inner, [ir], p in Player, on: ir.player_id == p.id)
+      |> where([ir, p], ir.run_date >= ^thirty_days_ago and not is_nil(p.slug))
+      |> select([ir, p], p.slug)
+      |> distinct([ir, p], p.slug)
+      |> Repo.all()
+
+    urls = [
+      "  <url><loc>#{@domain}/mlb/injury-report</loc><changefreq>hourly</changefreq><priority>0.9</priority></url>"
+      | Enum.map(rows, fn slug ->
+          "  <url><loc>#{@domain}/mlb/injury-report/#{slug}</loc><changefreq>daily</changefreq><priority>0.7</priority></url>"
+        end)
+    ]
 
     xml = wrap_urlset(urls)
 

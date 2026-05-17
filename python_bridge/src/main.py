@@ -10,10 +10,13 @@ from fastapi import FastAPI
 from src.api.agents import router as agents_router
 from src.api.chat import router as chat_router
 from src.api.gameday import router as gameday_router
+from src.api.injury_report import router as injury_report_router
 from src.api.news import router as news_router
 from src.api.predict import router as predict_router
 from src.api.schedule import router as schedule_router
 from src.api.scouting import router as scouting_router
+from src.api.team_magazine import router as team_magazine_router
+from src.api.x_agent import router as x_agent_router
 from src.config import settings
 from src.simulation.engine import router as simulation_router
 
@@ -34,6 +37,9 @@ app.include_router(gameday_router, prefix="/gameday", tags=["gameday"])
 app.include_router(news_router, prefix="/news", tags=["news"])
 app.include_router(schedule_router, prefix="/schedule", tags=["schedule"])
 app.include_router(simulation_router, prefix="/simulation", tags=["simulation"])
+app.include_router(x_agent_router, prefix="/x-agent", tags=["x-agent"])
+app.include_router(injury_report_router, prefix="/injury-report", tags=["injury-report"])
+app.include_router(team_magazine_router, prefix="/team-magazine", tags=["team-magazine"])
 
 
 @app.get("/health")
