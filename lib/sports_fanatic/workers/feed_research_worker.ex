@@ -110,7 +110,7 @@ defmodule SportsFanatic.Workers.FeedResearchWorker do
                 report_date: today,
                 summary: report["news_summary"] || "Scouting report for #{player.full_name}",
                 full_report: report,
-                overall_grade: String.slice(report["overall_sentiment"] || "N", 0, 5),
+                overall_grade: sentiment_to_grade(report["overall_sentiment"]),
                 strengths: report["positive_factors"] || [],
                 weaknesses: report["negative_factors"] || [],
                 injury_risk: report["injury_status"] || "unknown",
@@ -131,4 +131,9 @@ defmodule SportsFanatic.Workers.FeedResearchWorker do
     e ->
       Logger.warning("FeedResearchWorker: scouting error for #{player.full_name}: #{Exception.message(e)}")
   end
+
+  defp sentiment_to_grade("positive"), do: "A"
+  defp sentiment_to_grade("neutral"), do: "B"
+  defp sentiment_to_grade("negative"), do: "C"
+  defp sentiment_to_grade(_), do: "B"
 end

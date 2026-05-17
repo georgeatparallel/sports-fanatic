@@ -60,7 +60,7 @@ defmodule SportsFanatic.Workers.GenerateScoutingOnDemandWorker do
               report_date: today,
               summary: report["news_summary"] || "Scouting report for #{player.full_name}",
               full_report: report,
-              overall_grade: String.slice(report["overall_sentiment"] || "N", 0, 5),
+              overall_grade: sentiment_to_grade(report["overall_sentiment"]),
               hit_probability: report["hit_probability"],
               hr_probability: report["hr_probability"],
               strengths: report["positive_factors"] || [],
@@ -93,4 +93,9 @@ defmodule SportsFanatic.Workers.GenerateScoutingOnDemandWorker do
         {:error, :no_sources}
     end
   end
+
+  defp sentiment_to_grade("positive"), do: "A"
+  defp sentiment_to_grade("neutral"), do: "B"
+  defp sentiment_to_grade("negative"), do: "C"
+  defp sentiment_to_grade(_), do: "B"
 end
