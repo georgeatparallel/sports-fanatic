@@ -78,20 +78,13 @@ defmodule SportsFanatic.ChatBot.Skills.UploadSkill do
     else
       # Resolve players against database
       all_players = Repo.all(SportsFanatic.Mlb.Player)
-      all_teams = Repo.all(SportsFanatic.Mlb.Team)
 
       player_names = Enum.map(parsed, & &1.player_name)
 
-      team_abbrs =
-        parsed |> Enum.map(& &1.team_abbreviation) |> Enum.reject(&is_nil/1) |> Enum.uniq()
-
       matched_players = EntityMatcher.match_players(player_names, all_players)
-      matched_teams = EntityMatcher.match_teams(team_abbrs, all_teams)
-
       player_ids = Enum.map(matched_players, & &1.id)
-      team_ids = Enum.map(matched_teams, & &1.id)
 
-      # Find unmatched
+      # Find unmatched players
       matched_player_names = MapSet.new(matched_players, fn p -> String.downcase(p.full_name) end)
 
       unmatched =
@@ -99,14 +92,16 @@ defmodule SportsFanatic.ChatBot.Skills.UploadSkill do
           MapSet.member?(matched_player_names, String.downcase(name))
         end)
 
-      summary =
-        "Found **#{length(parsed)}** players in CSV. Matched **#{length(matched_players)}/#{length(player_names)}** players and **#{length(matched_teams)}/#{length(team_abbrs)}** teams."
+      summary = "Found **#{length(parsed)}** players in CSV. Matched **#{length(matched_players)}** of **#{length(player_names)}** against our database."
 
       summary =
         if unmatched != [] do
+          names = Enum.take(unmatched, 10) |> Enum.join(", ")
+          more = if length(unmatched) > 10, do: " (+#{length(unmatched) - 10} more)", else: ""
+
           summary <>
-            "\n\nCould not find: #{Enum.join(Enum.take(unmatched, 10), ", ")}" <>
-            if(length(unmatched) > 10, do: " (+#{length(unmatched) - 10} more)", else: "")
+            "\n\nNot in our player database: #{names}#{more}" <>
+            "\n*(These players may not be on an active MLB roster yet, or their name may be spelled differently.)*"
         else
           summary
         end
@@ -116,9 +111,9 @@ defmodule SportsFanatic.ChatBot.Skills.UploadSkill do
          skill: :upload,
          step: :await_name,
          player_ids: player_ids,
-         team_ids: team_ids,
+         team_ids: [],
          player_count: length(matched_players),
-         team_count: length(matched_teams)
+         team_count: 0
        }}
     end
   end
