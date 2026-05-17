@@ -9,8 +9,8 @@ defmodule SportsFanatic.Agents.Actions.ClassifyArticle do
     name: "classify_article",
     description: "Classify and enrich a new article via AI, then store it"
 
-  alias SportsFanatic.AI.Claude
   alias SportsFanatic.Agents.Actions.ResolveEntities
+  alias SportsFanatic.AI.Claude
   alias SportsFanatic.Cache
   alias SportsFanatic.News
 
@@ -117,7 +117,7 @@ defmodule SportsFanatic.Agents.Actions.ClassifyArticle do
       |> Enum.join("-")
 
     # Add a short hash for uniqueness
-    hash = :erlang.phash2(source_url || title, 99999)
+    hash = :erlang.phash2(source_url || title, 99_999)
     "#{base}-#{hash}"
   end
 

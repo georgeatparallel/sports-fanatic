@@ -12,8 +12,8 @@ defmodule SportsFanatic.Agents.NewsAgent do
   rehab status, fantasy implications, betting angles, and more.
   """
 
-  alias SportsFanatic.AI.Claude
   alias SportsFanatic.Agents.Actions.{ClassifyArticle, SearchExa, SearchLocalNews}
+  alias SportsFanatic.AI.Claude
   alias SportsFanatic.Repo
 
   import Ecto.Query
