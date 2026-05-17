@@ -36,8 +36,7 @@
           #
           ## Design Checks
           #
-          {Credo.Check.Design.AliasUsage,
-           [priority: :low, if_nested_deeper_than: 3, if_called_more_often_than: 1]},
+          {Credo.Check.Design.AliasUsage, false},
           {Credo.Check.Design.TagFIXME, []},
           {Credo.Check.Design.TagTODO, [priority: :low]},
           #
