@@ -26,6 +26,7 @@ defmodule SportsFanaticWeb.ChatLive do
 
   alias SportsFanatic.DateHelper
   alias SportsFanatic.Feeds
+  alias SportsFanaticWeb.SEO
 
   @impl true
   def mount(_params, session, socket) do
@@ -38,6 +39,11 @@ defmodule SportsFanaticWeb.ChatLive do
       |> assign(:today, today)
       |> assign(:date_str, Date.to_iso8601(today))
       |> assign(:page_title, "Chat")
+      |> assign(:og_title, SEO.default_title())
+      |> assign(:meta_description, SEO.default_description())
+      |> assign(:canonical_url, SEO.absolute_url("/"))
+      |> assign(:og_type, "website")
+      |> assign(:json_ld, home_json_ld())
       |> assign(:chat_messages, [welcome_message()])
       |> assign(:chat_session_id, nil)
       |> assign(:agent_running, false)
@@ -534,6 +540,28 @@ defmodule SportsFanaticWeb.ChatLive do
       content: welcome_content(),
       inserted_at: DateTime.utc_now()
     }
+  end
+
+  defp home_json_ld do
+    site_url = SEO.site_url()
+
+    Jason.encode!([
+      %{
+        "@context" => "https://schema.org",
+        "@type" => "Organization",
+        "name" => "Sports Fan Agent",
+        "url" => site_url <> "/",
+        "logo" => SEO.absolute_image_url(SEO.default_og_image_path()),
+        "description" => SEO.default_description()
+      },
+      %{
+        "@context" => "https://schema.org",
+        "@type" => "WebSite",
+        "name" => "Sports Fan Agent",
+        "url" => site_url <> "/",
+        "description" => SEO.default_description()
+      }
+    ])
   end
 
   # Template helpers

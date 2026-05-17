@@ -14,7 +14,8 @@ defmodule SportsFanaticWeb.PageControllerTest do
     end
 
     test "contains a <title> tag with the brand name", %{resp: resp} do
-      assert resp =~ "<title>"
+      # `<.live_title>` renders `<title data-suffix="...">` — match the tag open without the literal `>`
+      assert resp =~ "<title"
       assert resp =~ "Sports Fan Agent"
     end
 
