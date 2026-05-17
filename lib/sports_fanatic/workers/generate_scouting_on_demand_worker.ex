@@ -55,18 +55,33 @@ defmodule SportsFanatic.Workers.GenerateScoutingOnDemandWorker do
 
         case Claude.generate_scouting(player.full_name, sources_text) do
           {:ok, report} when is_map(report) ->
-            %ScoutingReport{}
-            |> ScoutingReport.changeset(%{
+            attrs = %{
               player_id: player.id,
               report_date: today,
-              content: report,
-              sources:
-                Enum.map(sources, fn s -> %{"title" => s.title, "url" => s.url} end)
-            })
-            |> Repo.insert(on_conflict: :nothing)
+              summary: report["news_summary"] || "Scouting report for #{player.full_name}",
+              full_report: report,
+              overall_grade: report["overall_sentiment"] || "neutral",
+              hit_probability: report["hit_probability"],
+              hr_probability: report["hr_probability"],
+              strengths: report["positive_factors"] || [],
+              weaknesses: report["negative_factors"] || [],
+              injury_risk: report["injury_status"] || "unknown",
+              injury_detail: report["injury_detail"],
+              confidence_modifier: report["confidence_modifier"],
+              sources_count: length(sources)
+            }
 
-            Logger.info("ScoutingOnDemand: report generated for #{player.full_name}")
-            :ok
+            case %ScoutingReport{}
+                 |> ScoutingReport.changeset(attrs)
+                 |> Repo.insert(on_conflict: :nothing) do
+              {:ok, _} ->
+                Logger.info("ScoutingOnDemand: report generated for #{player.full_name}")
+                :ok
+
+              {:error, changeset} ->
+                Logger.error("ScoutingOnDemand: insert failed for #{player.full_name}: #{inspect(changeset.errors)}")
+                {:error, :insert_failed}
+            end
 
           {:error, reason} ->
             Logger.warning("ScoutingOnDemand: generation failed for #{player.full_name}: #{inspect(reason)}")

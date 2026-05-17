@@ -108,8 +108,14 @@ defmodule SportsFanatic.Workers.FeedResearchWorker do
               |> ScoutingReport.changeset(%{
                 player_id: player.id,
                 report_date: today,
-                content: report,
-                sources: Enum.map(sources, fn s -> %{"title" => s.title, "url" => s.url} end)
+                summary: report["news_summary"] || "Scouting report for #{player.full_name}",
+                full_report: report,
+                overall_grade: report["overall_sentiment"] || "neutral",
+                strengths: report["positive_factors"] || [],
+                weaknesses: report["negative_factors"] || [],
+                injury_risk: report["injury_status"] || "unknown",
+                injury_detail: report["injury_detail"],
+                sources_count: length(sources)
               })
               |> Repo.insert(on_conflict: :nothing)
 
