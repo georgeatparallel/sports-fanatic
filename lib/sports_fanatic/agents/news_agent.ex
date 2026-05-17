@@ -110,7 +110,13 @@ defmodule SportsFanatic.Agents.NewsAgent do
       end
 
     # Step 4: Generate scouting reports for mentioned players and append links
-    summary = maybe_add_scouting(summary, all_ids, user_id)
+    # Skip if synthesis already included scouting links
+    summary =
+      if String.contains?(summary, "Scouting Report") do
+        summary
+      else
+        maybe_add_scouting(summary, all_ids, user_id)
+      end
 
     {:ok, %{summary: summary, news_item_ids: all_ids}}
   rescue
