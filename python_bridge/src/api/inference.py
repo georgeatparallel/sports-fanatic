@@ -32,21 +32,49 @@ router = APIRouter()
 
 
 HIT_FEATURE_COLS = [
-    "avg_7d", "avg_14d", "avg_30d", "avg_season",
-    "obp_7d", "obp_14d", "obp_30d", "obp_season",
-    "slg_7d", "slg_14d", "slg_30d", "slg_season",
-    "k_rate_7d", "k_rate_14d", "k_rate_30d",
+    "avg_7d",
+    "avg_14d",
+    "avg_30d",
+    "avg_season",
+    "obp_7d",
+    "obp_14d",
+    "obp_30d",
+    "obp_season",
+    "slg_7d",
+    "slg_14d",
+    "slg_30d",
+    "slg_season",
+    "k_rate_7d",
+    "k_rate_14d",
+    "k_rate_30d",
     "bb_rate_30d",
-    "games_7d", "games_14d", "games_30d", "games_season",
-    "pitcher_baa", "pitcher_k_per_9", "pitcher_whip", "pitcher_bb_per_9",
-    "pitcher_hand_L", "pitcher_hand_R",
-    "pitcher_recent_era_5g", "pitcher_recent_k9_5g", "pitcher_recent_whip_5g",
-    "bvp_avg", "bvp_at_bats",
-    "avg_exit_velocity", "hard_hit_pct",
+    "games_7d",
+    "games_14d",
+    "games_30d",
+    "games_season",
+    "pitcher_baa",
+    "pitcher_k_per_9",
+    "pitcher_whip",
+    "pitcher_bb_per_9",
+    "pitcher_hand_L",
+    "pitcher_hand_R",
+    "pitcher_recent_era_5g",
+    "pitcher_recent_k9_5g",
+    "pitcher_recent_whip_5g",
+    "bvp_avg",
+    "bvp_at_bats",
+    "avg_exit_velocity",
+    "hard_hit_pct",
     "park_hit_factor",
-    "temperature", "wind_speed", "precipitation", "surface_pressure",
-    "is_home", "batting_order", "month",
-    "days_since_last_game", "games_last_7d",
+    "temperature",
+    "wind_speed",
+    "precipitation",
+    "surface_pressure",
+    "is_home",
+    "batting_order",
+    "month",
+    "days_since_last_game",
+    "games_last_7d",
     "k_rate_x_pitcher_k9",
 ]
 
@@ -117,11 +145,15 @@ async def infer_hit(req: InferenceRequest) -> InferenceResponse:
     y_train = train_df["target_hit"].astype(int)
 
     if len(X_train) < 50:
-        logger.warning("Tiny training set (%d rows) — predictions may be unreliable", len(X_train))
+        logger.warning(
+            "Tiny training set (%d rows) — predictions may be unreliable", len(X_train)
+        )
 
     model = _build_model()
     model.fit(X_train, y_train)
-    logger.info("Hit model fit on %d rows × %d features", len(X_train), len(feature_cols))
+    logger.info(
+        "Hit model fit on %d rows × %d features", len(X_train), len(feature_cols)
+    )
 
     # Diagnostic metrics on training data (in-sample — not a substitute for CV).
     train_probs = model.predict_proba(X_train)[:, 1]

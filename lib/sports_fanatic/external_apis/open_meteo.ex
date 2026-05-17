@@ -80,9 +80,7 @@ defmodule SportsFanatic.ExternalApis.OpenMeteo do
     params = maybe_with_api_key(params)
     url = base <> "?" <> URI.encode_query(params)
 
-    if not String.starts_with?(url, "https://") do
-      {:error, :insecure_url}
-    else
+    if String.starts_with?(url, "https://") do
       case Req.get(url, receive_timeout: @timeout) do
         {:ok, %{status: 200, body: %{"hourly" => hourly}}} ->
           {:ok, hourly}
@@ -99,6 +97,8 @@ defmodule SportsFanatic.ExternalApis.OpenMeteo do
         {:error, reason} ->
           {:error, reason}
       end
+    else
+      {:error, :insecure_url}
     end
   end
 

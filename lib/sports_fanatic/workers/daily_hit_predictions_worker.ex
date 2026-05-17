@@ -18,14 +18,14 @@ defmodule SportsFanatic.Workers.DailyHitPredictionsWorker do
   alias SportsFanatic.{FeatureFlags, Repo}
 
   alias SportsFanatic.Workers.{
-    FetchScheduleWorker,
-    FetchLineupsWorker,
-    SeedPitcherHistoryWorker,
-    SeedStatcastWorker,
-    FetchPitcherStatsWorker,
     FetchBvpWorker,
+    FetchLineupsWorker,
+    FetchPitcherStatsWorker,
+    FetchScheduleWorker,
     ForecastWeatherWorker,
-    PredictHitsWorker
+    PredictHitsWorker,
+    SeedPitcherHistoryWorker,
+    SeedStatcastWorker
   }
 
   require Logger
