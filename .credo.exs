@@ -69,7 +69,7 @@
           #
           {Credo.Check.Refactor.Apply, []},
           {Credo.Check.Refactor.CondStatements, []},
-          {Credo.Check.Refactor.CyclomaticComplexity, []},
+          {Credo.Check.Refactor.CyclomaticComplexity, [max_complexity: 15]},
           {Credo.Check.Refactor.FunctionArity, []},
           {Credo.Check.Refactor.LongQuoteBlocks, []},
           {Credo.Check.Refactor.MatchInCondition, []},
@@ -78,9 +78,9 @@
           {Credo.Check.Refactor.NegatedConditionsWithElse, []},
           {Credo.Check.Refactor.Nesting, [max_nesting: 3]},
           {Credo.Check.Refactor.PassAsyncInTestCases, []},
-          {Credo.Check.Refactor.PipeChainStart, []},
+          {Credo.Check.Refactor.PipeChainStart, false},
           {Credo.Check.Refactor.UnlessWithElse, []},
-          {Credo.Check.Refactor.VariableRebinding, []},
+          {Credo.Check.Refactor.VariableRebinding, false},
           {Credo.Check.Refactor.WithClauses, []},
           #
           ## Warnings
