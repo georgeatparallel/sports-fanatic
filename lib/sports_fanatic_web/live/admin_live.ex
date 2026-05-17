@@ -8,6 +8,9 @@ defmodule SportsFanaticWeb.AdminLive do
   alias SportsFanatic.Scouting.Pipeline
   require Logger
 
+  alias SportsFanatic.Agents
+  alias SportsFanatic.ChatBot
+
   @workers [
     %{key: "cleanup", module: SportsFanatic.Workers.CleanupWorker, label: "Cleanup"},
     %{
@@ -101,7 +104,19 @@ defmodule SportsFanaticWeb.AdminLive do
        research_concurrency: 5,
        classification_concurrency: 5,
        selected_run_id: nil,
-       todays_lineup_count: todays_lineup_count
+       todays_lineup_count: todays_lineup_count,
+       agent_settings: [],
+       agents_enabled: FeatureFlags.enabled?("news_agents_enabled"),
+       query_clusters: [],
+       chat_sessions_list: [],
+       chatbot_enabled: FeatureFlags.enabled?("news_chatbot_enabled"),
+       all_feeds: [],
+       feed_research_stats: %{
+         total_feeds: 0,
+         researched_today: 0,
+         pending_today: 0,
+         total_players: 0
+       }
      )}
   end
 
@@ -150,7 +165,50 @@ defmodule SportsFanaticWeb.AdminLive do
   end
 
   def handle_event("switch_tab", %{"tab" => tab}, socket) do
+    socket =
+      case tab do
+        "agents" ->
+          all_settings = Agents.list_all_settings(limit: 50)
+
+          assign(socket,
+            agent_settings: all_settings,
+            agents_enabled: FeatureFlags.enabled?("news_agents_enabled")
+          )
+
+        "queries" ->
+          clusters = ChatBot.list_clusters(limit: 50)
+          sessions = ChatBot.list_all_sessions(limit: 20)
+
+          assign(socket,
+            query_clusters: clusters,
+            chat_sessions_list: sessions,
+            chatbot_enabled: FeatureFlags.enabled?("news_chatbot_enabled")
+          )
+
+        "feeds" ->
+          all_feeds = SportsFanatic.Feeds.list_all_feeds(limit: 100)
+          stats = SportsFanatic.Feeds.feed_research_stats()
+
+          assign(socket,
+            all_feeds: all_feeds,
+            feed_research_stats: stats
+          )
+
+        _ ->
+          socket
+      end
+
     {:noreply, assign(socket, active_tab: tab)}
+  end
+
+  def handle_event("run_feed_research", _params, socket) do
+    case %{} |> SportsFanatic.Workers.FeedResearchWorker.new() |> Oban.insert() do
+      {:ok, _job} ->
+        {:noreply, put_flash(socket, :info, "Feed research worker enqueued.")}
+
+      {:error, _} ->
+        {:noreply, put_flash(socket, :error, "Failed to enqueue feed research worker.")}
+    end
   end
 
   def handle_event("toggle_flag", %{"key" => key}, socket) do
@@ -199,6 +257,137 @@ defmodule SportsFanaticWeb.AdminLive do
   def handle_event("delete_flag", %{"key" => key}, socket) do
     FeatureFlags.delete(key)
     {:noreply, assign(socket, flags: FeatureFlags.list_all(), flag_error: nil)}
+  end
+
+  def handle_event("run_all_agents", _params, socket) do
+    case %{} |> SportsFanatic.Workers.RunNewsAgentsWorker.new() |> Oban.insert() do
+      {:ok, _job} ->
+        {:noreply, put_flash(socket, :info, "Agent execution enqueued.")}
+
+      {:error, _reason} ->
+        {:noreply, put_flash(socket, :error, "Failed to enqueue agent execution.")}
+    end
+  end
+
+  def handle_event("toggle_agents_flag", _params, socket) do
+    key = "news_agents_enabled"
+
+    if FeatureFlags.enabled?(key) do
+      case FeatureFlags.get(key) do
+        nil -> :ok
+        _flag -> FeatureFlags.disable(key)
+      end
+    else
+      case FeatureFlags.get(key) do
+        nil ->
+          FeatureFlags.create(%{
+            key: key,
+            enabled: true,
+            description: "Enable/disable news agent execution"
+          })
+
+        _flag ->
+          FeatureFlags.enable(key)
+      end
+    end
+
+    {:noreply,
+     assign(socket,
+       agents_enabled: FeatureFlags.enabled?(key),
+       flags: FeatureFlags.list_all()
+     )}
+  end
+
+  def handle_event("toggle_query_schedule", %{"cluster-id" => cluster_id}, socket) do
+    case ChatBot.get_cluster(cluster_id) do
+      nil ->
+        {:noreply, put_flash(socket, :error, "Cluster not found.")}
+
+      cluster ->
+        new_scheduled = !cluster.scheduled
+        new_freq = if new_scheduled, do: "daily", else: "disabled"
+
+        case ChatBot.update_cluster(cluster, %{
+               scheduled: new_scheduled,
+               schedule_frequency: new_freq
+             }) do
+          {:ok, _} ->
+            clusters = ChatBot.list_clusters(limit: 50)
+            {:noreply, assign(socket, query_clusters: clusters)}
+
+          {:error, _} ->
+            {:noreply, put_flash(socket, :error, "Failed to update cluster.")}
+        end
+    end
+  end
+
+  def handle_event("set_query_frequency", %{"cluster-id" => cluster_id, "freq" => freq}, socket) do
+    case ChatBot.get_cluster(cluster_id) do
+      nil ->
+        {:noreply, put_flash(socket, :error, "Cluster not found.")}
+
+      cluster ->
+        case ChatBot.update_cluster(cluster, %{schedule_frequency: freq}) do
+          {:ok, _} ->
+            clusters = ChatBot.list_clusters(limit: 50)
+            {:noreply, assign(socket, query_clusters: clusters)}
+
+          {:error, _} ->
+            {:noreply, put_flash(socket, :error, "Failed to update frequency.")}
+        end
+    end
+  end
+
+  def handle_event("run_query_now", %{"cluster-id" => cluster_id}, socket) do
+    case ChatBot.get_cluster(cluster_id) do
+      nil ->
+        {:noreply, put_flash(socket, :error, "Cluster not found.")}
+
+      cluster ->
+        case %{"cluster_id" => cluster.id, "query" => cluster.representative_query}
+             |> SportsFanatic.Workers.ScheduledExaSearchWorker.new()
+             |> Oban.insert() do
+          {:ok, _} ->
+            {:noreply,
+             put_flash(
+               socket,
+               :info,
+               "Search enqueued for: #{String.slice(cluster.representative_query, 0, 50)}"
+             )}
+
+          {:error, _} ->
+            {:noreply, put_flash(socket, :error, "Failed to enqueue search.")}
+        end
+    end
+  end
+
+  def handle_event("toggle_chatbot_flag", _params, socket) do
+    key = "news_chatbot_enabled"
+
+    if FeatureFlags.enabled?(key) do
+      case FeatureFlags.get(key) do
+        nil -> :ok
+        _flag -> FeatureFlags.disable(key)
+      end
+    else
+      case FeatureFlags.get(key) do
+        nil ->
+          FeatureFlags.create(%{
+            key: key,
+            enabled: true,
+            description: "Enable/disable the news chatbot agent interface"
+          })
+
+        _flag ->
+          FeatureFlags.enable(key)
+      end
+    end
+
+    {:noreply,
+     assign(socket,
+       chatbot_enabled: FeatureFlags.enabled?(key),
+       flags: FeatureFlags.list_all()
+     )}
   end
 
   def handle_event("start_pipeline", _params, socket) do
@@ -545,6 +734,45 @@ defmodule SportsFanaticWeb.AdminLive do
           </button>
           <button
             phx-click="switch_tab"
+            phx-value-tab="agents"
+            class={[
+              "py-3 px-1 border-b-2 font-medium text-sm transition",
+              if(@active_tab == "agents",
+                do: "border-blue-500 text-blue-600",
+                else: "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+              )
+            ]}
+          >
+            Agents
+          </button>
+          <button
+            phx-click="switch_tab"
+            phx-value-tab="queries"
+            class={[
+              "py-3 px-1 border-b-2 font-medium text-sm transition",
+              if(@active_tab == "queries",
+                do: "border-blue-500 text-blue-600",
+                else: "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+              )
+            ]}
+          >
+            Queries
+          </button>
+          <button
+            phx-click="switch_tab"
+            phx-value-tab="feeds"
+            class={[
+              "py-3 px-1 border-b-2 font-medium text-sm transition",
+              if(@active_tab == "feeds",
+                do: "border-blue-500 text-blue-600",
+                else: "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+              )
+            ]}
+          >
+            Feeds
+          </button>
+          <button
+            phx-click="switch_tab"
             phx-value-tab="feature_flags"
             class={[
               "py-3 px-1 border-b-2 font-medium text-sm transition",
@@ -864,6 +1092,327 @@ defmodule SportsFanaticWeb.AdminLive do
         </div>
       <% end %>
 
+      <%!-- Agents Tab --%>
+      <%= if @active_tab == "agents" do %>
+        <div class="space-y-6">
+          <%!-- Controls --%>
+          <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <div class="flex items-center justify-between mb-4">
+              <h3 class="text-lg font-semibold text-gray-900">Agent Configuration</h3>
+            </div>
+
+            <div class="flex items-center gap-6 mb-4">
+              <div class="flex items-center gap-3">
+                <span class="text-sm font-medium text-gray-700">News Agents</span>
+                <button
+                  phx-click="toggle_agents_flag"
+                  class={[
+                    "relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2",
+                    if(@agents_enabled, do: "bg-blue-600", else: "bg-gray-200")
+                  ]}
+                  role="switch"
+                  aria-checked={to_string(@agents_enabled)}
+                >
+                  <span class={[
+                    "pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out",
+                    if(@agents_enabled, do: "translate-x-5", else: "translate-x-0")
+                  ]}>
+                  </span>
+                </button>
+                <span class={[
+                  "text-xs font-medium",
+                  if(@agents_enabled, do: "text-blue-600", else: "text-gray-500")
+                ]}>
+                  <%= if @agents_enabled, do: "Enabled", else: "Disabled" %>
+                </span>
+              </div>
+
+              <div class="text-sm text-gray-500">
+                Schedule: Daily at 9:00 AM ET (13:00 UTC)
+              </div>
+
+              <button
+                phx-click="run_all_agents"
+                class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 transition"
+              >
+                Run All Agents Now
+              </button>
+            </div>
+          </div>
+
+          <%!-- All Users' Settings --%>
+          <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+            <div class="px-6 py-4 border-b border-gray-200">
+              <h3 class="text-lg font-semibold text-gray-900">
+                All User Settings
+                <span class="ml-2 text-sm font-normal text-gray-400">
+                  (<%= length(@agent_settings) %>)
+                </span>
+              </h3>
+            </div>
+            <table class="min-w-full divide-y divide-gray-200">
+              <thead class="bg-gray-50">
+                <tr>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    User
+                  </th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    Prompt
+                  </th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    Status
+                  </th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    Created
+                  </th>
+                </tr>
+              </thead>
+              <tbody class="bg-white divide-y divide-gray-200">
+                <%= if @agent_settings == [] do %>
+                  <tr>
+                    <td colspan="4" class="px-6 py-8 text-center text-gray-400 text-sm">
+                      No agent settings found.
+                    </td>
+                  </tr>
+                <% end %>
+                <%= for setting <- @agent_settings do %>
+                  <tr>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                      <%= if setting.user, do: setting.user.email, else: "Unknown" %>
+                    </td>
+                    <td class="px-6 py-4 text-sm text-gray-800 max-w-md">
+                      <p class="truncate" title={setting.raw_prompt}>
+                        <%= String.slice(setting.raw_prompt, 0, 80) %>
+                      </p>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                      <span class={"inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium #{agent_setting_status_class(setting.status)}"}>
+                        <%= setting.status %>
+                      </span>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <%= format_time(setting.inserted_at) %>
+                    </td>
+                  </tr>
+                <% end %>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      <% end %>
+
+      <%!-- Queries Tab --%>
+      <%= if @active_tab == "queries" do %>
+        <div class="space-y-6">
+          <%!-- Chatbot Toggle --%>
+          <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <div class="flex items-center justify-between">
+              <div>
+                <h3 class="text-lg font-semibold text-gray-900">News Chatbot</h3>
+                <p class="text-sm text-gray-500 mt-1">
+                  Enable the agentic chatbot on the news feed page.
+                </p>
+              </div>
+              <div class="flex items-center gap-3">
+                <button
+                  phx-click="toggle_chatbot_flag"
+                  class={[
+                    "relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2",
+                    if(@chatbot_enabled, do: "bg-blue-600", else: "bg-gray-200")
+                  ]}
+                  role="switch"
+                  aria-checked={to_string(@chatbot_enabled)}
+                >
+                  <span class={[
+                    "pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out",
+                    if(@chatbot_enabled, do: "translate-x-5", else: "translate-x-0")
+                  ]}>
+                  </span>
+                </button>
+                <span class={[
+                  "text-sm font-medium",
+                  if(@chatbot_enabled, do: "text-blue-600", else: "text-gray-500")
+                ]}>
+                  <%= if @chatbot_enabled, do: "Enabled", else: "Disabled" %>
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <%!-- Query Clusters --%>
+          <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+            <div class="px-6 py-4 border-b border-gray-200">
+              <h3 class="text-lg font-semibold text-gray-900">
+                Query Clusters
+                <span class="ml-2 text-sm font-normal text-gray-400">
+                  (<%= length(@query_clusters) %>)
+                </span>
+              </h3>
+            </div>
+            <table class="min-w-full divide-y divide-gray-200">
+              <thead class="bg-gray-50">
+                <tr>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    Query
+                  </th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    Count
+                  </th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    Entities
+                  </th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    Schedule
+                  </th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    Last Run
+                  </th>
+                  <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody class="bg-white divide-y divide-gray-200">
+                <%= if @query_clusters == [] do %>
+                  <tr>
+                    <td colspan="6" class="px-6 py-8 text-center text-gray-400 text-sm">
+                      No query clusters yet. Clusters are created automatically from user chat queries.
+                    </td>
+                  </tr>
+                <% end %>
+                <%= for cluster <- @query_clusters do %>
+                  <tr>
+                    <td class="px-6 py-4 text-sm text-gray-800 max-w-xs">
+                      <p class="truncate" title={cluster.representative_query}>
+                        <%= String.slice(cluster.representative_query, 0, 60) %>
+                      </p>
+                      <%= if cluster.topics != [] do %>
+                        <div class="flex flex-wrap gap-1 mt-1">
+                          <%= for topic <- Enum.take(cluster.topics, 5) do %>
+                            <span class="text-xs px-1.5 py-0.5 rounded bg-gray-100 text-gray-600">
+                              <%= topic %>
+                            </span>
+                          <% end %>
+                        </div>
+                      <% end %>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 font-medium">
+                      <%= cluster.query_count %>
+                    </td>
+                    <td class="px-6 py-4 text-sm">
+                      <div class="flex flex-wrap gap-1">
+                        <%= for _pid <- Enum.take(cluster.entity_player_ids || [], 3) do %>
+                          <span class="text-xs px-1.5 py-0.5 rounded bg-blue-50 text-blue-700">
+                            Player
+                          </span>
+                        <% end %>
+                        <%= for _tid <- Enum.take(cluster.entity_team_ids || [], 3) do %>
+                          <span class="text-xs px-1.5 py-0.5 rounded bg-green-50 text-green-700">
+                            Team
+                          </span>
+                        <% end %>
+                      </div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                      <div class="flex items-center gap-2">
+                        <button
+                          phx-click="toggle_query_schedule"
+                          phx-value-cluster-id={cluster.id}
+                          class={[
+                            "relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out",
+                            if(cluster.scheduled, do: "bg-blue-600", else: "bg-gray-200")
+                          ]}
+                          role="switch"
+                        >
+                          <span class={[
+                            "pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out",
+                            if(cluster.scheduled, do: "translate-x-4", else: "translate-x-0")
+                          ]}>
+                          </span>
+                        </button>
+                        <%= if cluster.scheduled do %>
+                          <select
+                            phx-change="set_query_frequency"
+                            phx-value-cluster-id={cluster.id}
+                            name="freq"
+                            class="text-xs border-gray-300 rounded py-0.5 px-1"
+                          >
+                            <option value="daily" selected={cluster.schedule_frequency == "daily"}>
+                              Daily
+                            </option>
+                            <option value="hourly" selected={cluster.schedule_frequency == "hourly"}>
+                              Hourly
+                            </option>
+                          </select>
+                        <% end %>
+                      </div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <%= format_time(cluster.last_run_at) %>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm">
+                      <button
+                        phx-click="run_query_now"
+                        phx-value-cluster-id={cluster.id}
+                        class="text-blue-600 hover:text-blue-800 font-medium"
+                      >
+                        Run Now
+                      </button>
+                    </td>
+                  </tr>
+                <% end %>
+              </tbody>
+            </table>
+          </div>
+
+          <%!-- Chat Sessions --%>
+          <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+            <div class="px-6 py-4 border-b border-gray-200">
+              <h3 class="text-lg font-semibold text-gray-900">Recent Chat Sessions</h3>
+            </div>
+            <table class="min-w-full divide-y divide-gray-200">
+              <thead class="bg-gray-50">
+                <tr>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    User
+                  </th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    Status
+                  </th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    Last Activity
+                  </th>
+                </tr>
+              </thead>
+              <tbody class="bg-white divide-y divide-gray-200">
+                <%= if @chat_sessions_list == [] do %>
+                  <tr>
+                    <td colspan="3" class="px-6 py-8 text-center text-gray-400 text-sm">
+                      No chat sessions yet.
+                    </td>
+                  </tr>
+                <% end %>
+                <%= for session <- @chat_sessions_list do %>
+                  <tr>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                      <%= if session.user, do: session.user.email, else: "Unknown" %>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                      <span class={"inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium #{if session.status == "active", do: "bg-green-100 text-green-800", else: "bg-gray-100 text-gray-800"}"}>
+                        <%= session.status %>
+                      </span>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <%= format_time(session.last_activity_at) %>
+                    </td>
+                  </tr>
+                <% end %>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      <% end %>
+
       <%!-- Feature Flags Tab --%>
       <%= if @active_tab == "feature_flags" do %>
         <div class="space-y-6">
@@ -997,9 +1546,125 @@ defmodule SportsFanaticWeb.AdminLive do
           </div>
         </div>
       <% end %>
+
+      <%!-- Feeds Tab --%>
+      <%= if @active_tab == "feeds" do %>
+        <div class="space-y-6">
+          <%!-- Research controls --%>
+          <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-5">
+            <div class="flex items-center justify-between mb-4">
+              <h3 class="text-lg font-semibold text-gray-900">Feed Research</h3>
+              <button
+                phx-click="run_feed_research"
+                class="bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-blue-700 transition"
+              >
+                Run Now
+              </button>
+            </div>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div class="bg-gray-50 rounded-lg p-3">
+                <p class="text-xs text-gray-500 uppercase font-medium">Total Feeds</p>
+                <p class="text-2xl font-bold text-gray-900">
+                  <%= @feed_research_stats.total_feeds %>
+                </p>
+              </div>
+              <div class="bg-gray-50 rounded-lg p-3">
+                <p class="text-xs text-gray-500 uppercase font-medium">Total Players</p>
+                <p class="text-2xl font-bold text-gray-900">
+                  <%= @feed_research_stats.total_players %>
+                </p>
+              </div>
+              <div class="bg-gray-50 rounded-lg p-3">
+                <p class="text-xs text-gray-500 uppercase font-medium">Researched Today</p>
+                <p class="text-2xl font-bold text-green-600">
+                  <%= @feed_research_stats.researched_today %>
+                </p>
+              </div>
+              <div class="bg-gray-50 rounded-lg p-3">
+                <p class="text-xs text-gray-500 uppercase font-medium">Pending Today</p>
+                <p class="text-2xl font-bold text-yellow-600">
+                  <%= @feed_research_stats.pending_today %>
+                </p>
+              </div>
+            </div>
+            <p class="text-xs text-gray-400 mt-3">Schedule: Daily at 9:00 AM ET (13:00 UTC)</p>
+          </div>
+
+          <%!-- All feeds table --%>
+          <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-5">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">All User Feeds</h3>
+            <%= if @all_feeds == [] do %>
+              <p class="text-gray-500 text-sm">No feeds created yet.</p>
+            <% else %>
+              <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                  <thead class="bg-gray-50">
+                    <tr>
+                      <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                        User
+                      </th>
+                      <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                        Feed Name
+                      </th>
+                      <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                        Players
+                      </th>
+                      <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                        Teams
+                      </th>
+                      <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                        Active
+                      </th>
+                      <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                        Last Researched
+                      </th>
+                      <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                        Created
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-gray-200">
+                    <%= for feed <- @all_feeds do %>
+                      <tr>
+                        <td class="px-4 py-2 text-sm text-gray-700"><%= feed.user.email %></td>
+                        <td class="px-4 py-2 text-sm font-medium text-gray-900"><%= feed.name %></td>
+                        <td class="px-4 py-2 text-sm text-gray-600">
+                          <%= length(feed.player_ids) %>
+                        </td>
+                        <td class="px-4 py-2 text-sm text-gray-600"><%= length(feed.team_ids) %></td>
+                        <td class="px-4 py-2 text-sm">
+                          <span class={if feed.is_active, do: "text-green-600", else: "text-gray-400"}>
+                            <%= if feed.is_active, do: "Yes", else: "No" %>
+                          </span>
+                        </td>
+                        <td class="px-4 py-2 text-sm text-gray-500">
+                          <%= if feed.last_researched_at,
+                            do: Calendar.strftime(feed.last_researched_at, "%Y-%m-%d %H:%M"),
+                            else: "Never" %>
+                        </td>
+                        <td class="px-4 py-2 text-sm text-gray-500">
+                          <%= Calendar.strftime(feed.inserted_at, "%Y-%m-%d") %>
+                        </td>
+                      </tr>
+                    <% end %>
+                  </tbody>
+                </table>
+              </div>
+            <% end %>
+          </div>
+        </div>
+      <% end %>
     </div>
     """
   end
+
+  defp agent_setting_status_class("pending"), do: "bg-yellow-100 text-yellow-800"
+  defp agent_setting_status_class("active"), do: "bg-green-100 text-green-800"
+  defp agent_setting_status_class("running"), do: "bg-blue-100 text-blue-800"
+  defp agent_setting_status_class("completed"), do: "bg-green-100 text-green-800"
+  defp agent_setting_status_class("failed"), do: "bg-red-100 text-red-800"
+  defp agent_setting_status_class("expired"), do: "bg-gray-100 text-gray-800"
+  defp agent_setting_status_class(_), do: "bg-gray-100 text-gray-800"
 
   defp status_badge_class(:idle), do: "bg-gray-100 text-gray-700"
   defp status_badge_class(:running), do: "bg-blue-100 text-blue-700"

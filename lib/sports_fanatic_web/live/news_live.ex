@@ -3,11 +3,17 @@ defmodule SportsFanaticWeb.NewsLive do
   LiveView for the public MLB news feed. Provides live-updating news when
   new articles arrive via PubSub, and handles day transitions for users
   who leave the page open overnight.
+
+  This LiveView handles the news feed display with search filter, date
+  navigation, and feed selector. The chatbot has been moved to ChatLive.
   """
 
   use SportsFanaticWeb, :live_view
 
+  alias SportsFanatic.Accounts
+  alias SportsFanatic.Agents
   alias SportsFanatic.DateHelper
+  alias SportsFanatic.Feeds
   alias SportsFanatic.News
 
   import SportsFanaticWeb.NewsHTML, only: [category_badge: 1, sentiment_dot: 1]
@@ -15,19 +21,58 @@ defmodule SportsFanaticWeb.NewsLive do
   @tick_interval :timer.seconds(60)
 
   @impl true
-  def mount(_params, _session, socket) do
+  def mount(_params, session, socket) do
     today = DateHelper.today()
-    {:ok, assign(socket, :today, today)}
+    current_user = load_user_from_session(session)
+
+    socket =
+      socket
+      |> assign(:today, today)
+      |> assign(:current_user, current_user)
+      |> assign(:active_tab, "feed")
+      |> assign(:search_query, "")
+      |> assign(:command_input, "")
+      |> assign(:user_settings, [])
+      |> assign(:agent_results, [])
+      |> assign(:filtered_feed, nil)
+      # Feed-specific assigns
+      |> assign(:user_feeds, [])
+      |> assign(:active_feed, nil)
+      |> assign(:feed_articles, [])
+
+    socket =
+      if current_user && connected?(socket) do
+        user_id = current_user.id
+
+        # Load user feeds
+        user_feeds = Feeds.list_feeds(user_id)
+        active_feed = Feeds.get_active_feed(user_id)
+
+        socket =
+          socket
+          |> assign(:user_feeds, user_feeds)
+          |> assign(:active_feed, active_feed)
+
+        # Legacy mode subscriptions
+        Phoenix.PubSub.subscribe(SportsFanatic.PubSub, "agent:settings:#{user_id}")
+        Phoenix.PubSub.subscribe(SportsFanatic.PubSub, "agent:results:#{user_id}")
+
+        settings = Agents.list_user_settings(user_id)
+        results = Agents.latest_results_for_user(user_id)
+
+        socket
+        |> assign(:user_settings, settings)
+        |> assign(:agent_results, results)
+      else
+        socket
+      end
+
+    {:ok, socket}
   end
 
   @impl true
   def handle_params(params, _uri, socket) do
     {:noreply, apply_action(socket, socket.assigns.live_action, params)}
-  end
-
-  defp apply_action(socket, :home, _params) do
-    today = socket.assigns.today
-    load_feed(socket, today, true)
   end
 
   defp apply_action(socket, :today, _params) do
@@ -90,12 +135,17 @@ defmodule SportsFanaticWeb.NewsLive do
         "publisher" => %{"@type" => "Organization", "name" => "Sports Fan Agent"}
       })
 
+    # Partition feed into user feed articles and general articles
+    active_feed = socket.assigns[:active_feed]
+    {feed_articles, _rest} = Feeds.partition_articles_by_feed(active_feed, feed)
+
     socket
     |> assign(:date, date)
     |> assign(:date_str, date_str)
     |> assign(:formatted_date, formatted_date)
     |> assign(:feed, feed)
     |> assign(:feed_count, length(feed))
+    |> assign(:feed_articles, feed_articles)
     |> assign(:prev_date, prev_date)
     |> assign(:next_date, next_date)
     |> assign(:viewing_today, viewing_today)
@@ -109,17 +159,297 @@ defmodule SportsFanaticWeb.NewsLive do
     )
     |> assign(:canonical_url, canonical)
     |> assign(:json_ld, json_ld)
+    |> assign(:filtered_feed, nil)
+    |> assign(:search_query, "")
+  end
+
+  # -- Event Handlers --
+
+  @impl true
+  def handle_event("switch_feed", %{"feed_id" => ""}, socket) do
+    {_feed_articles, _rest} = Feeds.partition_articles_by_feed(nil, socket.assigns.feed)
+
+    {:noreply,
+     socket
+     |> assign(:active_feed, nil)
+     |> assign(:feed_articles, [])}
+  end
+
+  def handle_event("switch_feed", %{"feed_id" => feed_id}, socket) do
+    case socket.assigns.current_user do
+      nil ->
+        {:noreply, socket}
+
+      user ->
+        try do
+          feed = Feeds.get_feed!(feed_id, user.id)
+          {feed_articles, _rest} = Feeds.partition_articles_by_feed(feed, socket.assigns.feed)
+
+          {:noreply,
+           socket
+           |> assign(:active_feed, feed)
+           |> assign(:feed_articles, feed_articles)}
+        rescue
+          Ecto.NoResultsError ->
+            {:noreply, socket}
+        end
+    end
+  end
+
+  def handle_event("submit_command", %{"key" => "Enter", "value" => input}, socket) do
+    handle_command_input(String.trim(input), socket)
+  end
+
+  def handle_event("submit_command", %{"input" => input}, socket) do
+    handle_command_input(String.trim(input), socket)
+  end
+
+  def handle_event("search_feed", %{"query" => query}, socket) do
+    handle_search(query, socket)
+  end
+
+  def handle_event("switch_news_tab", %{"tab" => tab}, socket) when tab in ~w(feed agents) do
+    socket =
+      if tab == "agents" && socket.assigns.current_user do
+        user_id = socket.assigns.current_user.id
+        settings = Agents.list_user_settings(user_id)
+        results = Agents.latest_results_for_user(user_id)
+
+        socket
+        |> assign(:user_settings, settings)
+        |> assign(:agent_results, results)
+      else
+        socket
+      end
+
+    {:noreply, assign(socket, :active_tab, tab)}
+  end
+
+  def handle_event("delete_setting", %{"id" => setting_id}, socket) do
+    case socket.assigns.current_user do
+      nil ->
+        {:noreply, put_flash(socket, :error, "Please log in.")}
+
+      user ->
+        try do
+          Agents.delete_setting(setting_id, user.id)
+          settings = Agents.list_user_settings(user.id)
+          {:noreply, assign(socket, :user_settings, settings)}
+        rescue
+          Ecto.NoResultsError ->
+            {:noreply, put_flash(socket, :error, "Setting not found.")}
+        end
+    end
+  end
+
+  def handle_event("update_command_input", %{"value" => value}, socket) do
+    {:noreply, assign(socket, :command_input, value)}
+  end
+
+  def handle_event("clear_search", _params, socket) do
+    {:noreply,
+     socket
+     |> assign(:filtered_feed, nil)
+     |> assign(:search_query, "")
+     |> assign(:command_input, "")}
+  end
+
+  # -- Command Handlers --
+
+  defp handle_command_input(input, socket) do
+    cond do
+      input == "" ->
+        {:noreply, socket}
+
+      String.starts_with?(input, "/settings-clear") ->
+        if socket.assigns.current_user,
+          do: handle_settings_clear(socket),
+          else: {:noreply, put_flash(socket, :error, "Please log in to use agent commands.")}
+
+      String.starts_with?(input, "/settings-apply") ->
+        if socket.assigns.current_user,
+          do: handle_settings_apply(input, socket),
+          else: {:noreply, put_flash(socket, :error, "Please log in to use agent commands.")}
+
+      true ->
+        handle_search(input, socket)
+    end
+  end
+
+  defp handle_settings_apply(input, socket) do
+    raw_prompt =
+      input
+      |> String.replace_prefix("/settings-apply", "")
+      |> String.trim()
+      |> String.trim("\"")
+      |> String.trim()
+
+    if raw_prompt == "" do
+      {:noreply, put_flash(socket, :error, "Please provide a description for your setting.")}
+    else
+      user_id = socket.assigns.current_user.id
+
+      case Agents.create_setting(user_id, raw_prompt) do
+        {:ok, setting} ->
+          %{"setting_id" => setting.id}
+          |> SportsFanatic.Workers.ParseSettingWorker.new()
+          |> Oban.insert()
+
+          settings = Agents.list_user_settings(user_id)
+
+          {:noreply,
+           socket
+           |> assign(:user_settings, settings)
+           |> assign(:command_input, "")
+           |> assign(:active_tab, "agents")
+           |> put_flash(:info, "Setting created. Parsing in progress...")}
+
+        {:error, :max_settings_reached} ->
+          {:noreply, put_flash(socket, :error, "Maximum of 20 settings reached.")}
+
+        {:error, :hourly_rate_limit_exceeded} ->
+          {:noreply,
+           put_flash(
+             socket,
+             :error,
+             "Rate limit reached. You can create up to 5 settings per hour."
+           )}
+
+        {:error, changeset} ->
+          error_msg = format_changeset_error(changeset)
+          {:noreply, put_flash(socket, :error, error_msg)}
+      end
+    end
+  end
+
+  defp handle_settings_clear(socket) do
+    user_id = socket.assigns.current_user.id
+    Agents.clear_user_settings(user_id)
+
+    {:noreply,
+     socket
+     |> assign(:user_settings, [])
+     |> assign(:command_input, "")
+     |> put_flash(:info, "All settings cleared.")}
+  end
+
+  defp handle_search(query, socket) do
+    query = String.trim(query)
+
+    if query == "" do
+      {:noreply,
+       socket
+       |> assign(:filtered_feed, nil)
+       |> assign(:search_query, "")}
+    else
+      filtered = filter_feed(socket.assigns.feed, query)
+
+      {:noreply,
+       socket
+       |> assign(:filtered_feed, filtered)
+       |> assign(:search_query, query)}
+    end
+  end
+
+  @stop_words ~w(a an the is was are were be been being have has had do does did
+    will would shall should may might can could and but or nor for yet so at by
+    from in into of on to with about above after before between through during
+    only just very also more most other some such no not than too any each every
+    all both few many much own same so still when where how what which who whom
+    this that these those my our your its his her their me us you him them show
+    me tell give find get)
+
+  defp filter_feed(feed, query) do
+    terms =
+      query
+      |> String.downcase()
+      |> String.split(~r/\s+/, trim: true)
+      |> Enum.reject(&(&1 in @stop_words))
+      |> Enum.flat_map(&expand_term/1)
+
+    if terms == [] do
+      feed
+    else
+      Enum.filter(feed, fn item ->
+        leagues =
+          item["teams"] |> List.wrap() |> Enum.map(fn t -> String.downcase(t["league"] || "") end)
+
+        abbreviations =
+          item["teams"]
+          |> List.wrap()
+          |> Enum.map(fn t -> String.downcase(t["abbreviation"] || "") end)
+
+        text_parts =
+          [
+            item["title"] || "",
+            item["ai_summary"] || "",
+            item["body"] || "",
+            item["summary"] || "",
+            item["category"] || ""
+          ] ++
+            Enum.map(item["players"] || [], fn p -> p["full_name"] || "" end) ++
+            Enum.map(item["teams"] || [], fn t ->
+              "#{t["name"]} #{t["abbreviation"]} #{t["league"]}"
+            end) ++
+            (item["domain_tags"] || [])
+
+        text = text_parts |> Enum.join(" ") |> String.downcase()
+
+        Enum.all?(terms, fn term_group ->
+          Enum.any?(term_group, fn t ->
+            cond do
+              t in ["al", "nl"] -> t in leagues
+              String.length(t) <= 3 -> t in abbreviations or String.contains?(text, t)
+              true -> String.contains?(text, t)
+            end
+          end)
+        end)
+      end)
+    end
+  end
+
+  defp expand_term("hr"), do: [["hr", "home-run", "homer", "home run"]]
+  defp expand_term("homers"), do: [["homers", "homer", "home-run", "home run"]]
+  defp expand_term("homer"), do: [["homer", "home-run", "homers", "home run"]]
+  defp expand_term("streak"), do: [["streak"]]
+  defp expand_term("streaks"), do: [["streak", "streaks"]]
+  defp expand_term("il"), do: [["il", "injured list", "injury"]]
+  defp expand_term("dl"), do: [["dl", "disabled list", "injury"]]
+  defp expand_term("tj"), do: [["tj", "tommy john"]]
+  defp expand_term("rbi"), do: [["rbi", "runs batted"]]
+  defp expand_term("era"), do: [["era", "earned run"]]
+  defp expand_term("al"), do: [["al"]]
+  defp expand_term("nl"), do: [["nl"]]
+  defp expand_term(term), do: [[term]]
+
+  # -- PubSub Handlers --
+
+  @impl true
+  def handle_info({:setting_updated, _setting}, socket) do
+    if socket.assigns.current_user do
+      settings = Agents.list_user_settings(socket.assigns.current_user.id)
+      {:noreply, assign(socket, :user_settings, settings)}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_info({:agent_results, _user_id}, socket) do
+    if socket.assigns.current_user do
+      results = Agents.latest_results_for_user(socket.assigns.current_user.id)
+      {:noreply, assign(socket, :agent_results, results)}
+    else
+      {:noreply, socket}
+    end
   end
 
   # Day transition and fallback feed refresh
-  @impl true
   def handle_info(:tick, socket) do
     Process.send_after(self(), :tick, @tick_interval)
     new_today = DateHelper.today()
     old_today = socket.assigns.today
 
     cond do
-      # Day changed and user is viewing "today" mode — transition to new day
       Date.compare(new_today, old_today) != :eq && socket.assigns.viewing_today ->
         socket =
           socket
@@ -128,7 +458,6 @@ defmodule SportsFanaticWeb.NewsLive do
 
         {:noreply, socket}
 
-      # Day changed but user is on a historical date — update nav boundary
       Date.compare(new_today, old_today) != :eq ->
         next_date = News.nearest_news_date_after(socket.assigns.date)
 
@@ -137,7 +466,6 @@ defmodule SportsFanaticWeb.NewsLive do
 
         {:noreply, assign(socket, today: new_today, next_date: next_date)}
 
-      # Same day, viewing today — fallback re-fetch in case PubSub was missed
       socket.assigns.viewing_today ->
         {:ok, feed} = News.get_cached_feed(socket.assigns.date)
 
@@ -153,13 +481,11 @@ defmodule SportsFanaticWeb.NewsLive do
   end
 
   # PubSub: new articles for any date
-  @impl true
   def handle_info({:news_updated, date}, socket) do
     if Date.compare(date, socket.assigns.date) == :eq do
       {:ok, feed} = News.get_cached_feed(date)
       {:noreply, assign(socket, feed: feed, feed_count: length(feed))}
     else
-      # Different date — might affect nav (new "next" arrow)
       next_date = News.nearest_news_date_after(socket.assigns.date)
       today = socket.assigns.today
 
@@ -169,4 +495,31 @@ defmodule SportsFanaticWeb.NewsLive do
       {:noreply, assign(socket, next_date: next_date)}
     end
   end
+
+  # Catch-all for unexpected messages
+  def handle_info(_msg, socket), do: {:noreply, socket}
+
+  # -- Helpers --
+
+  defp load_user_from_session(session) do
+    token = session["session_token"]
+    token && Accounts.get_user_by_session_token(token)
+  end
+
+  defp format_changeset_error(%Ecto.Changeset{} = changeset) do
+    changeset
+    |> Ecto.Changeset.traverse_errors(fn {msg, _opts} -> msg end)
+    |> Enum.map_join("; ", fn {field, msgs} -> "#{field}: #{Enum.join(msgs, ", ")}" end)
+  end
+
+  defp format_changeset_error(_), do: "An error occurred."
+
+  # Template helper: setting status badge color
+  def setting_status_class("pending"), do: "bg-yellow-100 text-yellow-800"
+  def setting_status_class("active"), do: "bg-green-100 text-green-800"
+  def setting_status_class("running"), do: "bg-blue-100 text-blue-800"
+  def setting_status_class("completed"), do: "bg-green-100 text-green-800"
+  def setting_status_class("failed"), do: "bg-red-100 text-red-800"
+  def setting_status_class("expired"), do: "bg-gray-100 text-gray-800"
+  def setting_status_class(_), do: "bg-gray-100 text-gray-800"
 end

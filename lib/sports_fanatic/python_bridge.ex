@@ -60,6 +60,30 @@ defmodule SportsFanatic.PythonBridge do
     post("/news/analyze", %{headline: headline, excerpt: excerpt})
   end
 
+  @doc "Parse a natural language agent setting into structured criteria."
+  def parse_setting(raw_prompt, context \\ %{}) do
+    post("/agents/parse-setting", %{raw_prompt: raw_prompt, context: context})
+  end
+
+  @doc "Execute agent settings against news data (Phase 2 stub)."
+  def execute_agents(settings, date_range) do
+    post("/agents/execute", %{settings: settings, date_range: date_range})
+  end
+
+  @doc "Resolve chat context: detect topic continuation, resolve pronouns, generate search prompts."
+  def resolve_chat_context(query, conversation) do
+    post("/chat/resolve-context", %{query: query, conversation: conversation})
+  end
+
+  @doc "Synthesize research sources into a rich conversational response."
+  def synthesize_research(query, sources, local_summaries \\ []) do
+    post("/chat/synthesize-research", %{
+      query: query,
+      sources: sources,
+      local_article_summaries: local_summaries
+    })
+  end
+
   def health_check do
     base_url = base_url()
 

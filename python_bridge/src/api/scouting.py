@@ -111,7 +111,9 @@ async def search_player(request: ScoutingSearchRequest):
 
         all_results = []
         for query in queries:
-            results = exa.search_and_contents(query, num_results=3, text=True, use_autoprompt=True)
+            results = exa.search_and_contents(
+                query, num_results=3, text=True, use_autoprompt=True
+            )
             for r in results.results:
                 all_results.append(
                     {
@@ -182,7 +184,9 @@ async def search_player_multi(request: ScoutingSearchRequest):
                         }
                     )
             except Exception as e:
-                logger.warning("Exa search failed for query '%s': %s", group["query"], e)
+                logger.warning(
+                    "Exa search failed for query '%s': %s", group["query"], e
+                )
 
         # Deduplicate by URL
         seen_urls = set()

@@ -4,7 +4,7 @@ defmodule SportsFanatic.News.EntityMatcher do
   the database. Uses String.jaro_distance/2 for approximate matching.
   """
 
-  @player_threshold 0.85
+  @player_threshold 0.90
   @team_threshold 0.85
 
   @doc """

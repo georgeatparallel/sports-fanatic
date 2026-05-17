@@ -49,7 +49,7 @@ defmodule SportsFanatic.MixProject do
       {:tailwind, "~> 0.2.0", runtime: Mix.env() == :dev},
       {:swoosh, "~> 1.3"},
       {:finch, "~> 0.13"},
-      {:telemetry_metrics, "~> 0.6"},
+      {:telemetry_metrics, "~> 1.1"},
       {:telemetry_poller, "~> 1.0"},
       {:gettext, "~> 0.20"},
       {:jason, "~> 1.2"},
@@ -71,7 +71,10 @@ defmodule SportsFanatic.MixProject do
       # AWS S3
       {:ex_aws, "~> 2.5"},
       {:ex_aws_s3, "~> 2.5"},
-      {:sweet_xml, "~> 0.7"}
+      {:sweet_xml, "~> 0.7"},
+      # HTML sanitization for chat output
+      {:html_sanitize_ex, "~> 1.4"},
+      {:earmark, "~> 1.4"}
     ]
   end
 
@@ -89,11 +92,26 @@ defmodule SportsFanatic.MixProject do
       test/sports_fanatic/python_bridge
       test/sports_fanatic/news/entity_matcher_test.exs
       test/sports_fanatic/content/news_item_test.exs
+      test/sports_fanatic/content/news_item_domain_tags_test.exs
       test/sports_fanatic/storage_test.exs
       test/sports_fanatic/feature_flags_test.exs
+      test/sports_fanatic/agents/news_agent_setting_test.exs
+      test/sports_fanatic/agents/news_agent_result_test.exs
+      test/sports_fanatic/agents/action_test.exs
+      test/sports_fanatic/chat_bot/chat_session_test.exs
+      test/sports_fanatic/chat_bot/chat_message_test.exs
+      test/sports_fanatic/chat_bot/query_cluster_test.exs
+      test/sports_fanatic/external_apis/exa_test.exs
+      test/sports_fanatic/workers/parse_setting_worker_test.exs
+      test/sports_fanatic/workers/run_news_agents_worker_test.exs
+      test/sports_fanatic/workers/consolidate_queries_worker_test.exs
+      test/sports_fanatic/workers/scheduled_exa_search_worker_test.exs
       test/sports_fanatic_web/controllers/lineup_html_test.exs
       test/sports_fanatic_web/controllers/news_html_test.exs
       test/sports_fanatic_web/components/seo_components_test.exs
+      test/sports_fanatic/feeds/csv_parser_test.exs
+      test/sports_fanatic/feeds/user_feed_test.exs
+      test/sports_fanatic/chat_bot/skill_router_test.exs
     )
 
     [

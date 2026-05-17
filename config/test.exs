@@ -14,8 +14,11 @@ config :sports_fanatic, SportsFanatic.Repo,
   pool: Ecto.Adapters.SQL.Sandbox,
   pool_size: 10
 
-# Use Oban.Testing inline mode so worker tests don't require a running queue
-config :sports_fanatic, Oban, testing: :inline
+# Disable Oban in test — queues and plugins off to prevent Stager crashes.
+config :sports_fanatic, Oban,
+  testing: :disabled,
+  queues: false,
+  plugins: false
 
 # Point Valkey to a non-existent host so tests that don't exercise cache
 # don't fail on connection; the Cache module gracefully handles errors.

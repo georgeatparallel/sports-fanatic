@@ -45,7 +45,9 @@ class MonteCarloSimulation:
 
     n_simulations: int = 10000
 
-    def simulate_player(self, hit_prob: float, hr_prob: float, at_bats: int = 4) -> dict:
+    def simulate_player(
+        self, hit_prob: float, hr_prob: float, at_bats: int = 4
+    ) -> dict:
         """Run simulation for a single player across all simulations."""
         hit_prob = np.clip(hit_prob, 0.0, 1.0)
         hr_prob = np.clip(hr_prob, 0.0, 1.0)

@@ -54,7 +54,12 @@ defmodule SportsFanaticWeb.Router do
   scope "/", SportsFanaticWeb do
     pipe_through :browser
 
-    live "/", NewsLive, :home
+    live "/", ChatLive, :index
+    live "/chat", ChatLive, :index
+
+    # Feed management
+    live "/feeds", FeedsLive, :index
+    live "/feeds/:id", FeedsLive, :show
 
     # Player pages
     get "/mlb/players", PlayerController, :index
@@ -95,6 +100,7 @@ defmodule SportsFanaticWeb.Router do
     get "/login", AuthController, :login_form
     post "/login", AuthController, :login
     delete "/logout", AuthController, :logout
+    get "/auth/session/:token", AuthController, :set_session_from_token
   end
 
   # --- Subscription Routes ---

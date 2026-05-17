@@ -1,0 +1,10 @@
+{
+  "version": "1.1",
+  "session_id": "0cd02c6c-2a35-4f3c-839a-dcd9b66fa5b3",
+  "phase": "GIT",
+  "prompt": "Agentic news feed with sticky command input, /settings-apply and /settings-clear commands, natural language search with LLM classification, agent tab showing daily 9am ET runs (configurable via Jido), skills-based architecture for open claw community integration",
+  "branch": "on-loop/agentic-news-feed-settings",
+  "worktree_path": ".claude/worktrees/agentic-news-feed-settings",
+  "session_dir": ".on-loop/sessions/20260515_185648_agentic-news-feed-settings",
+  "created_at": "2026-05-15T18:56:48Z"
+}

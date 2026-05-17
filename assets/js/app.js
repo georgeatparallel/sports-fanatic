@@ -22,8 +22,30 @@ import {Socket} from "phoenix"
 import {LiveSocket} from "phoenix_live_view"
 import topbar from "../vendor/topbar"
 
+let Hooks = {}
+
+// Chat scroll: only auto-scroll when USER sends a message.
+// Agent responses stay at top so user can read and scroll at their own pace.
+Hooks.ChatInput = {
+  mounted() {
+    this.handleEvent("focus_input", () => {
+      this.el.focus()
+    })
+  }
+}
+
+Hooks.ScrollBottom = {
+  mounted() {
+    this._userScrolled = false
+    // Listen for phx events to know when to scroll
+    this.handleEvent("scroll_to_bottom", () => {
+      this.el.scrollTop = this.el.scrollHeight
+    })
+  }
+}
+
 let csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
-let liveSocket = new LiveSocket("/live", Socket, {params: {_csrf_token: csrfToken}})
+let liveSocket = new LiveSocket("/live", Socket, {params: {_csrf_token: csrfToken}, hooks: Hooks})
 
 // Show progress bar on live navigation and form submits
 topbar.config({barColors: {0: "#29d"}, shadowColor: "rgba(0, 0, 0, .3)"})

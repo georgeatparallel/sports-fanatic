@@ -102,6 +102,17 @@ defmodule SportsFanatic.News do
   end
 
   @doc """
+  Checks if a news item with the given source_url already exists.
+  """
+  def exists_by_source_url?(source_url) when is_binary(source_url) do
+    NewsItem
+    |> where([n], n.source_url == ^source_url)
+    |> Repo.exists?()
+  end
+
+  def exists_by_source_url?(_), do: false
+
+  @doc """
   Returns the cached news feed for a date. On cache miss, queries the
   database, resolves player/team entities, builds the response, and caches it.
 
@@ -181,7 +192,8 @@ defmodule SportsFanatic.News do
             "id" => t.id,
             "name" => t.name,
             "slug" => t.slug,
-            "abbreviation" => t.abbreviation
+            "abbreviation" => t.abbreviation,
+            "league" => t.league
           }
         end)
 
@@ -202,6 +214,7 @@ defmodule SportsFanatic.News do
         "injury_grade" => item.injury_grade,
         "published_date" => Date.to_iso8601(item.published_date),
         "inserted_at" => DateTime.to_iso8601(item.inserted_at),
+        "domain_tags" => item.domain_tags || [],
         "players" => resolved_players,
         "teams" => resolved_teams
       }

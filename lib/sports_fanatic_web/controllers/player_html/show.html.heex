@@ -54,6 +54,41 @@
 
   <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
     <div class="lg:col-span-2">
+      <%!-- Generating banner (top of content) --%>
+      <%= if @scouting_pending do %>
+        <div class="bg-amber-50 border border-amber-200 rounded-lg p-4 text-sm text-amber-800 mb-6">
+          <div class="flex items-center gap-3">
+            <svg
+              class="animate-spin h-5 w-5 text-amber-600"
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+            >
+              <circle
+                class="opacity-25"
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                stroke-width="4"
+              >
+              </circle>
+              <path
+                class="opacity-75"
+                fill="currentColor"
+                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+              >
+              </path>
+            </svg>
+            <div>
+              <p class="font-semibold">Generating New Scouting Report</p>
+              <p class="mt-0.5">This page will refresh automatically when ready.</p>
+            </div>
+          </div>
+        </div>
+        <meta http-equiv="refresh" content="10" />
+      <% end %>
+
       <%!-- Full Scouting Report (above Player Overview) --%>
       <%= if @scouting do %>
         <%= if !SportsFanatic.FeatureFlags.enabled?("subscriptions_enabled") do %>
@@ -118,30 +153,7 @@
                 </div>
               <% end %>
 
-              <div class="flex gap-6 pt-4 border-t border-gray-100">
-                <%= if @scouting.hit_probability do %>
-                  <div class="text-center">
-                    <p class="text-2xl font-bold text-blue-600">
-                      <%= Float.round(@scouting.hit_probability * 100, 1) %>%
-                    </p>
-                    <p class="text-xs text-gray-500">Hit Probability</p>
-                  </div>
-                <% end %>
-                <%= if @scouting.hr_probability do %>
-                  <div class="text-center">
-                    <p class="text-2xl font-bold text-purple-600">
-                      <%= Float.round(@scouting.hr_probability * 100, 1) %>%
-                    </p>
-                    <p class="text-xs text-gray-500">HR Probability</p>
-                  </div>
-                <% end %>
-                <div class="text-center">
-                  <p class="text-2xl font-bold text-gray-600">
-                    <%= @scouting.sources_count || 0 %>
-                  </p>
-                  <p class="text-xs text-gray-500">Sources Analyzed</p>
-                </div>
-              </div>
+              <%!-- Hit/HR Probability and Sources hidden for now --%>
             </div>
           </section>
         <% else %>
@@ -178,20 +190,8 @@
         <% end %>
       <% end %>
 
-      <%= if is_nil(@scouting) do %>
-        <section class="mb-8">
-          <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-800">
-            <p class="font-medium">AI Scouting Report</p>
-            <p class="mt-1">
-              A detailed scouting report for <%= @player.full_name %> will be available once generated.
-              <%= if SportsFanatic.FeatureFlags.enabled?("subscriptions_enabled") do %>
-                <a href="/subscribe" class="underline font-medium">
-                  Subscribe for premium daily analysis.
-                </a>
-              <% end %>
-            </p>
-          </div>
-        </section>
+      <%= if @scouting_pending do %>
+        <section class="mb-4"></section>
       <% end %>
 
       <%= if @player.bio do %>

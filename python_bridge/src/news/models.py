@@ -48,7 +48,9 @@ class NewsAnalysis(BaseModel):
     """Structured result from AI news analysis."""
 
     category: str = Field(description="Article category classification")
-    sentiment: str = Field(description="Article sentiment: negative, neutral, or positive")
+    sentiment: str = Field(
+        description="Article sentiment: negative, neutral, or positive"
+    )
     summary: str = Field(description="One-sentence summary of the article")
     player_names: list[str] = Field(
         default_factory=list,
@@ -65,4 +67,8 @@ class NewsAnalysis(BaseModel):
     injury_grade: str | None = Field(
         default=None,
         description="Severity/timeline grade (only for injury categories)",
+    )
+    domain_tags: list[str] = Field(
+        default_factory=list,
+        description="Baseball-domain concept tags (e.g., streak, home-run, trade-deadline)",
     )

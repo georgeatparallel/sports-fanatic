@@ -1,0 +1,235 @@
+<div class="flex flex-col h-[calc(100vh-56px)]">
+  <%!-- Chat header --%>
+  <div class="flex items-center justify-between px-4 py-2 border-b border-gray-200 bg-white flex-shrink-0">
+    <h1 class="text-lg font-semibold text-gray-900">News Research Agent</h1>
+    <div class="flex items-center gap-3">
+      <%= if @agent_running do %>
+        <button
+          phx-click="cancel_agent"
+          class="text-sm text-red-600 hover:text-red-800 font-medium px-3 py-1.5 rounded-md border border-red-300 hover:bg-red-50"
+        >
+          Cancel
+        </button>
+      <% end %>
+      <%= if length(@chat_messages) > 1 do %>
+        <button
+          phx-click="clear_chat"
+          class="text-sm text-blue-600 hover:text-blue-800 font-medium px-3 py-1.5 rounded-md border border-blue-300 hover:bg-blue-50"
+        >
+          New Chat
+        </button>
+      <% end %>
+    </div>
+  </div>
+
+  <%!-- Chat messages thread (scrollable, fills available space) --%>
+  <div class="flex-1 overflow-y-auto min-h-0 px-4 py-4" id="chat-messages" phx-hook="ScrollBottom">
+    <div class="max-w-3xl mx-auto space-y-3">
+      <%= for msg <- @chat_messages do %>
+        <%!-- Clickable sample prompts after welcome message --%>
+        <%= if msg.id == "welcome" do %>
+          <div id="sample-prompts" class="flex flex-wrap gap-2 mt-2 mb-1 justify-start">
+            <button
+              phx-click="submit_chat"
+              phx-value-message="How is Hunter Brown doing?"
+              class="text-xs bg-blue-50 text-blue-700 px-3 py-1.5 rounded-full border border-blue-200 hover:bg-blue-100 transition"
+            >
+              How is Hunter Brown doing?
+            </button>
+            <button
+              phx-click="submit_chat"
+              phx-value-message="What's the Mets injury report?"
+              class="text-xs bg-blue-50 text-blue-700 px-3 py-1.5 rounded-full border border-blue-200 hover:bg-blue-100 transition"
+            >
+              Mets injury report
+            </button>
+            <button
+              phx-click="submit_chat"
+              phx-value-message="Current HR streaks"
+              class="text-xs bg-blue-50 text-blue-700 px-3 py-1.5 rounded-full border border-blue-200 hover:bg-blue-100 transition"
+            >
+              Current HR streaks
+            </button>
+            <button
+              phx-click="submit_chat"
+              phx-value-message="/upload"
+              class="text-xs bg-green-50 text-green-700 px-3 py-1.5 rounded-full border border-green-200 hover:bg-green-100 transition"
+            >
+              Upload Roster CSV To Create Feed
+            </button>
+          </div>
+        <% end %>
+        <div
+          id={"chat-msg-#{msg.id}"}
+          class={[
+            "flex",
+            if(msg.role == "user", do: "justify-end", else: "justify-start")
+          ]}
+        >
+          <div class={[
+            "max-w-[80%] rounded-lg px-3 py-2 text-sm",
+            cond do
+              msg.role == "user" -> "bg-blue-500 text-white"
+              msg.role == "progress" -> "bg-gray-100 text-gray-600 italic"
+              true -> "bg-gray-50 text-gray-800 border border-gray-200"
+            end
+          ]}>
+            <%= if msg.role == "progress" do %>
+              <div class="flex items-center gap-2">
+                <svg
+                  class="animate-spin h-3 w-3 text-gray-400"
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                >
+                  <circle
+                    class="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    stroke-width="4"
+                  >
+                  </circle>
+                  <path
+                    class="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                  >
+                  </path>
+                </svg>
+                <span><%= sanitize_chat(msg.content) %></span>
+              </div>
+            <% else %>
+              <%= if msg.role == "assistant" do %>
+                <div class="chat-markdown">
+                  <%= render_markdown(msg.content) %>
+                </div>
+              <% else %>
+                <%= sanitize_chat(msg.content) %>
+              <% end %>
+            <% end %>
+          </div>
+        </div>
+      <% end %>
+    </div>
+  </div>
+
+  <%!-- File upload area (shown during upload skill) --%>
+  <%= if @skill_state && @skill_state.skill == :upload && @skill_state.step == :await_file do %>
+    <div class="flex-shrink-0 bg-gray-50 border-t border-gray-200 px-4 py-3">
+      <div class="max-w-3xl mx-auto">
+        <div class="bg-white border-2 border-dashed border-gray-300 rounded-lg p-4">
+          <form id="upload-form" phx-submit="upload_csv" phx-change="validate_upload">
+            <.live_file_input
+              upload={@uploads.roster_csv}
+              class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+            />
+            <p class="text-xs text-gray-400 mt-2">Upload Roster CSV To Create Feed</p>
+            <%= for entry <- @uploads.roster_csv.entries do %>
+              <div class="flex items-center gap-2 mt-2">
+                <span class="text-sm text-gray-700"><%= entry.client_name %></span>
+                <button
+                  type="submit"
+                  class="text-sm bg-blue-600 text-white px-4 py-1.5 rounded-md hover:bg-blue-700 font-medium"
+                >
+                  Create Feed
+                </button>
+              </div>
+              <%= for err <- upload_errors(@uploads.roster_csv, entry) do %>
+                <p class="text-sm text-red-600 mt-1"><%= upload_error_message(err) %></p>
+              <% end %>
+            <% end %>
+          </form>
+        </div>
+      </div>
+    </div>
+  <% end %>
+
+  <%!-- Chat input (pinned to bottom) --%>
+  <div class="flex-shrink-0 border-t border-gray-200 bg-white px-4 py-3">
+    <div class="max-w-3xl mx-auto">
+      <form phx-submit="submit_chat" class="relative">
+        <input
+          type={
+            if @skill_state && Map.get(@skill_state, :step) == :await_password,
+              do: "password",
+              else: "text"
+          }
+          name="message"
+          value={@chat_input}
+          placeholder={
+            if @skill_state,
+              do: skill_placeholder(@skill_state),
+              else: "Ask about MLB news, players, or trades... Type /help for commands"
+          }
+          disabled={@agent_running}
+          autofocus
+          autocomplete="off"
+          id="chat-input"
+          phx-hook="ChatInput"
+          class={[
+            "w-full rounded-lg border border-gray-300 px-3 py-2.5 pr-10 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500",
+            if(@agent_running, do: "bg-gray-50 cursor-not-allowed", else: "")
+          ]}
+        />
+        <button
+          type="submit"
+          disabled={@agent_running}
+          class="absolute right-2 top-1/2 -translate-y-1/2 text-blue-500 hover:text-blue-700 disabled:text-gray-300"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            class="h-5 w-5"
+            viewBox="0 0 20 20"
+            fill="currentColor"
+          >
+            <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
+          </svg>
+        </button>
+      </form>
+      <div class="flex items-center justify-between mt-1">
+        <span class="text-xs text-gray-400">
+          <%= if @agent_running, do: "Searching...", else: "Enter to search" %>
+        </span>
+        <form
+          id="quick-upload"
+          phx-submit="upload_csv"
+          phx-change="validate_upload"
+          class="flex items-center gap-2"
+        >
+          <.live_file_input upload={@uploads.roster_csv} class="hidden" />
+          <label
+            for={@uploads.roster_csv.ref}
+            class="text-xs text-gray-500 hover:text-blue-600 cursor-pointer flex items-center gap-1"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              class="h-4 w-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+              />
+            </svg>
+            Upload Roster CSV To Create Feed
+          </label>
+          <%= for entry <- @uploads.roster_csv.entries do %>
+            <span class="text-xs text-gray-600"><%= entry.client_name %></span>
+            <button
+              type="submit"
+              class="text-xs bg-blue-600 text-white px-2 py-0.5 rounded hover:bg-blue-700"
+            >
+              Create Feed
+            </button>
+          <% end %>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>

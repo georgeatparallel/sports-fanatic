@@ -118,7 +118,9 @@ def _build_context(request: GameDayRequest) -> str:
 
     if request.picks:
         lines.append("\nHit Predictions (top 5):")
-        sorted_picks = sorted(request.picks, key=lambda x: x.get("probability", 0), reverse=True)
+        sorted_picks = sorted(
+            request.picks, key=lambda x: x.get("probability", 0), reverse=True
+        )
         for p in sorted_picks[:5]:
             name = p.get("player_name", "Unknown")
             prob = p.get("probability", 0)
@@ -126,7 +128,9 @@ def _build_context(request: GameDayRequest) -> str:
 
     if request.hr_picks:
         lines.append("\nHR Predictions (top 3):")
-        sorted_hr = sorted(request.hr_picks, key=lambda x: x.get("probability", 0), reverse=True)
+        sorted_hr = sorted(
+            request.hr_picks, key=lambda x: x.get("probability", 0), reverse=True
+        )
         for p in sorted_hr[:3]:
             name = p.get("player_name", "Unknown")
             prob = p.get("probability", 0)

@@ -66,10 +66,16 @@ async def fetch_schedule(request: FetchScheduleRequest) -> dict[str, Any]:
             venue = game.get("venue", {})
 
             away_pitcher = (
-                game.get("teams", {}).get("away", {}).get("probablePitcher", {}).get("fullName")
+                game.get("teams", {})
+                .get("away", {})
+                .get("probablePitcher", {})
+                .get("fullName")
             )
             home_pitcher = (
-                game.get("teams", {}).get("home", {}).get("probablePitcher", {}).get("fullName")
+                game.get("teams", {})
+                .get("home", {})
+                .get("probablePitcher", {})
+                .get("fullName")
             )
 
             games.append(

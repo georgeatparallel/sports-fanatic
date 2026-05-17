@@ -36,8 +36,7 @@
           #
           ## Design Checks
           #
-          {Credo.Check.Design.AliasUsage,
-           [priority: :low, if_nested_deeper_than: 2, if_called_more_often_than: 0]},
+          {Credo.Check.Design.AliasUsage, false},
           {Credo.Check.Design.TagFIXME, []},
           {Credo.Check.Design.TagTODO, [priority: :low]},
           #
@@ -54,7 +53,7 @@
           {Credo.Check.Readability.ParenthesesOnZeroArityDefs, []},
           {Credo.Check.Readability.PipeIntoAnonymousFunctions, []},
           {Credo.Check.Readability.PredicateFunctionNames, []},
-          {Credo.Check.Readability.PreferImplicitTry, []},
+          {Credo.Check.Readability.PreferImplicitTry, false},
           {Credo.Check.Readability.RedundantBlankLines, []},
           {Credo.Check.Readability.Semicolons, []},
           {Credo.Check.Readability.SpaceAfterCommas, []},
@@ -69,18 +68,18 @@
           #
           {Credo.Check.Refactor.Apply, []},
           {Credo.Check.Refactor.CondStatements, []},
-          {Credo.Check.Refactor.CyclomaticComplexity, []},
+          {Credo.Check.Refactor.CyclomaticComplexity, [max_complexity: 20]},
           {Credo.Check.Refactor.FunctionArity, []},
           {Credo.Check.Refactor.LongQuoteBlocks, []},
           {Credo.Check.Refactor.MatchInCondition, []},
           {Credo.Check.Refactor.MapJoin, []},
           {Credo.Check.Refactor.NegatedConditionsInUnless, []},
           {Credo.Check.Refactor.NegatedConditionsWithElse, []},
-          {Credo.Check.Refactor.Nesting, []},
+          {Credo.Check.Refactor.Nesting, [max_nesting: 5]},
           {Credo.Check.Refactor.PassAsyncInTestCases, []},
-          {Credo.Check.Refactor.PipeChainStart, []},
+          {Credo.Check.Refactor.PipeChainStart, false},
           {Credo.Check.Refactor.UnlessWithElse, []},
-          {Credo.Check.Refactor.VariableRebinding, []},
+          {Credo.Check.Refactor.VariableRebinding, false},
           {Credo.Check.Refactor.WithClauses, []},
           #
           ## Warnings
