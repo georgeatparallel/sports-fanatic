@@ -110,7 +110,7 @@ defmodule SportsFanatic.Workers.FeedResearchWorker do
                 report_date: today,
                 summary: report["news_summary"] || "Scouting report for #{player.full_name}",
                 full_report: report,
-                overall_grade: report["overall_sentiment"] || "neutral",
+                overall_grade: String.slice(report["overall_sentiment"] || "N", 0, 5),
                 strengths: report["positive_factors"] || [],
                 weaknesses: report["negative_factors"] || [],
                 injury_risk: report["injury_status"] || "unknown",
