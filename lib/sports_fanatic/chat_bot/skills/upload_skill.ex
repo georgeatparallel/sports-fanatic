@@ -92,7 +92,8 @@ defmodule SportsFanatic.ChatBot.Skills.UploadSkill do
           MapSet.member?(matched_player_names, String.downcase(name))
         end)
 
-      summary = "Found **#{length(parsed)}** players in CSV. Matched **#{length(matched_players)}** of **#{length(player_names)}** against our database."
+      summary =
+        "Found **#{length(parsed)}** players in CSV. Matched **#{length(matched_players)}** of **#{length(player_names)}** against our database."
 
       summary =
         if unmatched != [] do

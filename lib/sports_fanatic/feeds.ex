@@ -146,6 +146,7 @@ defmodule SportsFanatic.Feeds do
           case item["players"] do
             players when is_list(players) and players != [] ->
               Enum.map(players, fn p -> p["id"] end) |> Enum.reject(&is_nil/1)
+
             _ ->
               (item["player_ids"] || []) |> List.wrap()
           end
@@ -160,6 +161,7 @@ defmodule SportsFanatic.Feeds do
               case item["teams"] do
                 teams when is_list(teams) and teams != [] ->
                   Enum.map(teams, fn t -> t["id"] end) |> Enum.reject(&is_nil/1)
+
                 _ ->
                   (item["team_ids"] || []) |> List.wrap()
               end

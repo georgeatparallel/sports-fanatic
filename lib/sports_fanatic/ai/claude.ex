@@ -15,13 +15,24 @@ defmodule SportsFanatic.AI.Claude do
 
   @classify_tool %{
     "name" => "classify_article",
-    "description" => "Classify an MLB news article with category, sentiment, summary, entity extraction, and injury details.",
+    "description" =>
+      "Classify an MLB news article with category, sentiment, summary, entity extraction, and injury details.",
     "input_schema" => %{
       "type" => "object",
       "properties" => %{
         "category" => %{
           "type" => "string",
-          "enum" => ["injury_new", "injury_worsening", "injury_update", "injury_recovery", "injury_cleared", "trade", "performance", "transaction", "news"]
+          "enum" => [
+            "injury_new",
+            "injury_worsening",
+            "injury_update",
+            "injury_recovery",
+            "injury_cleared",
+            "trade",
+            "performance",
+            "transaction",
+            "news"
+          ]
         },
         "sentiment" => %{"type" => "string", "enum" => ["negative", "neutral", "positive"]},
         "summary" => %{"type" => "string"},
@@ -30,7 +41,17 @@ defmodule SportsFanatic.AI.Claude do
         "injury_area" => %{"type" => "string"},
         "injury_grade" => %{
           "type" => "string",
-          "enum" => ["day_to_day", "10_day_il", "15_day_il", "60_day_il", "season_ending", "pending_imaging", "cleared", "rehab_assignment", "unknown"]
+          "enum" => [
+            "day_to_day",
+            "10_day_il",
+            "15_day_il",
+            "60_day_il",
+            "season_ending",
+            "pending_imaging",
+            "cleared",
+            "rehab_assignment",
+            "unknown"
+          ]
         },
         "domain_tags" => %{"type" => "array", "items" => %{"type" => "string"}}
       },
@@ -63,7 +84,13 @@ defmodule SportsFanatic.AI.Claude do
         "search_prompts" => %{"type" => "array", "items" => %{"type" => "string"}},
         "reasoning" => %{"type" => "string"}
       },
-      "required" => ["is_continuation", "resolved_query", "entities", "search_prompts", "reasoning"]
+      "required" => [
+        "is_continuation",
+        "resolved_query",
+        "entities",
+        "search_prompts",
+        "reasoning"
+      ]
     }
   }
 
@@ -110,7 +137,8 @@ defmodule SportsFanatic.AI.Claude do
 
     local_text =
       if local_summaries != [] do
-        "\n\nArticles in our database:\n" <> Enum.join(Enum.map(local_summaries, &"- #{&1}"), "\n")
+        "\n\nArticles in our database:\n" <>
+          Enum.join(Enum.map(local_summaries, &"- #{&1}"), "\n")
       else
         ""
       end
@@ -140,21 +168,39 @@ defmodule SportsFanatic.AI.Claude do
     "input_schema" => %{
       "type" => "object",
       "properties" => %{
-        "hit_streak" => %{"type" => "integer", "description" => "Current hitting streak (0 if none)"},
+        "hit_streak" => %{
+          "type" => "integer",
+          "description" => "Current hitting streak (0 if none)"
+        },
         "hr_streak" => %{"type" => "integer", "description" => "Current HR streak (0 if none)"},
-        "on_base_streak" => %{"type" => "integer", "description" => "Current on-base streak (0 if none)"},
-        "injury_status" => %{"type" => "string", "enum" => ["healthy", "day-to-day", "IL-10", "IL-15", "IL-60"]},
+        "on_base_streak" => %{
+          "type" => "integer",
+          "description" => "Current on-base streak (0 if none)"
+        },
+        "injury_status" => %{
+          "type" => "string",
+          "enum" => ["healthy", "day-to-day", "IL-10", "IL-15", "IL-60"]
+        },
         "injury_detail" => %{"type" => "string"},
         "positive_factors" => %{"type" => "array", "items" => %{"type" => "string"}},
         "negative_factors" => %{"type" => "array", "items" => %{"type" => "string"}},
-        "overall_sentiment" => %{"type" => "string", "enum" => ["positive", "neutral", "negative"]},
+        "overall_sentiment" => %{
+          "type" => "string",
+          "enum" => ["positive", "neutral", "negative"]
+        },
         "confidence_modifier" => %{"type" => "number"},
         "news_summary" => %{"type" => "string"},
         "sources_count" => %{"type" => "integer"},
         "hit_probability" => %{"type" => "number"},
         "hr_probability" => %{"type" => "number"}
       },
-      "required" => ["injury_status", "overall_sentiment", "news_summary", "positive_factors", "negative_factors"]
+      "required" => [
+        "injury_status",
+        "overall_sentiment",
+        "news_summary",
+        "positive_factors",
+        "negative_factors"
+      ]
     }
   }
 
@@ -208,7 +254,12 @@ defmodule SportsFanatic.AI.Claude do
   # ── Low-Level API Calls ────────────────────────────────────
 
   defp call_with_tool(system, user_content, tool, tool_name) do
-    call_with_tool_messages(system, [%{"role" => "user", "content" => user_content}], tool, tool_name)
+    call_with_tool_messages(
+      system,
+      [%{"role" => "user", "content" => user_content}],
+      tool,
+      tool_name
+    )
   end
 
   defp call_with_tool_messages(system, messages, tool, tool_name) do
@@ -248,7 +299,12 @@ defmodule SportsFanatic.AI.Claude do
         {:ok, text}
 
       {:ok, %{"content" => content}} ->
-        text = content |> Enum.filter(&(&1["type"] == "text")) |> Enum.map(&(&1["text"])) |> Enum.join("")
+        text =
+          content
+          |> Enum.filter(&(&1["type"] == "text"))
+          |> Enum.map(& &1["text"])
+          |> Enum.join("")
+
         if text != "", do: {:ok, text}, else: {:error, :empty_response}
 
       error ->

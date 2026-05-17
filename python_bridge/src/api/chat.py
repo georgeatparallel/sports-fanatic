@@ -130,7 +130,7 @@ async def resolve_context(request: ResolveContextRequest):
         messages.append(
             {
                 "role": "user",
-                "content": f"New user message to analyze: \"{request.query}\"",
+                "content": f'New user message to analyze: "{request.query}"',
             }
         )
 
@@ -296,6 +296,7 @@ into clear sections. Write prose — do NOT return JSON.""",
         first_sentence = text.split(".")[0].strip() + "." if "." in text else text[:200]
         # Clean any markdown from the short summary
         import re
+
         short = re.sub(r"[*#_`]", "", first_sentence)
 
         return SynthesizeResponse(
@@ -308,7 +309,7 @@ into clear sections. Write prose — do NOT return JSON.""",
         logger.error(f"Research synthesis failed: {e}")
         # Fallback: create a basic summary from titles
         titles = [s.title for s in request.sources[:10] if s.title]
-        fallback = f"Here's what I found about \"{request.query}\":\n\n"
+        fallback = f'Here\'s what I found about "{request.query}":\n\n'
         for title in titles:
             fallback += f"• {title}\n"
         return SynthesizeResponse(

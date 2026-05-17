@@ -9,7 +9,12 @@ defmodule SportsFanatic.Workers.GenerateScoutingOnDemandWorker do
   use Oban.Worker,
     queue: :content_generation,
     max_attempts: 2,
-    unique: [period: 300, fields: [:args], keys: [:player_id], states: [:available, :scheduled, :executing]]
+    unique: [
+      period: 300,
+      fields: [:args],
+      keys: [:player_id],
+      states: [:available, :scheduled, :executing]
+    ]
 
   import Ecto.Query
 
@@ -79,12 +84,18 @@ defmodule SportsFanatic.Workers.GenerateScoutingOnDemandWorker do
                 :ok
 
               {:error, changeset} ->
-                Logger.error("ScoutingOnDemand: insert failed for #{player.full_name}: #{inspect(changeset.errors)}")
+                Logger.error(
+                  "ScoutingOnDemand: insert failed for #{player.full_name}: #{inspect(changeset.errors)}"
+                )
+
                 {:error, :insert_failed}
             end
 
           {:error, reason} ->
-            Logger.warning("ScoutingOnDemand: generation failed for #{player.full_name}: #{inspect(reason)}")
+            Logger.warning(
+              "ScoutingOnDemand: generation failed for #{player.full_name}: #{inspect(reason)}"
+            )
+
             {:error, reason}
         end
 

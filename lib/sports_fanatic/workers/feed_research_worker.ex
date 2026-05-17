@@ -40,7 +40,9 @@ defmodule SportsFanatic.Workers.FeedResearchWorker do
       |> Enum.uniq()
       |> Enum.take(@max_players_per_feed)
 
-    Logger.info("FeedResearchWorker: researching #{length(all_player_ids)} unique players across #{length(feeds)} feeds")
+    Logger.info(
+      "FeedResearchWorker: researching #{length(all_player_ids)} unique players across #{length(feeds)} feeds"
+    )
 
     for player_id <- all_player_ids do
       case Repo.get(Player, player_id) do
@@ -54,6 +56,7 @@ defmodule SportsFanatic.Workers.FeedResearchWorker do
 
     # Mark all feeds as researched
     now = DateTime.utc_now()
+
     for feed <- feeds do
       Feeds.update_feed(feed, %{last_researched_at: now})
     end
@@ -97,9 +100,10 @@ defmodule SportsFanatic.Workers.FeedResearchWorker do
       # Search for source material via Exa (direct Elixir, parallel)
       case Claude.search_player_sources(player.full_name) do
         {:ok, sources} when sources != [] ->
-          sources_text = Enum.map_join(sources, "\n\n---\n\n", fn s ->
-            "#{s.title}\n#{s.text}"
-          end)
+          sources_text =
+            Enum.map_join(sources, "\n\n---\n\n", fn s ->
+              "#{s.title}\n#{s.text}"
+            end)
 
           # Generate report via direct Claude call (no Python Bridge)
           case Claude.generate_scouting(player.full_name, sources_text) do
@@ -120,7 +124,9 @@ defmodule SportsFanatic.Workers.FeedResearchWorker do
               |> Repo.insert(on_conflict: :nothing)
 
             _ ->
-              Logger.warning("FeedResearchWorker: scouting generation failed for #{player.full_name}")
+              Logger.warning(
+                "FeedResearchWorker: scouting generation failed for #{player.full_name}"
+              )
           end
 
         _ ->
@@ -129,7 +135,9 @@ defmodule SportsFanatic.Workers.FeedResearchWorker do
     end
   rescue
     e ->
-      Logger.warning("FeedResearchWorker: scouting error for #{player.full_name}: #{Exception.message(e)}")
+      Logger.warning(
+        "FeedResearchWorker: scouting error for #{player.full_name}: #{Exception.message(e)}"
+      )
   end
 
   defp sentiment_to_grade("positive"), do: "A"

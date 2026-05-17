@@ -27,7 +27,6 @@ defmodule SportsFanaticWeb.ChatLive do
   alias SportsFanatic.DateHelper
   alias SportsFanatic.Feeds
 
-
   @impl true
   def mount(_params, session, socket) do
     current_user = load_user_from_session(session)
@@ -183,7 +182,7 @@ defmodule SportsFanaticWeb.ChatLive do
   # Auto-process CSV once file upload is complete
   def handle_event("auto_upload_csv", _params, socket) do
     entries = socket.assigns.uploads.roster_csv.entries
-    all_done = entries != [] and Enum.all?(entries, &(&1.done?))
+    all_done = entries != [] and Enum.all?(entries, & &1.done?)
 
     if all_done do
       handle_event("upload_csv", %{}, socket)

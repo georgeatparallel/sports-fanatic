@@ -82,7 +82,11 @@ defmodule SportsFanatic.ExternalApis.Exa do
 
       {:ok, %Req.Response{status: 200, body: %{"results" => []}}} when attempt < @max_retries ->
         backoff = @retry_base_ms * attempt
-        Logger.info("Exa returned 0 results, retrying in #{backoff}ms (attempt #{attempt}/#{@max_retries})")
+
+        Logger.info(
+          "Exa returned 0 results, retrying in #{backoff}ms (attempt #{attempt}/#{@max_retries})"
+        )
+
         Process.sleep(backoff)
         do_search_with_retry(body, api_key, attempt + 1)
 
@@ -91,7 +95,11 @@ defmodule SportsFanatic.ExternalApis.Exa do
 
       {:ok, %Req.Response{status: status}} when attempt < @max_retries ->
         backoff = @retry_base_ms * attempt
-        Logger.warning("Exa API error status=#{status}, retrying in #{backoff}ms (attempt #{attempt}/#{@max_retries})")
+
+        Logger.warning(
+          "Exa API error status=#{status}, retrying in #{backoff}ms (attempt #{attempt}/#{@max_retries})"
+        )
+
         Process.sleep(backoff)
         do_search_with_retry(body, api_key, attempt + 1)
 
@@ -101,7 +109,11 @@ defmodule SportsFanatic.ExternalApis.Exa do
 
       {:error, reason} when attempt < @max_retries ->
         backoff = @retry_base_ms * attempt
-        Logger.warning("Exa request failed: #{inspect(reason)}, retrying in #{backoff}ms (attempt #{attempt}/#{@max_retries})")
+
+        Logger.warning(
+          "Exa request failed: #{inspect(reason)}, retrying in #{backoff}ms (attempt #{attempt}/#{@max_retries})"
+        )
+
         Process.sleep(backoff)
         do_search_with_retry(body, api_key, attempt + 1)
 

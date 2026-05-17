@@ -35,7 +35,10 @@ PARSE_SETTING_TOOL = {
                 "items": {
                     "type": "object",
                     "properties": {
-                        "type": {"type": "string", "description": "Stat type (e.g., hr_streak, batting_avg, era)"},
+                        "type": {
+                            "type": "string",
+                            "description": "Stat type (e.g., hr_streak, batting_avg, era)",
+                        },
                         "operator": {"type": "string", "enum": ["gt", "gte", "lt", "lte", "eq"]},
                         "value": {"type": "number"},
                     },
@@ -47,9 +50,15 @@ PARSE_SETTING_TOOL = {
                 "items": {
                     "type": "string",
                     "enum": [
-                        "injury_new", "injury_worsening", "injury_update",
-                        "injury_recovery", "injury_cleared",
-                        "trade", "performance", "transaction", "news",
+                        "injury_new",
+                        "injury_worsening",
+                        "injury_update",
+                        "injury_recovery",
+                        "injury_cleared",
+                        "trade",
+                        "performance",
+                        "transaction",
+                        "news",
                     ],
                 },
                 "description": "News categories to match.",
@@ -81,7 +90,14 @@ PARSE_SETTING_TOOL = {
                 "description": "Human-readable explanation of what the setting will track.",
             },
         },
-        "required": ["target_players", "target_teams", "categories", "domain_tags", "confidence", "interpretation"],
+        "required": [
+            "target_players",
+            "target_teams",
+            "categories",
+            "domain_tags",
+            "confidence",
+            "interpretation",
+        ],
     },
 }
 
@@ -128,7 +144,7 @@ async def parse_setting(raw_prompt: str, context: dict | None = None) -> dict:
 
         client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
 
-        user_message = f"Parse the following MLB news tracking setting:\n\n\"{raw_prompt}\""
+        user_message = f'Parse the following MLB news tracking setting:\n\n"{raw_prompt}"'
         if context:
             if context.get("available_teams"):
                 teams_str = ", ".join(context["available_teams"][:30])

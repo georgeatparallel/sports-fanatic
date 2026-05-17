@@ -183,16 +183,26 @@ defmodule SportsFanatic.Workers.FetchNewsWorker do
         Logger.warning("FetchNewsWorker: AI analysis failed: #{inspect(reason)}")
 
         %{
-          category: nil, sentiment: nil, ai_summary: nil,
-          injury_area: nil, injury_grade: nil, domain_tags: [],
-          player_names: [], team_names: []
+          category: nil,
+          sentiment: nil,
+          ai_summary: nil,
+          injury_area: nil,
+          injury_grade: nil,
+          domain_tags: [],
+          player_names: [],
+          team_names: []
         }
 
       _ ->
         %{
-          category: nil, sentiment: nil, ai_summary: nil,
-          injury_area: nil, injury_grade: nil, domain_tags: [],
-          player_names: [], team_names: []
+          category: nil,
+          sentiment: nil,
+          ai_summary: nil,
+          injury_area: nil,
+          injury_grade: nil,
+          domain_tags: [],
+          player_names: [],
+          team_names: []
         }
     end
   end

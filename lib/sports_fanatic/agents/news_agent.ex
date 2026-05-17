@@ -175,27 +175,45 @@ defmodule SportsFanatic.Agents.NewsAgent do
     {all_sources, all_new_articles, known_ids} =
       Enum.reduce(exa_results, {[], [], []}, fn
         {:ok, %{new_articles: new, known_articles: known}}, {src, new_acc, kid} ->
-          raw = Enum.map(new, fn a ->
-            %{title: a.title, text: a.text, url: a.url, author: a.author, published_date: a.published_date}
-          end)
+          raw =
+            Enum.map(new, fn a ->
+              %{
+                title: a.title,
+                text: a.text,
+                url: a.url,
+                author: a.author,
+                published_date: a.published_date
+              }
+            end)
+
           {src ++ raw, new_acc ++ new, kid ++ Enum.map(known, & &1.id)}
 
-        _, acc -> acc
+        _, acc ->
+          acc
       end)
 
     # Classify top 3 new articles IN PARALLEL (not 5 sequentially)
     new_ids =
       if all_new_articles != [] do
         to_classify = Enum.take(all_new_articles, 3)
-        broadcast_progress(user_id, "Saving #{length(to_classify)} new article#{pl(length(to_classify))} in parallel...")
+
+        broadcast_progress(
+          user_id,
+          "Saving #{length(to_classify)} new article#{pl(length(to_classify))} in parallel..."
+        )
 
         to_classify
         |> Task.async_stream(
           fn article ->
             case ClassifyArticle.run(
-              %{title: article.title, body: article.text, source_url: article.url, author: article.author},
-              %{}
-            ) do
+                   %{
+                     title: article.title,
+                     body: article.text,
+                     source_url: article.url,
+                     author: article.author
+                   },
+                   %{}
+                 ) do
               {:ok, %{status: :created, news_item_id: id}} when not is_nil(id) -> id
               _ -> nil
             end
