@@ -11,13 +11,19 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     npm \
     && rm -rf /var/lib/apt/lists/*
 
-COPY . .
+COPY mix.exs mix.lock ./
 
 RUN mix local.hex --force && \
     mix local.rebar --force && \
     mix deps.get --only prod && \
-    mix deps.compile && \
-    mix assets.deploy && \
+    mix deps.compile
+
+COPY config/config.exs config/prod.exs config/runtime.exs config/
+COPY lib lib
+COPY priv priv
+COPY assets assets
+
+RUN mix assets.deploy && \
     mix compile && \
     mix phx.gen.release && \
     mix release
