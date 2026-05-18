@@ -10,6 +10,7 @@ defmodule SportsFanatic.Workers.FetchBvpWorker do
     unique: [period: 3600, fields: [:worker, :args]]
 
   alias SportsFanatic.ExternalApis.MlbStats
+  alias SportsFanatic.Predictions.Progress
   alias SportsFanatic.Repo
 
   require Logger
@@ -17,31 +18,55 @@ defmodule SportsFanatic.Workers.FetchBvpWorker do
   @impl Oban.Worker
   def perform(%Oban.Job{args: args}) do
     date = parse_date(args["date"]) || SportsFanatic.DateHelper.today()
-    run_for_date(date)
+    run_id = parse_run_id(args["pipeline_run_id"])
+    run_for_date(date, run_id)
   end
 
-  @spec run_for_date(Date.t()) :: {:ok, integer}
-  def run_for_date(%Date{} = date) do
+  @spec run_for_date(Date.t(), binary() | nil) :: {:ok, integer} | {:error, term}
+  def run_for_date(date, run_id \\ nil)
+
+  def run_for_date(%Date{} = date, run_id) do
     concurrency =
       Application.get_env(:sports_fanatic, :predictions, [])[:bvp_concurrency] || 6
 
     pairs = build_pairs(date)
-    Logger.info("FetchBvpWorker: #{length(pairs)} batter/pitcher pairs for #{date}")
+    total = length(pairs)
+    Logger.info("FetchBvpWorker: #{total} batter/pitcher pairs for #{date}")
 
-    count =
+    Progress.step_started(run_id, :fetch_bvp, total: total)
+
+    started = System.monotonic_time(:millisecond)
+
+    {count, errors} =
       pairs
+      |> Enum.with_index(1)
       |> Task.async_stream(
-        fn pair -> upsert_pair(pair, date.year) end,
+        fn {pair, idx} -> upsert_pair(pair, date.year, run_id, idx, total) end,
         max_concurrency: concurrency,
         timeout: 15_000,
         on_timeout: :kill_task
       )
-      |> Enum.count(fn
-        {:ok, :ok} -> true
-        _ -> false
+      |> Enum.reduce({0, []}, fn
+        {:ok, :ok}, {n, errs} -> {n + 1, errs}
+        {:ok, {:error, e}}, {n, errs} -> {n, [e | errs]}
+        _, {n, errs} -> {n, [:task_failed | errs]}
       end)
 
-    {:ok, count}
+    elapsed = System.monotonic_time(:millisecond) - started
+
+    case errors do
+      [] ->
+        Progress.step_completed(run_id, :fetch_bvp,
+          processed: count,
+          total: total,
+          elapsed_ms: elapsed
+        )
+
+        {:ok, count}
+
+      [first | _] ->
+        {:error, first}
+    end
   end
 
   defp build_pairs(date) do
@@ -71,7 +96,7 @@ defmodule SportsFanatic.Workers.FetchBvpWorker do
       []
   end
 
-  defp upsert_pair(%{batter_mlb_id: b, pitcher_mlb_id: p}, season)
+  defp upsert_pair(%{batter_mlb_id: b, pitcher_mlb_id: p} = pair, season, run_id, idx, total)
        when not is_nil(b) and not is_nil(p) do
     case MlbStats.fetch_batter_vs_pitcher(b, p, season) do
       {:ok, %{} = stat} ->
@@ -104,16 +129,52 @@ defmodule SportsFanatic.Workers.FetchBvpWorker do
           ]
         )
 
+        Progress.item_progress(run_id, :fetch_bvp, idx,
+          total: total,
+          current_item: "batter=#{b} vs pitcher=#{p}",
+          item_id: b
+        )
+
         :ok
 
-      _ ->
+      {:ok, _empty} ->
+        Progress.item_progress(run_id, :fetch_bvp, idx,
+          total: total,
+          current_item: "batter=#{b} vs pitcher=#{p} — empty",
+          item_id: b
+        )
+
         :ok
+
+      {:error, reason} ->
+        Progress.step_failed(run_id, :fetch_bvp, reason,
+          current_item: "batter=#{b} vs pitcher=#{p}",
+          item_id: b,
+          endpoint: "https://statsapi.mlb.com/api/v1/people/#{b}/stats?stats=vsPlayer",
+          http_status: extract_http_status(reason),
+          processed: idx,
+          total: total
+        )
+
+        {:error, reason}
     end
   rescue
-    _ -> :ok
+    e ->
+      Progress.step_failed(run_id, :fetch_bvp, e,
+        current_item: "batter=#{pair.batter_mlb_id} vs pitcher=#{pair.pitcher_mlb_id}",
+        item_id: pair.batter_mlb_id,
+        processed: idx,
+        total: total
+      )
+
+      {:error, e}
   end
 
-  defp upsert_pair(_, _), do: :ok
+  defp upsert_pair(_, _, _, _, _), do: :ok
+
+  defp extract_http_status({:http_error, s}) when is_integer(s), do: s
+  defp extract_http_status({_, %{status: s}}) when is_integer(s), do: s
+  defp extract_http_status(_), do: nil
 
   defp parse_date(nil), do: nil
   defp parse_date(%Date{} = d), do: d
@@ -124,4 +185,7 @@ defmodule SportsFanatic.Workers.FetchBvpWorker do
       _ -> nil
     end
   end
+
+  defp parse_run_id(nil), do: nil
+  defp parse_run_id(s) when is_binary(s), do: s
 end

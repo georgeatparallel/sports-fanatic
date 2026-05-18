@@ -589,6 +589,155 @@ defmodule SportsFanaticWeb.CoreComponents do
     """
   end
 
+  @doc """
+  Renders a clickable player card with optional injury-status badge.
+
+  Mirrors the inlined player-card markup at
+  `lib/sports_fanatic_web/controllers/player_html/index.html.heex:23-91` so that
+  any future page can use this canonical component. Tracked follow-up
+  `CODE-PC-1` migrates the players index page to use this component.
+
+  ## Attrs
+
+    * `:player` (map, required) — must contain `:full_name`, `:first_name`,
+      `:last_name`, `:position`, `:headshot_url`; preloaded with `:team`
+      via either the player's `:team` association or the
+      `:team` attr override.
+    * `:link_target` (string, required) — absolute href the entire card links
+      to.
+    * `:injury_badge` (atom, default `nil`) — one of
+      `:green | :yellow | :red | :grey | nil`. `nil` (or `:grey`) renders
+      no dot.
+    * `:team` (map, default `nil`) — override the `player.team` association
+      when the team needs to come from an external lookup.
+    * `:position_override` (string, default `nil`) — lineup position, takes
+      precedence over `player.position`.
+    * `:batting_order` (integer, default `nil`) — renders "#N in order"
+      when present.
+    * `:variant` (atom, default `:default`) — `:lineup` paints the green
+      border that the players index uses for today's lineup; `:default`
+      paints the neutral border used for "all players".
+
+  ## Example
+
+  ```heex
+  <.player_card
+    player={row.player}
+    team={row.team}
+    injury_badge={:green}
+    link_target={"/mlb/scouting/new-york-yankees/aaron-judge"}
+    position_override={"CF"}
+    batting_order={3}
+    variant={:lineup}
+  />
+  ```
+
+  Note: `:grey` and `nil` both suppress the badge dot. Only `:green`,
+  `:yellow`, and `:red` render the coloured indicator.
+
+  The canonical `injury_badge` values are produced by
+  `SportsFanatic.Players.InjuryBadge.for_scouting_or_injury/2` based on
+  the latest `scouting_reports.injury_risk` or `injury_reports.current_status`
+  for the player.
+  """
+  attr :player, :map, required: true
+  attr :link_target, :string, required: true
+  attr :injury_badge, :atom, default: nil
+  attr :team, :map, default: nil
+  attr :position_override, :string, default: nil
+  attr :batting_order, :integer, default: nil
+  attr :variant, :atom, default: :default
+
+  def player_card(assigns) do
+    assigns =
+      assigns
+      |> assign_new(:resolved_team, fn ->
+        assigns.team || Map.get(assigns.player, :team)
+      end)
+      |> assign_new(:resolved_position, fn ->
+        assigns.position_override || Map.get(assigns.player, :position)
+      end)
+
+    ~H"""
+    <a
+      href={@link_target}
+      class={[
+        "relative bg-white rounded-lg shadow-sm p-4 hover:shadow-md transition block",
+        @variant == :lineup &&
+          "border-2 border-green-200 hover:border-green-400",
+        @variant != :lineup &&
+          "border border-gray-100 hover:border-blue-300"
+      ]}
+    >
+      <%= if @injury_badge && @injury_badge != :grey do %>
+        <span
+          class={[
+            "absolute top-2 right-2 inline-block w-2.5 h-2.5 rounded-full ring-2 ring-white",
+            @injury_badge == :green && "bg-green-500",
+            @injury_badge == :yellow && "bg-yellow-400",
+            @injury_badge == :red && "bg-red-500"
+          ]}
+          aria-label={player_card_aria_label(@injury_badge)}
+          title={player_card_aria_label(@injury_badge)}
+        />
+      <% end %>
+      <div class="flex items-center gap-3">
+        <%= if Map.get(@player, :headshot_url) do %>
+          <img
+            src={@player.headshot_url}
+            alt={@player.full_name}
+            class="w-12 h-12 rounded-full object-cover"
+            loading="lazy"
+            width="48"
+            height="48"
+          />
+        <% else %>
+          <div class={[
+            "w-12 h-12 rounded-full flex items-center justify-center font-bold",
+            @variant == :lineup && "bg-green-100 text-green-700",
+            @variant != :lineup && "bg-gray-200 text-gray-500"
+          ]}>
+            <%= player_card_initials(@player) %>
+          </div>
+        <% end %>
+        <div class="flex-1 min-w-0">
+          <h3 class="font-semibold text-gray-900 truncate"><%= @player.full_name %></h3>
+          <p class="text-sm text-gray-500 truncate">
+            <%= (@resolved_team && @resolved_team.name) || "Free Agent" %>
+          </p>
+        </div>
+        <div class="text-right shrink-0">
+          <%= if @resolved_position do %>
+            <span class="inline-block bg-gray-100 text-gray-700 text-xs font-medium px-2 py-0.5 rounded">
+              <%= @resolved_position %>
+            </span>
+          <% end %>
+          <%= if @batting_order do %>
+            <p class="text-xs text-gray-400 mt-1">#<%= @batting_order %> in order</p>
+          <% end %>
+        </div>
+      </div>
+    </a>
+    """
+  end
+
+  defp player_card_aria_label(:green), do: "Healthy"
+  defp player_card_aria_label(:yellow), do: "Day-to-day"
+  defp player_card_aria_label(:red), do: "Injured / IL"
+  defp player_card_aria_label(_), do: ""
+
+  defp player_card_initials(player) do
+    first = String.first(Map.get(player, :first_name) || "") || ""
+    last = String.first(Map.get(player, :last_name) || "") || ""
+    initials = first <> last
+
+    if initials == "" do
+      player |> Map.get(:full_name, "?") |> String.first() || "?"
+    else
+      initials
+    end
+  end
+
   ## JS Commands
 
   def show(js \\ %JS{}, selector) do

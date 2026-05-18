@@ -14,6 +14,7 @@ defmodule SportsFanatic.Workers.FetchScheduleWorker do
 
   alias SportsFanatic.ExternalApis.MlbStats
   alias SportsFanatic.Mlb.{Game, ScheduledGame}
+  alias SportsFanatic.Predictions.Progress
   alias SportsFanatic.Repo
 
   require Logger
@@ -21,25 +22,51 @@ defmodule SportsFanatic.Workers.FetchScheduleWorker do
   @impl Oban.Worker
   def perform(%Oban.Job{args: args}) do
     date = parse_date(args["date"]) || SportsFanatic.DateHelper.today()
-    fetch_for_date(date)
+    run_id = parse_run_id(args["pipeline_run_id"])
+    fetch_for_date(date, run_id)
   end
 
   @doc """
   Synchronous entrypoint used by the predictions orchestrator. Returns
   `{:ok, count}` or `{:error, reason}`.
   """
-  @spec fetch_for_date(Date.t()) :: {:ok, integer} | {:error, term}
-  def fetch_for_date(%Date{} = date) do
+  @spec fetch_for_date(Date.t(), binary() | nil) :: {:ok, integer} | {:error, term}
+  def fetch_for_date(date, run_id \\ nil)
+
+  def fetch_for_date(%Date{} = date, run_id) do
+    Progress.step_started(run_id, :fetch_schedule, total: 1)
+
     case MlbStats.fetch_schedule(date) do
       {:ok, games} when is_list(games) ->
         Enum.each(games, &upsert_game/1)
         Logger.info("FetchScheduleWorker: fetched #{length(games)} games for #{date}")
+
+        Progress.step_completed(run_id, :fetch_schedule,
+          processed: length(games),
+          total: length(games)
+        )
+
         {:ok, length(games)}
 
       {:error, reason} = err ->
         Logger.warning("FetchScheduleWorker error: #{inspect(reason)}")
+
+        Progress.step_failed(run_id, :fetch_schedule, reason,
+          current_item: "MLB schedule #{Date.to_iso8601(date)}",
+          endpoint: "https://statsapi.mlb.com/api/v1/schedule",
+          http_status: extract_http_status(reason)
+        )
+
         err
     end
+  rescue
+    e ->
+      Progress.step_failed(run_id, :fetch_schedule, e,
+        current_item: "MLB schedule #{Date.to_iso8601(date)}",
+        endpoint: "https://statsapi.mlb.com/api/v1/schedule"
+      )
+
+      reraise e, __STACKTRACE__
   end
 
   defp upsert_game(g) do
@@ -81,6 +108,10 @@ defmodule SportsFanatic.Workers.FetchScheduleWorker do
     |> Repo.insert(on_conflict: :replace_all, conflict_target: :game_id)
   end
 
+  defp extract_http_status({:http_error, s}) when is_integer(s), do: s
+  defp extract_http_status({_, %{status: s}}) when is_integer(s), do: s
+  defp extract_http_status(_), do: nil
+
   defp parse_date(nil), do: nil
   defp parse_date(%Date{} = d), do: d
 
@@ -100,4 +131,7 @@ defmodule SportsFanatic.Workers.FetchScheduleWorker do
       _ -> nil
     end
   end
+
+  defp parse_run_id(nil), do: nil
+  defp parse_run_id(s) when is_binary(s), do: s
 end

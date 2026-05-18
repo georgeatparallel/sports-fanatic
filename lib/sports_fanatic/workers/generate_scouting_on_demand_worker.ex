@@ -81,6 +81,8 @@ defmodule SportsFanatic.Workers.GenerateScoutingOnDemandWorker do
                  |> Repo.insert(on_conflict: :nothing) do
               {:ok, _} ->
                 Logger.info("ScoutingOnDemand: report generated for #{player.full_name}")
+                invalidate_player_card(player)
+                invalidate_all_players_pages()
                 :ok
 
               {:error, changeset} ->
@@ -109,4 +111,27 @@ defmodule SportsFanatic.Workers.GenerateScoutingOnDemandWorker do
   defp sentiment_to_grade("neutral"), do: "B"
   defp sentiment_to_grade("negative"), do: "C"
   defp sentiment_to_grade(_), do: "B"
+
+  defp invalidate_player_card(player) do
+    id = card_cache_id(player)
+    SportsFanatic.Cache.del(SportsFanatic.Cache.player_card_key(id))
+  rescue
+    _ -> :ok
+  end
+
+  defp invalidate_all_players_pages do
+    SportsFanatic.Cache.del_pattern("sf:page:players:*")
+  rescue
+    _ -> :ok
+  end
+
+  defp card_cache_id(%{external_ids: %{} = ext, id: id}) do
+    case Map.get(ext, "mlb_id") || Map.get(ext, :mlb_id) do
+      v when is_integer(v) -> v
+      v when is_binary(v) and v != "" -> v
+      _ -> id
+    end
+  end
+
+  defp card_cache_id(%{id: id}), do: id
 end

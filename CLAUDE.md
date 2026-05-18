@@ -115,7 +115,7 @@ One line per logical group. Details live in the owning sub-folder CLAUDE.md.
 | Home / chat | `/`, `/chat` | `lib/sports_fanatic_web/live/CLAUDE.md` |
 | Players | `/mlb/players`, `/mlb/players/:team_slug/:player_slug` | `lib/sports_fanatic_web/controllers/CLAUDE.md` |
 | Teams | `/mlb/teams`, `/mlb/teams/:team_slug` | `lib/sports_fanatic_web/controllers/CLAUDE.md` |
-| Lineups | `/mlb/lineups/:date` | `lib/sports_fanatic_web/controllers/CLAUDE.md` |
+| Players (daily) | `/mlb/lineups/:date` | `lib/sports_fanatic_web/controllers/CLAUDE.md` |
 | News | `/mlb/news`, `/mlb/news/:date`, `/mlb/news/:date/:slug` | `lib/sports_fanatic_web/live/CLAUDE.md` |
 | Scouting | `/mlb/scouting/:team_slug/:player_slug` | `lib/sports_fanatic_web/controllers/CLAUDE.md` |
 | Game Day | `/mlb/game-day/:date/:slug` | `lib/sports_fanatic_web/controllers/CLAUDE.md` |
@@ -190,3 +190,4 @@ Detailed in the owning sub-folder CLAUDE.md. Quick map of what must be set:
 | `PGHOST`, `PGPORT`, `PGUSER`, `PGPASSWORD`, `PGDATABASE`, `S3_BUCKET` | `scripts/CLAUDE.md` |
 | `JOSHUA_USERNAME`, `JOSHUA_PASSWORD` | `lib/sports_fanatic_web/live/CLAUDE.md` |
 | `VALKEY_URL`, `PYTHON_BRIDGE_URL` | `config/CLAUDE.md` |
+| `OPENMETEO_API_KEY`, `PREDICTIONS_INITIAL_SEED_FROM`, `PREDICTIONS_INITIAL_SEED_CONCURRENCY`, `PREDICTIONS_HISTORICAL_BATCH_DAYS`, `PREDICTIONS_OPEN_METEO_TIMEOUT_MS` | `lib/sports_fanatic/predictions/CLAUDE.md` |

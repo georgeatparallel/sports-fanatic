@@ -51,6 +51,19 @@ max_attempts: <n>` and implement `perform/1`. Cron schedules are defined in
 - `MainPostWorker` — enqueued by `XPostSchedulerWorker` at jittered times.
 - `EngagementWatcherWorker` — enqueued recursively by `MainPostWorker` and
   itself (18 iterations × 5 min).
+- `InitialSeedWorker` — enqueued by `SportsFanatic.Predictions.start_initial_seed/0`
+  from the admin Predictions tab. `max_attempts: 5`, `unique` on
+  `{seed_from, seed_through}`. Date-by-date backfill with per-date
+  checkpoint. See `lib/sports_fanatic/predictions/CLAUDE.md`.
+
+## CleanupWorker steps
+
+`CleanupWorker` (3 AM ET daily) runs:
+
+1. `Accounts.delete_expired_sessions/0` — purges expired user sessions.
+2. Prunes `system.pipeline_run_events` rows older than 7 days (retention
+   for streaming progress events from
+   `SportsFanatic.Predictions.Progress`).
 
 ## Enqueueing from IEx
 

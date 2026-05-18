@@ -16,7 +16,7 @@ Six PostgreSQL schemas. All UUIDs use `gen_random_uuid()`. Migrations use
 | `mlb` | games, scheduled_games, lineups, player_boxscores, player_season_stats, picks, hr_picks, game_weather, park_hr_factors |
 | `content` | scouting_reports, game_day_magazines, news_items, sitemaps, injury_reports, team_magazines |
 | `accounts` | users, subscriptions, sessions, news_agent_settings, news_agent_results, chat_sessions, chat_messages, query_clusters, query_cluster_members, x_credentials, x_watched_targets |
-| `system` | pipeline_runs, pipeline_steps, cache_invalidations, feature_flags, x_posts, x_api_calls, x_post_rotation |
+| `system` | pipeline_runs, pipeline_run_events, pipeline_steps, cache_invalidations, feature_flags, x_posts, x_api_calls, x_post_rotation |
 | `scouting` | (from sports-fan-agent, retained) |
 
 ## Conventions
@@ -59,6 +59,8 @@ Six PostgreSQL schemas. All UUIDs use `gen_random_uuid()`. Migrations use
 | `20260518100005_create_injury_reports.exs` | per-player daily injury page |
 | `20260518100006_create_team_magazines.exs` | per-team daily magazine |
 | `20260518100007_seed_x_agent_feature_flags.exs` | x_agent_enabled etc. |
+| `20260518200001_create_pipeline_run_events.exs` | system.pipeline_run_events (streaming progress) |
+| `20260518200002_add_run_kind_to_pipeline_runs.exs` | run_kind, seed dates, checkpoint, current_step on pipeline_runs |
 
 ## Specific table notes
 

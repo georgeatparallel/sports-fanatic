@@ -1,8 +1,9 @@
 defmodule SportsFanatic.Workers.FetchPitcherStatsWorker do
   @moduledoc """
   Refreshes `mlb.pitcher_stats` for the probable pitchers of `date`'s games.
-  Skips pitchers whose `last_updated` is within 24 hours. Internal
-  parallelism uses `Task.async_stream` with runtime-configured concurrency.
+  Skips pitchers whose `last_updated` is within 24 hours unless
+  `force: true` is passed. Internal parallelism uses `Task.async_stream`
+  with runtime-configured concurrency.
   """
 
   use Oban.Worker,
@@ -11,6 +12,7 @@ defmodule SportsFanatic.Workers.FetchPitcherStatsWorker do
     unique: [period: 3600, fields: [:worker, :args]]
 
   alias SportsFanatic.ExternalApis.MlbStats
+  alias SportsFanatic.Predictions.Progress
   alias SportsFanatic.Repo
 
   require Logger
@@ -18,30 +20,59 @@ defmodule SportsFanatic.Workers.FetchPitcherStatsWorker do
   @impl Oban.Worker
   def perform(%Oban.Job{args: args}) do
     date = parse_date(args["date"]) || SportsFanatic.DateHelper.today()
-    run_for_date(date)
+    run_id = parse_run_id(args["pipeline_run_id"])
+    force = args["force"] == true
+    run_for_date(date, run_id: run_id, force: force)
   end
 
-  @spec run_for_date(Date.t()) :: {:ok, integer}
-  def run_for_date(%Date{} = date) do
+  @spec run_for_date(Date.t(), keyword()) :: {:ok, integer}
+  def run_for_date(%Date{} = date, opts \\ []) do
+    run_id = Keyword.get(opts, :run_id)
+    force = Keyword.get(opts, :force, false)
+
     concurrency =
       Application.get_env(:sports_fanatic, :predictions, [])[:pitcher_stats_concurrency] || 4
 
     pitchers = candidate_pitchers(date)
-    Logger.info("FetchPitcherStatsWorker: #{length(pitchers)} pitchers for #{date}")
+    total = length(pitchers)
+    Logger.info("FetchPitcherStatsWorker: #{total} pitchers for #{date}")
 
-    count =
+    Progress.step_started(run_id, :fetch_pitcher_stats, total: total)
+
+    started = System.monotonic_time(:millisecond)
+
+    {count, errors} =
       pitchers
-      |> Task.async_stream(&fetch_and_upsert(&1, date),
+      |> Enum.with_index(1)
+      |> Task.async_stream(
+        fn {pitcher, idx} -> fetch_and_upsert(pitcher, date, force, run_id, idx, total) end,
         max_concurrency: concurrency,
         timeout: 15_000,
         on_timeout: :kill_task
       )
-      |> Enum.count(fn
-        {:ok, :ok} -> true
-        _ -> false
+      |> Enum.reduce({0, []}, fn
+        {:ok, :ok}, {n, errs} -> {n + 1, errs}
+        {:ok, :skip}, {n, errs} -> {n, errs}
+        {:ok, {:error, e}}, {n, errs} -> {n, [e | errs]}
+        _, {n, errs} -> {n, [:task_failed | errs]}
       end)
 
-    {:ok, count}
+    elapsed = System.monotonic_time(:millisecond) - started
+
+    case errors do
+      [] ->
+        Progress.step_completed(run_id, :fetch_pitcher_stats,
+          processed: count,
+          total: total,
+          elapsed_ms: elapsed
+        )
+
+        {:ok, count}
+
+      [first | _] ->
+        # Loud failure: surface the first error.
+        {:error, first}
+    end
   end
 
   defp candidate_pitchers(date) do
@@ -67,23 +98,65 @@ defmodule SportsFanatic.Workers.FetchPitcherStatsWorker do
     |> Enum.map(fn [name, mlb_id] -> %{name: name, mlb_id: mlb_id} end)
   end
 
-  defp fetch_and_upsert(%{mlb_id: nil}, _date), do: :skip
+  defp fetch_and_upsert(%{mlb_id: nil}, _date, _force, _run_id, _idx, _total), do: :skip
 
-  defp fetch_and_upsert(%{mlb_id: pid}, date) do
+  defp fetch_and_upsert(%{mlb_id: pid, name: name}, date, force, run_id, idx, total) do
     season = date.year
 
-    if fresh?(pid, season) do
+    if not force and fresh?(pid, season) do
+      Progress.item_progress(run_id, :fetch_pitcher_stats, idx,
+        total: total,
+        current_item: "#{name} (#{pid}) — skipped (fresh)",
+        item_id: pid
+      )
+
       :ok
     else
       case MlbStats.fetch_pitcher_season_stats(pid, season) do
         {:ok, stat} when stat != %{} ->
           upsert(pid, season, stat)
+
+          Progress.item_progress(run_id, :fetch_pitcher_stats, idx,
+            total: total,
+            current_item: "#{name} (#{pid})",
+            item_id: pid
+          )
+
           :ok
 
-        _ ->
+        {:ok, _empty} ->
+          Progress.item_progress(run_id, :fetch_pitcher_stats, idx,
+            total: total,
+            current_item: "#{name} (#{pid}) — empty",
+            item_id: pid
+          )
+
           :ok
+
+        {:error, reason} ->
+          Progress.step_failed(run_id, :fetch_pitcher_stats, reason,
+            current_item: "#{name} (#{pid})",
+            item_id: pid,
+            endpoint: "https://statsapi.mlb.com/api/v1/people/#{pid}/stats?season=#{season}",
+            http_status: extract_http_status(reason),
+            processed: idx,
+            total: total
+          )
+
+          {:error, reason}
       end
     end
+  rescue
+    e ->
+      Progress.step_failed(run_id, :fetch_pitcher_stats, e,
+        current_item: "#{name} (#{pid})",
+        item_id: pid,
+        endpoint: "https://statsapi.mlb.com/api/v1/people/#{pid}/stats?season=#{date.year}",
+        processed: idx,
+        total: total
+      )
+
+      {:error, e}
   end
 
   defp fresh?(pid, season) do
@@ -176,6 +249,10 @@ defmodule SportsFanatic.Workers.FetchPitcherStatsWorker do
     )
   end
 
+  defp extract_http_status({:http_error, s}) when is_integer(s), do: s
+  defp extract_http_status({_, %{status: s}}) when is_integer(s), do: s
+  defp extract_http_status(_), do: nil
+
   defp f(nil), do: nil
   defp f(v) when is_float(v), do: v
   defp f(v) when is_integer(v), do: v * 1.0
@@ -194,4 +271,7 @@ defmodule SportsFanatic.Workers.FetchPitcherStatsWorker do
       _ -> nil
     end
   end
+
+  defp parse_run_id(nil), do: nil
+  defp parse_run_id(s) when is_binary(s), do: s
 end

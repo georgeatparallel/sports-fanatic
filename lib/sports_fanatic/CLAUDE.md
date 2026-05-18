@@ -52,22 +52,27 @@ lib/sports_fanatic/
 `SportsFanatic.Cache` wraps Redix. Key prefixes:
 
 ```
-sf:page:player:{team}:{slug}      TTL 5 min
-sf:page:team:{slug}               TTL 10 min
-sf:page:lineup:today              TTL 2 min
-sf:page:lineup:{past-date}        TTL 24 hours
-sf:page:news:{date}:{slug}        TTL 5 min
-sf:page:scouting:{team}:{slug}    TTL 15 min
-sf:page:gameday:{date}:{slug}     TTL 10 min
-sf:page:injury:{slug}:{date}      TTL 60 min
+sf:page:player:{team}:{slug}        TTL 5 min
+sf:page:team:{slug}                 TTL 10 min
+sf:page:lineup:today                TTL 2 min
+sf:page:lineup:{past-date}          TTL 24 hours
+sf:page:news:{date}:{slug}          TTL 5 min
+sf:page:scouting:{team}:{slug}      TTL 15 min
+sf:page:gameday:{date}:{slug}       TTL 10 min
+sf:page:injury:{slug}:{date}        TTL 60 min
 sf:page:team-magazine:{slug}:{date} TTL 30 min
-sf:data:predictions:*             TTL 5 min
-sf:data:news:feed:{date}          TTL 60 s
-sf:sitemap:*                      TTL 6 hours
+sf:page:players:{YYYY-MM-DD}        TTL until next Eastern midnight (floor 600 s, cap 86_400 s) — full anonymous HTML for /mlb/lineups/:date
+sf:data:players:roster              TTL 24 h — slim roster blob for search dropdown (all players)
+sf:data:player:card:{mlb_id}        TTL 6 h  — per-card render data (badge, link target); mlb_id is integer or player UUID fallback
+sf:data:predictions:*               TTL 5 min
+sf:data:news:feed:{date}            TTL 60 s
+sf:sitemap:*                        TTL 6 hours
 ```
 
-Use `SportsFanatic.Cache.get/1`, `put/3`, `delete/1`, `invalidate_pattern/1`.
-Key builders: `Cache.news_feed_key/1` accepts `%Date{}` or ISO-8601 string.
+Use `SportsFanatic.Cache.get/1`, `set/3`, `del/1`, `del_pattern/1`.
+Key builders: `Cache.news_feed_key/1` accepts `%Date{}` or ISO-8601 string;
+`Cache.players_page_key/1`, `Cache.players_roster_key/0`,
+`Cache.player_card_key/1` for the Players page.
 
 ## Storage (S3)
 

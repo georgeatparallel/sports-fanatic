@@ -16,7 +16,7 @@ defmodule SportsFanatic.Workers.PredictHitsWorker do
 
   alias Phoenix.PubSub
   alias SportsFanatic.Cache
-  alias SportsFanatic.Predictions.{Features, HitPrediction, Inference}
+  alias SportsFanatic.Predictions.{Features, HitPrediction, Inference, Progress}
   alias SportsFanatic.Repo
 
   require Logger
@@ -48,14 +48,37 @@ defmodule SportsFanatic.Workers.PredictHitsWorker do
         "PredictHitsWorker: insufficient training data (#{length(training_rows)}); skipping"
       )
 
+      Progress.step_completed(run_id, :predict_hits,
+        processed: 0,
+        total: 0,
+        note: "insufficient training data (#{length(training_rows)})"
+      )
+
       {:ok, 0, nil}
     else
       lineup_targets = lineup_targets(date)
-      Logger.info("PredictHitsWorker: building features for #{length(lineup_targets)} players")
+      total = length(lineup_targets)
+      Logger.info("PredictHitsWorker: building features for #{total} players")
+
+      Progress.step_started(run_id, :predict_hits, total: total)
+      started = System.monotonic_time(:millisecond)
 
       inference_rows =
         lineup_targets
-        |> Task.async_stream(&build_row(&1, date),
+        |> Enum.with_index(1)
+        |> Task.async_stream(
+          fn {target, idx} ->
+            row = build_row(target, date)
+
+            Progress.item_progress(run_id, :predict_hits, idx,
+              total: total,
+              every: 50,
+              current_item: target.player_name,
+              item_id: target.player_mlb_id
+            )
+
+            row
+          end,
           max_concurrency: concurrency,
           timeout: 30_000,
           on_timeout: :kill_task
@@ -72,11 +95,44 @@ defmodule SportsFanatic.Workers.PredictHitsWorker do
           invalidate_cache(date)
           broadcast(date)
           Logger.info("PredictHitsWorker: wrote #{inserted} predictions for #{date}")
+
+          elapsed = System.monotonic_time(:millisecond) - started
+
+          # Final summary event so the admin UI sees the bottom-line count
+          # regardless of throttled per-item events.
+          Progress.item_progress(run_id, :predict_hits, inserted,
+            total: total,
+            current_item: "wrote #{inserted} predictions",
+            elapsed_ms: elapsed
+          )
+
+          Progress.step_completed(run_id, :predict_hits,
+            processed: inserted,
+            total: total,
+            elapsed_ms: elapsed
+          )
+
           {:ok, inserted, version}
 
-        err ->
-          Logger.error("PredictHitsWorker: inference failed (#{inspect(err)})")
+        {:error, reason} = err ->
+          Logger.error("PredictHitsWorker: inference failed (#{inspect(reason)})")
+
+          Progress.step_failed(run_id, :predict_hits, reason,
+            endpoint: "Python Bridge /inference/hit",
+            total: total
+          )
+
           err
+
+        other ->
+          Logger.error("PredictHitsWorker: inference returned #{inspect(other)}")
+
+          Progress.step_failed(run_id, :predict_hits, other,
+            endpoint: "Python Bridge /inference/hit",
+            total: total
+          )
+
+          other
       end
     end
   end

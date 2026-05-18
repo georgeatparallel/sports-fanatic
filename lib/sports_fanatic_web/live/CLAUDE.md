@@ -50,6 +50,7 @@ Parent: `../../../CLAUDE.md`
 | `feeds` | User feeds + research |
 | `feature_flags` | Generic feature flag table |
 | `x_agent` | X (Twitter) agent — approval queue, cost, posts, watched targets |
+| `predictions` | Hit Predictions pipeline — Run Now, Initial Seed, Currently-Running panel, Recent Runs with event timeline |
 
 ## AdminLive — Queries tab events
 
@@ -90,6 +91,59 @@ Rate limiting uses an in-memory ETS table `:x_admin_rate_limit` keyed on
 - `{:budget_exceeded, today_mills}` — `SpendLedger` cap tripped
 - `{:token_failure, reason}` — `RefreshXTokenWorker` error
 - `{:circuit_state_change, state}` — X CircuitBreaker open/closed
+
+## AdminLive — Predictions tab events
+
+| Event | Payload | Side effect |
+|-------|---------|-------------|
+| `switch_tab` (tab: `"predictions"`) | — | Loads recent runs, seed eligibility, snapshots any in-progress run |
+| `toggle_predictions_flag` | — | Toggles `hit_predictions_enabled` feature flag |
+| `run_predictions_now` | — | Enqueues `DailyHitPredictionsWorker` with `force: true` for today |
+| `view_prediction_run` | `%{"run-id" => uuid}` | Loads up to 200 predictions for a run |
+| `view_run_events` | `%{"run-id" => uuid}` | Loads up to 500 progress events for a run (chevron expander on the Recent Runs row) |
+| `start_initial_seed` | — | Enqueues `InitialSeedWorker` via `Predictions.start_initial_seed/0`. Confirmation prompt warns of multi-hour runtime. |
+| `dismiss_failed_event` | — | Clears `@active_run_failed_event` red banner |
+
+## AdminLive — Predictions tab UI elements
+
+The Predictions tab renders four functional areas inside the existing
+`space-y-6` wrapper (in order, top to bottom):
+
+| Element | Visible when | Key assigns |
+|---------|-------------|-------------|
+| **Currently-Running panel** | `@active_run` is non-nil | `active_run` (map: run_id, run_kind, current_step, started_at), `active_run_events` (last 50, newest first), `active_run_total_events` |
+| **Failure banner** | `@active_run_failed_event` is non-nil | `active_run_failed_event` (map: step, item, endpoint, http_status, error) — persists until a new `:run_started` or `dismiss_failed_event` clears it |
+| **Initial Backfill card** | Always visible | `seed_eligibility` (map: earliest_date, seed_from, seed_through) |
+| **Recent Runs table** | Always (may be empty) | Per-row chevron expander; `expanded_run_events` (map of run_id → list of events) |
+
+**Currently-Running panel** — blue border, animated pulse indicator, inline
+progress bar (`processed / total`), current step name and current item string,
+elapsed time, and a `<details>` tail showing the last 50 event lines. Updates
+live via PubSub without a page reload.
+
+**Failure banner** — red border (`border-red-300 bg-red-50`). Shows: step
+name, item (player/venue name + id), scrubbed endpoint URL, HTTP status, and a
+`<pre>`-rendered raw error string (no truncation in the UI; Progress truncates
+it at 4 KB before persistence). A **Re-run** button calls `run_predictions_now`
+with `force: true`. A **Dismiss** button sends `dismiss_failed_event`.
+
+**Initial Backfill card** — shows the date range that would be seeded (computed
+by `Predictions.earliest_data_date/0` + config floor). The **Start Initial
+Seed** button sends `start_initial_seed` after a `data-confirm` client-side
+warning about 4-8h runtime and ~284k API calls.
+
+**Recent Runs table** — existing table; each row gained a chevron `>` / `v`
+toggle. Clicking it sends `view_run_events` and lazily loads up to 500 rows
+from `system.pipeline_run_events`. Failed events render inline in red using the
+same failure fields as the failure banner.
+
+## AdminLive — Predictions PubSub topic
+
+`"predictions:pipeline:all"` — fan-in topic from
+`SportsFanatic.Predictions.Progress`. AdminLive subscribes on mount and
+receives `{:predictions_pipeline_event, %{run_id, run_kind, step, kind,
+inserted_at, payload}}` messages. Higher-level kinds `:run_started`,
+`:run_completed`, `:run_failed` toggle the Currently-Running panel.
 
 ## Joshua admin gate
 

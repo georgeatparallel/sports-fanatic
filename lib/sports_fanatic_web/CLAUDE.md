@@ -110,13 +110,14 @@ MLB-section pages use a 4-level breadcrumb:
 The same hierarchy appears in the visible `breadcrumbs/1` component **and** in
 the JSON-LD `BreadcrumbList`.
 
-Example for lineups: `Home → Baseball (/mlb/teams) → Lineups (/mlb/lineups/<today>) → <date>`.
+Example for the Players page: `Home → Baseball (/mlb/teams) → Players (/mlb/lineups/<today>) → <date>`.
 
-## Lineups nav link
+## Players nav link
 
-The Lineups link in the root layout nav (desktop and mobile) is **commented
-out** but the `/mlb/lineups/:date` route is fully functional via direct URL.
-The nav entry is hidden, not removed.
+The nav label "Game Day" has been renamed to **"Players"** in the root layout
+(desktop nav, mobile nav, and footer Content column). All three anchors point
+at `/mlb/lineups/{today_iso}`. The Game Day Magazine feature (`/mlb/game-day/…`)
+is a separate premium route and was not renamed.
 
 ## Plug pipelines
 
