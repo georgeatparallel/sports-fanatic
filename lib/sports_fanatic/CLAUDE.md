@@ -57,7 +57,7 @@ sf:page:team:{slug}                 TTL 10 min
 sf:page:lineup:today                TTL 2 min
 sf:page:lineup:{past-date}          TTL 24 hours
 sf:page:news:{date}:{slug}          TTL 5 min
-sf:page:scouting:{team}:{slug}      TTL 15 min
+sf:page:scouting:{team}:{slug}      TTL 15 min — invalidated on success by GenerateScoutingWorker AND GenerateScoutingOnDemandWorker (via invalidate_scouting_page/1) in addition to Pipeline.process_single_player/3
 sf:page:gameday:{date}:{slug}       TTL 10 min
 sf:page:injury:{slug}:{date}        TTL 60 min
 sf:page:team-magazine:{slug}:{date} TTL 30 min

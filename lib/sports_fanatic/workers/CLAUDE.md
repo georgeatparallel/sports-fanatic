@@ -29,7 +29,7 @@ max_attempts: <n>` and implement `perform/1`. Cron schedules are defined in
 | `FetchScheduleWorker` | `0 6 * * *` | Daily MLB schedule |
 | `FetchLineupsWorker` | `*/30 8-20 * * *` | Every 30 min during gameday window |
 | `FetchNewsWorker` | `*/15 * * * *` | Every 15 minutes (S3 + Python Bridge classify) |
-| `GenerateScoutingWorker` | `0 7 * * *` | Daily AI scouting |
+| `GenerateScoutingWorker` | `0 7 * * *` | Daily AI scouting — invalidates `sf:page:scouting:{team}:{slug}` per player on success |
 | `GenerateGameDayWorker` | `0 9 * * *` | Daily Game Day Magazines |
 | `GenerateSitemapWorker` | `0 */6 * * *` | Sitemap regeneration |
 | `CleanupWorker` | `0 3 * * *` | Daily housekeeping |
@@ -47,6 +47,7 @@ max_attempts: <n>` and implement `perform/1`. Cron schedules are defined in
 
 ## Non-cron (on-demand)
 
+- `GenerateScoutingOnDemandWorker` — on-demand scouting report generation (Claude path); invalidates `sf:page:scouting:{team}:{slug}` on success.
 - `ParseSettingWorker` — enqueued by `Agents.create_setting/2`.
 - `MainPostWorker` — enqueued by `XPostSchedulerWorker` at jittered times.
 - `EngagementWatcherWorker` — enqueued recursively by `MainPostWorker` and

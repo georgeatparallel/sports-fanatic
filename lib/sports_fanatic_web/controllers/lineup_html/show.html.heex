@@ -31,6 +31,7 @@
       id="player-search-input"
       placeholder={"Search any MLB player… (#{@roster_count} on file)"}
       autocomplete="off"
+      autofocus
       aria-controls="player-search-results"
       aria-expanded="false"
       class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -144,6 +145,24 @@
 
 <script>
   (function() {
+    // Mobile keyboard would pop on autofocus. Strip the attribute on
+    // touch-only devices so the input is still scrollable without the
+    // on-screen keyboard hijacking the viewport. Desktop / mouse users
+    // keep autofocus and get an immediate cursor in the search box.
+    try {
+      var isTouch = window.matchMedia &&
+        window.matchMedia('(hover: none) and (pointer: coarse)').matches;
+      if (isTouch) {
+        var el = document.getElementById('player-search-input');
+        if (el) {
+          el.removeAttribute('autofocus');
+          el.blur();
+        }
+      }
+    } catch (_e) {
+      // matchMedia unavailable — keep autofocus, default to desktop behavior
+    }
+
     var root = document.getElementById('player-search');
     if (!root) return;
     var input = document.getElementById('player-search-input');

@@ -120,6 +120,14 @@ defmodule SportsFanaticWeb.LineupControllerTest do
       assert body =~ ~s(type="application/json")
       assert body =~ "players-roster-data"
     end
+
+    test "search input has the autofocus attribute", %{conn: conn} do
+      conn = get(conn, "/mlb/lineups/#{@date_str}")
+      body = html_response(conn, 200)
+      # HEEx renders the bare attribute as `autofocus` (no value).
+      # We assert both id and autofocus appear inside the same opening tag.
+      assert body =~ ~r/id="player-search-input"[^>]*\bautofocus\b/
+    end
   end
 
   # --------------------------------------------------------------------------

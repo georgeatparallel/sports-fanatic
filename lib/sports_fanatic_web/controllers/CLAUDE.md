@@ -18,7 +18,7 @@ Phoenix controllers and their HTML modules. One controller per route group.
 | `TeamController` | `/mlb/teams`, `/mlb/teams/:team_slug` (also renders team magazine section) |
 | `LineupController` | `/mlb/lineups/:date` — **Players page** (in lineup / active / inactive groups, search dropdown, anonymous page cache) |
 | `NewsController` | `/mlb/news/today` (redirect), `/mlb/news/:date/:slug` |
-| `ScoutingController` | `/mlb/scouting/:team_slug/:player_slug` (public preview) |
+| `ScoutingController` | `/mlb/scouting/:team_slug/:player_slug` (public, full SEO content — renders complete report; premium adds prediction overlays at `/premium/scouting/...`) |
 | `GameDayController` | `/mlb/game-day/:date/:slug` (public preview) |
 | `SitemapController` | `/sitemap.xml`, `/sitemaps/:type`, `/robots.txt` |
 | `InjuryReportController` | `/mlb/injury-report`, `/mlb/injury-report/:player_slug`, `/mlb/injury-report/og/:player_slug.png` |
@@ -92,6 +92,11 @@ composing the path.
 6. Update `GenerateSitemapWorker` to include new URLs.
 7. Verify `git grep -n "raw(" lib/sports_fanatic_web/controllers/<name>_html`
    returns nothing.
+
+Security note: any addition of `raw/1` or `{:safe, _}` to a `*_html/*.heex`
+template that renders LLM-sourced or user-supplied content must trigger a
+security re-review. The public scouting template (`scouting_html/show.html.heex`)
+renders six LLM-sourced fields and relies entirely on HEEx auto-escaping.
 
 ## Stripe env vars
 

@@ -82,7 +82,7 @@ defmodule SportsFanaticWeb.Router do
     live "/mlb/news/:date", NewsLive, :index
     get "/mlb/news/:date/:slug", NewsController, :show
 
-    # Scouting preview (truncated, public)
+    # Scouting report (public, SEO — full content)
     get "/mlb/scouting/:team_slug/:player_slug", ScoutingController, :show
 
     # Game Day Magazine preview (public)
