@@ -290,6 +290,7 @@ defmodule SportsFanatic.X.InjuryReport do
            conflict_target: [:player_id, :run_date]
          ) do
       {:ok, report} ->
+        invalidate_players_caches(player)
         {:ok, %{report: report, player: player, team: player.team, cache_hit: false}}
 
       {:error, changeset} ->
@@ -297,6 +298,25 @@ defmodule SportsFanatic.X.InjuryReport do
         {:error, :insert_failed}
     end
   end
+
+  defp invalidate_players_caches(player) do
+    id = card_cache_id(player)
+    _ = SportsFanatic.Cache.del(SportsFanatic.Cache.player_card_key(id))
+    _ = SportsFanatic.Cache.del_pattern("sf:page:players:*")
+    :ok
+  rescue
+    _ -> :ok
+  end
+
+  defp card_cache_id(%Player{external_ids: %{} = ext, id: id}) do
+    case Map.get(ext, "mlb_id") || Map.get(ext, :mlb_id) do
+      v when is_integer(v) -> v
+      v when is_binary(v) and v != "" -> v
+      _ -> id
+    end
+  end
+
+  defp card_cache_id(%Player{id: id}), do: id
 
   defp clamp_status(s) when is_binary(s) do
     if s in InjuryReport.valid_statuses(), do: s, else: "unknown"

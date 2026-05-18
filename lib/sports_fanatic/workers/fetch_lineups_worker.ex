@@ -65,6 +65,8 @@ defmodule SportsFanatic.Workers.FetchLineupsWorker do
 
         Logger.info("Fetched #{length(players)} lineup entries for #{date}")
 
+        invalidate_players_page_cache(date)
+
         Progress.step_completed(run_id, :fetch_lineups,
           processed: length(players),
           total: length(players)
@@ -142,5 +144,11 @@ defmodule SportsFanatic.Workers.FetchLineupsWorker do
     |> String.normalize(:nfd)
     |> String.replace(~r/[\x{0300}-\x{036f}]/u, "")
     |> String.replace(".", "")
+  end
+
+  defp invalidate_players_page_cache(date) do
+    SportsFanatic.Cache.del(SportsFanatic.Cache.players_page_key(date))
+  rescue
+    _ -> :ok
   end
 end

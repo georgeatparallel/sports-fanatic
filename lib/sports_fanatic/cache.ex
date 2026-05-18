@@ -17,9 +17,12 @@ defmodule SportsFanatic.Cache do
     "sf:page:team:" => 600,
     "sf:page:lineup:today" => 120,
     "sf:page:lineup:" => 86_400,
+    "sf:page:players:" => 86_400,
     "sf:page:news:" => 300,
     "sf:page:scouting:" => 900,
     "sf:page:gameday:" => 600,
+    "sf:data:players:roster" => 86_400,
+    "sf:data:player:card:" => 21_600,
     "sf:data:predictions:" => 300,
     "sf:data:news:feed:" => 60,
     "sf:sitemap:" => 21_600
@@ -88,6 +91,33 @@ defmodule SportsFanatic.Cache do
 
   def lineup_page_key(date_str),
     do: "sf:page:lineup:#{date_str}"
+
+  @doc """
+  Page-cache key for the rewritten /mlb/lineups/:date Players page.
+  Accepts an ISO 8601 string or a `%Date{}`.
+  """
+  @spec players_page_key(Date.t() | String.t()) :: String.t()
+  def players_page_key(%Date{} = date),
+    do: "sf:page:players:#{Date.to_iso8601(date)}"
+
+  def players_page_key(date_str) when is_binary(date_str),
+    do: "sf:page:players:#{date_str}"
+
+  @doc """
+  Data-cache key for the slim roster used by the Players page search dropdown.
+  Single canonical key — the roster does not vary by date.
+  """
+  @spec players_roster_key() :: String.t()
+  def players_roster_key, do: "sf:data:players:roster"
+
+  @doc """
+  Data-cache key for the per-card render data (status, link target, headshot).
+  `id_or_mlb_id` is the integer mlb_id from `player.external_ids["mlb_id"]`
+  when present, falling back to the player's binary UUID.
+  """
+  @spec player_card_key(integer() | String.t()) :: String.t()
+  def player_card_key(id_or_mlb_id),
+    do: "sf:data:player:card:#{id_or_mlb_id}"
 
   def news_page_key(date_str, slug \\ nil) do
     if slug, do: "sf:page:news:#{date_str}:#{slug}", else: "sf:page:news:#{date_str}"

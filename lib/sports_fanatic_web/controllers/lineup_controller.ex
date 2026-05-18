@@ -2,71 +2,110 @@ defmodule SportsFanaticWeb.LineupController do
   use SportsFanaticWeb, :controller
 
   import Ecto.Query
-  alias SportsFanatic.Mlb.{Lineup, Player, ScheduledGame, Team}
-  alias SportsFanatic.Repo
 
+  alias SportsFanatic.{Cache, DateHelper, Players, Repo}
+  alias SportsFanatic.Mlb.ScheduledGame
+
+  require Logger
+
+  @doc """
+  Renders the Players page at `/mlb/lineups/:date`.
+
+  The route URL is preserved (sitemaps + inbound links still resolve), but
+  the response body is the new three-group player roster + global search
+  dropdown.
+
+  Caching strategy (ADR-002):
+
+    * **Anonymous visitors** — full rendered HTML document is read from
+      Valkey on a hit (zero Postgres, zero render work) and captured into
+      Valkey on a miss via `Plug.Conn.register_before_send/2`.
+    * **Authenticated visitors** — bypass the page cache (the layout
+      switches Sign In ↔ Dashboard per user), but still get the benefit of
+      the per-card and roster data caches inside the `Players` context.
+
+  Date param validation: invalid strings raise `Ecto.NoResultsError`
+  (matching prior behaviour); they propagate to a 404 via Plug's default
+  error handling.
+  """
   def show(conn, %{"date" => date_str}) do
-    date = Date.from_iso8601!(date_str)
+    date = parse_date(date_str)
 
-    games =
-      ScheduledGame
-      |> where([sg], sg.game_date == ^date)
-      |> order_by([sg], sg.game_datetime)
-      |> Repo.all()
+    current_user = conn.assigns[:current_user]
+    page_key = Cache.players_page_key(date)
 
-    lineups =
-      Lineup
-      |> where([l], l.game_date == ^date)
-      |> order_by([l], asc: l.team_code, asc: l.batting_order)
-      |> Repo.all()
-      |> Repo.preload(player: :team)
+    if is_nil(current_user) do
+      case safe_cache_get(page_key) do
+        {:ok, html} when is_binary(html) and byte_size(html) > 0 ->
+          conn
+          |> put_resp_content_type("text/html; charset=utf-8")
+          |> put_resp_header("cache-control", "public, max-age=60")
+          |> send_resp(200, html)
 
-    # Batch resolve teams by MLB ID from scheduled games
-    mlb_ids =
-      games
-      |> Enum.flat_map(fn g -> [g.away_mlb_id, g.home_mlb_id] end)
-      |> Enum.reject(&is_nil/1)
-      |> Enum.uniq()
-
-    teams_by_mlb_id =
-      if mlb_ids != [] do
-        Team
-        |> where([t], fragment("(? ->> 'mlb_id')::int = ANY(?)", t.external_ids, ^mlb_ids))
-        |> Repo.all()
-        |> Map.new(fn t ->
-          mlb_id = t.external_ids["mlb_id"]
-          {to_integer(mlb_id), t}
-        end)
-      else
-        %{}
+        _ ->
+          render_and_cache(conn, date, date_str, page_key)
       end
+    else
+      render_without_cache(conn, date, date_str)
+    end
+  end
 
-    # Group lineups by team_code for lookup via team abbreviation
-    lineups_by_team_code = Enum.group_by(lineups, & &1.team_code)
+  # ── private ─────────────────────────────────────────────────
 
-    # Resolve probable pitchers to player records for linking
-    pitcher_names =
-      games
-      |> Enum.flat_map(fn g -> [g.away_probable_pitcher, g.home_probable_pitcher] end)
-      |> Enum.reject(&is_nil/1)
-      |> Enum.uniq()
+  defp render_and_cache(conn, date, date_str, page_key) do
+    conn
+    |> Plug.Conn.register_before_send(fn sent_conn ->
+      maybe_cache_body(sent_conn, page_key)
+    end)
+    |> assign_seo(date, date_str)
+    |> assign_players_data(date)
+    |> put_resp_header("cache-control", "public, max-age=60")
+    |> render(:show)
+  end
 
-    pitchers_by_name =
-      if pitcher_names != [] do
-        Player
-        |> where([p], p.full_name in ^pitcher_names)
-        |> preload(:team)
-        |> Repo.all()
-        |> Map.new(fn p -> {p.full_name, p} end)
-      else
-        %{}
-      end
+  defp render_without_cache(conn, date, date_str) do
+    conn
+    |> assign_seo(date, date_str)
+    |> assign_players_data(date)
+    |> render(:show)
+  end
 
+  defp maybe_cache_body(%Plug.Conn{status: 200, resp_body: body} = conn, page_key)
+       when is_binary(body) and byte_size(body) > 0 do
+    ttl = DateHelper.seconds_until_eastern_midnight() |> max(600)
+    _ = safe_cache_set(page_key, body, ttl)
+    conn
+  end
+
+  defp maybe_cache_body(conn, _page_key), do: conn
+
+  defp assign_players_data(conn, date) do
+    %{groups: groups, cards: cards} = Players.groups_with_cards_for_date(date)
+    roster = Players.roster_for_search()
+    # SEC-ROSTER-1: escape: :html_safe emits < for `<` and \/ for `/`,
+    # so a player full_name containing `</script>` cannot break out of the
+    # `<script type="application/json">` tag in show.html.heex.
+    roster_json = Jason.encode!(roster, escape: :html_safe)
+
+    prev_date = nearest_lineup_date_before(date)
+    next_date = nearest_lineup_date_after(date)
+
+    conn
+    |> assign(:date, date)
+    |> assign(:date_str, Date.to_iso8601(date))
+    |> assign(:groups, groups)
+    |> assign(:cards, cards)
+    |> assign(:roster_json, roster_json)
+    |> assign(:roster_count, length(roster))
+    |> assign(:prev_date, prev_date)
+    |> assign(:next_date, next_date)
+  end
+
+  defp assign_seo(conn, date, date_str) do
     canonical = SportsFanaticWeb.SEO.absolute_url("/mlb/lineups/#{date_str}")
     site_url = SportsFanaticWeb.SEO.site_url()
-    today_iso = SportsFanatic.DateHelper.today() |> Date.to_iso8601()
+    today_iso = DateHelper.today() |> Date.to_iso8601()
 
-    # Build breadcrumb JSON-LD
     json_ld =
       Jason.encode!(%{
         "@context" => "https://schema.org",
@@ -87,7 +126,7 @@ defmodule SportsFanaticWeb.LineupController do
           %{
             "@type" => "ListItem",
             "position" => 3,
-            "name" => "Lineups",
+            "name" => "Players",
             "item" => site_url <> "/mlb/lineups/#{today_iso}"
           },
           %{
@@ -98,27 +137,25 @@ defmodule SportsFanaticWeb.LineupController do
         ]
       })
 
-    prev_date = nearest_lineup_date_before(date)
-    next_date = nearest_lineup_date_after(date)
+    formatted = format_date(date)
 
     conn
-    |> assign(:page_title, "MLB Lineups for #{format_date(date)} | Sports Fan Agent")
+    |> assign(:page_title, "MLB Players - #{formatted}")
     |> assign(
       :meta_description,
-      "Confirmed MLB lineups for #{format_date(date)}. Starting lineups, batting orders, and probable pitchers for all games."
+      "Every MLB player for #{formatted} — in the lineup, on the roster, or inactive. " <>
+        "Photos, positions, scouting status, and quick search across all of MLB."
     )
     |> assign(:canonical_url, canonical)
+    |> assign(:og_type, "website")
     |> assign(:json_ld, json_ld)
-    |> render(:show,
-      date: date,
-      date_str: date_str,
-      games: games,
-      teams_by_mlb_id: teams_by_mlb_id,
-      lineups_by_team_code: lineups_by_team_code,
-      pitchers_by_name: pitchers_by_name,
-      prev_date: prev_date,
-      next_date: next_date
-    )
+  end
+
+  defp parse_date(str) when is_binary(str) do
+    case Date.from_iso8601(str) do
+      {:ok, %Date{} = date} -> date
+      _ -> raise Ecto.NoResultsError, queryable: ScheduledGame
+    end
   end
 
   defp nearest_lineup_date_before(date) do
@@ -135,11 +172,21 @@ defmodule SportsFanaticWeb.LineupController do
     |> Repo.one()
   end
 
-  defp format_date(date) do
-    Calendar.strftime(date, "%B %d, %Y")
+  defp format_date(date), do: Calendar.strftime(date, "%B %d, %Y")
+
+  defp safe_cache_get(key) do
+    Cache.get(key)
+  rescue
+    e ->
+      Logger.warning("LineupController cache get failed: #{inspect(e)}")
+      {:error, :exception}
   end
 
-  defp to_integer(val) when is_integer(val), do: val
-  defp to_integer(val) when is_binary(val), do: String.to_integer(val)
-  defp to_integer(_), do: nil
+  defp safe_cache_set(key, value, ttl) do
+    Cache.set(key, value, ttl)
+  rescue
+    e ->
+      Logger.warning("LineupController cache set failed: #{inspect(e)}")
+      :ok
+  end
 end

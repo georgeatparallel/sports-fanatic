@@ -16,7 +16,7 @@ Phoenix controllers and their HTML modules. One controller per route group.
 | `PageController` | `/`, `/health` |
 | `PlayerController` | `/mlb/players`, `/mlb/players/:team_slug/:player_slug`, sources |
 | `TeamController` | `/mlb/teams`, `/mlb/teams/:team_slug` (also renders team magazine section) |
-| `LineupController` | `/mlb/lineups/:date` |
+| `LineupController` | `/mlb/lineups/:date` — **Players page** (in lineup / active / inactive groups, search dropdown, anonymous page cache) |
 | `NewsController` | `/mlb/news/today` (redirect), `/mlb/news/:date/:slug` |
 | `ScoutingController` | `/mlb/scouting/:team_slug/:player_slug` (public preview) |
 | `GameDayController` | `/mlb/game-day/:date/:slug` (public preview) |
