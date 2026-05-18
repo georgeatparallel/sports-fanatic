@@ -91,7 +91,7 @@ defmodule SportsFanatic.Predictions do
     Repo.query!(sql, [limit]).rows
     |> Enum.map(fn [id, status, started, completed, error, metadata] ->
       %{
-        id: id,
+        id: uuid_to_string(id),
         status: status,
         started_at: started,
         completed_at: completed,
@@ -102,6 +102,22 @@ defmodule SportsFanatic.Predictions do
   rescue
     _ -> []
   end
+
+  # Postgres returns `uuid` columns from raw `Repo.query!/2` as a 16-byte
+  # binary, which is NOT valid UTF-8 and crashes Jason when LiveView tries
+  # to ship it down the WebSocket. The Ecto schema layer auto-casts, but
+  # these helpers go through raw SQL for projection convenience, so we
+  # cast manually before anything reaches LiveView assigns.
+  defp uuid_to_string(nil), do: nil
+
+  defp uuid_to_string(<<_::128>> = bin) do
+    case Ecto.UUID.cast(bin) do
+      {:ok, str} -> str
+      :error -> nil
+    end
+  end
+
+  defp uuid_to_string(str) when is_binary(str), do: str
 
   @doc "Enqueue an immediate run. Pass `:today` or a `Date`."
   @spec run_now(Date.t() | :today) :: {:ok, Oban.Job.t()} | {:error, term}
@@ -232,9 +248,14 @@ defmodule SportsFanatic.Predictions do
   end
 
   @doc """
-  Returns the most-recent `running` pipeline_runs row, or nil. Used by
-  AdminLive to seed the Currently-Running panel when the user switches to
-  the Predictions tab mid-flight (spec §16 risk 6).
+  Returns the most-recent `running` pipeline_runs row enriched with the
+  last `pipeline_run_events` row for that run, or nil.
+
+  AdminLive uses this to seed the Currently-Running panel on tab switch and
+  on each tick. Even when no live PubSub event has arrived (e.g. the run was
+  started before the LV mounted, or the BEAM was restarted mid-run), the
+  panel can still render meaningful state because we surface the legacy
+  `metadata["steps"]` array AND the most-recent `pipeline_run_events` row.
   """
   @spec current_running_run() :: map() | nil
   def current_running_run do
@@ -249,19 +270,159 @@ defmodule SportsFanatic.Predictions do
 
     case Repo.query!(sql, []).rows do
       [[id, kind, started, current_step, metadata, checkpoint, sf, st] | _] ->
+        run_id = uuid_to_string(id)
+        metadata = metadata || %{}
+        checkpoint = checkpoint || %{}
+        completed_dates = Map.get(checkpoint, "completed_dates", [])
+
+        total_dates =
+          if sf && st do
+            Date.diff(st, sf) + 1
+          else
+            nil
+          end
+
         %{
-          id: id,
+          id: run_id,
           run_kind: kind,
           started_at: started,
           current_step: current_step,
-          metadata: metadata || %{},
-          checkpoint: checkpoint || %{},
+          metadata: metadata,
+          checkpoint: checkpoint,
           seed_from_date: sf,
-          seed_through_date: st
+          seed_through_date: st,
+          current_date:
+            Map.get(metadata, "current_date") || Map.get(checkpoint, "current_date") ||
+              Map.get(metadata, "run_date"),
+          completed_dates_count: length(completed_dates),
+          total_dates: total_dates,
+          legacy_steps: Map.get(metadata, "steps", []),
+          last_event: last_event_for_run(run_id)
         }
 
       _ ->
         nil
+    end
+  rescue
+    _ -> nil
+  end
+
+  @doc """
+  Marks a stuck `running` pipeline_runs row as `failed` with a manual
+  error string. Used by the admin Predictions tab when a worker has
+  crashed and left a `running` row that no one is updating.
+  """
+  @spec mark_run_failed(binary(), String.t()) :: :ok | {:error, term}
+  def mark_run_failed(run_id, error_text)
+      when is_binary(run_id) and is_binary(error_text) do
+    # Postgrex parameter encoding for a `uuid` column expects the raw 16-byte
+    # binary, NOT the 36-char hex string — we surfaced the string form via
+    # uuid_to_string/1 for LiveView/JSON, so we have to dump it back here.
+    with {:ok, bin_uuid} <- Ecto.UUID.dump(run_id),
+         {:ok, _} <-
+           Repo.query(
+             """
+             UPDATE system.pipeline_runs
+                SET status = 'failed',
+                    completed_at = NOW(),
+                    error = $2,
+                    updated_at = NOW()
+              WHERE id = $1
+                AND status = 'running'
+             """,
+             [bin_uuid, error_text]
+           ) do
+      :ok
+    else
+      :error -> {:error, :invalid_uuid}
+      {:error, reason} -> {:error, reason}
+    end
+  rescue
+    e -> {:error, e}
+  end
+
+  @doc """
+  Cancels any executing/scheduled/retryable Oban jobs for the orchestrator
+  workers and marks the pipeline_runs row as `failed`. Used by the admin
+  "Stop" button.
+  """
+  @spec stop_run(binary()) :: :ok | {:error, term}
+  def stop_run(run_id) when is_binary(run_id) do
+    workers = [
+      "SportsFanatic.Workers.InitialSeedWorker",
+      "SportsFanatic.Workers.DailyHitPredictionsWorker"
+    ]
+
+    cancelled_count =
+      from(j in Oban.Job,
+        where: j.worker in ^workers,
+        where: j.state in ["executing", "available", "scheduled", "retryable"]
+      )
+      |> Repo.all()
+      |> Enum.reduce(0, fn job, acc ->
+        case Oban.cancel_job(job.id) do
+          :ok -> acc + 1
+          _ -> acc
+        end
+      end)
+
+    note = "Manually stopped from admin UI (cancelled #{cancelled_count} Oban job(s))."
+    mark_run_failed(run_id, note)
+  rescue
+    e -> {:error, e}
+  end
+
+  @doc """
+  Updates `system.pipeline_runs.metadata.current_date` so the admin UI can
+  display which historical date the InitialSeedWorker is currently
+  processing. Fire-and-forget — never raises.
+  """
+  @spec mark_current_date(binary() | nil, Date.t() | binary() | nil) :: :ok
+  def mark_current_date(nil, _date), do: :ok
+  def mark_current_date(_run_id, nil), do: :ok
+
+  def mark_current_date(run_id, %Date{} = date),
+    do: mark_current_date(run_id, Date.to_iso8601(date))
+
+  def mark_current_date(run_id, date_iso) when is_binary(run_id) and is_binary(date_iso) do
+    case Ecto.UUID.dump(run_id) do
+      {:ok, bin} ->
+        Repo.query(
+          """
+          UPDATE system.pipeline_runs
+             SET metadata = jsonb_set(
+                              COALESCE(metadata, '{}'::jsonb),
+                              '{current_date}',
+                              to_jsonb($2::text),
+                              true
+                            ),
+                 updated_at = NOW()
+           WHERE id = $1
+          """,
+          [bin, date_iso]
+        )
+
+      :error ->
+        :ok
+    end
+
+    :ok
+  rescue
+    _ -> :ok
+  end
+
+  defp last_event_for_run(nil), do: nil
+
+  defp last_event_for_run(run_id) when is_binary(run_id) do
+    case Repo.one(
+           from(e in PipelineRunEvent,
+             where: e.pipeline_run_id == ^run_id,
+             order_by: [desc: e.seq],
+             limit: 1
+           )
+         ) do
+      nil -> nil
+      %PipelineRunEvent{} = ev -> Map.from_struct(ev) |> Map.drop([:__meta__])
     end
   rescue
     _ -> nil
@@ -294,7 +455,7 @@ defmodule SportsFanatic.Predictions do
     """
 
     case Repo.query!(sql, [metadata, seed_from, seed_through]).rows do
-      [[id] | _] -> id
+      [[id] | _] -> uuid_to_string(id)
       _ -> nil
     end
   rescue

@@ -15,10 +15,10 @@ Phoenix PubSub (topics `predictions:pipeline:<run_id>` and
 `predictions:pipeline:all`) so the admin UI streams the run live. Failures
 halt downstream steps and persist a checkpoint for Oban retries to resume from.
 
-## Data flow (daily, 8:00 AM ET)
+## Data flow (daily, 6:00 AM ET)
 
 ```
-Oban Cron (0 12 * * * UTC)
+Oban Cron (0 10 * * * UTC)
   → DailyHitPredictionsWorker (orchestrator)
       ├── FetchScheduleWorker     → MLB Stats API → mlb.scheduled_games
       ├── FetchLineupsWorker      → FantasyNerds  → mlb.lineups
@@ -41,7 +41,7 @@ Oban Cron (0 12 * * * UTC)
 
 ## Cron
 
-Default `0 12 * * *` (8:00 AM EDT = 12:00 UTC). Winter override to `0 13 * * *` via `PREDICTIONS_CRON_OVERRIDE`. Loaded from env at startup in `config/runtime.exs`; no rebuild required.
+Default `0 10 * * *` (6:00 AM EDT = 10:00 UTC; 5:00 AM EST during winter). Winter override to `0 11 * * *` via `PREDICTIONS_CRON_OVERRIDE` to keep firing at 6 AM ET year-round. Hardcoded in `config/config.exs` (Oban reads its crontab at compile time); the `PREDICTIONS_CRON_OVERRIDE` env var is also captured into `:sports_fanatic, :predictions, :cron` for runtime introspection but does NOT yet override the active schedule — see X-AGENT-001-equivalent drift note. Container restart required to change the schedule.
 
 ## Modules
 
@@ -146,7 +146,7 @@ All values come from `Application.get_env(:sports_fanatic, :predictions)` at run
 | Env Var | Default | Controls |
 |---------|---------|----------|
 | `PREDICTIONS_CONCURRENCY` | `8` | Default for steps without a step-specific override |
-| `PREDICTIONS_CRON_OVERRIDE` | `0 12 * * *` | Oban cron expression for `DailyHitPredictionsWorker` |
+| `PREDICTIONS_CRON_OVERRIDE` | `0 10 * * *` | Oban cron expression for `DailyHitPredictionsWorker` (read for runtime introspection; container restart required to actually retime the schedule) |
 | `PREDICTIONS_PITCHER_STATS_CONCURRENCY` | `4` | `FetchPitcherStatsWorker` `Task.async_stream` concurrency |
 | `PREDICTIONS_BVP_CONCURRENCY` | `6` | `FetchBvPWorker` `Task.async_stream` concurrency |
 | `PREDICTIONS_STATCAST_CONCURRENCY` | `4` | `SeedStatcastWorker` `Task.async_stream` concurrency |

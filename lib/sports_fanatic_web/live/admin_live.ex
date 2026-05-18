@@ -231,6 +231,7 @@ defmodule SportsFanaticWeb.AdminLive do
           runs = Predictions.list_runs(30)
           seed_eligibility = compute_seed_eligibility()
           active = snapshot_active_run()
+          schedule_predictions_tick(socket, active)
 
           assign(socket,
             prediction_runs: runs,
@@ -340,6 +341,39 @@ defmodule SportsFanaticWeb.AdminLive do
 
   def handle_event("dismiss_failed_event", _params, socket) do
     {:noreply, assign(socket, active_run_failed_event: nil)}
+  end
+
+  def handle_event("stop_run", %{"run-id" => run_id}, socket) do
+    case Predictions.stop_run(run_id) do
+      :ok ->
+        runs = Predictions.list_runs(30)
+
+        {:noreply,
+         socket
+         |> assign(active_run: nil, active_run_events: [], prediction_runs: runs)
+         |> put_flash(:info, "Pipeline stopped (run #{run_id}).")}
+
+      {:error, reason} ->
+        {:noreply, put_flash(socket, :error, "Could not stop: #{inspect(reason)}")}
+    end
+  end
+
+  def handle_event("mark_run_failed", %{"run-id" => run_id}, socket) do
+    age = socket.assigns[:active_run] && run_age_seconds(socket.assigns.active_run[:started_at])
+    note = "Manually marked failed from admin UI (age #{age || "?"}s, no live progress)."
+
+    case Predictions.mark_run_failed(run_id, note) do
+      :ok ->
+        runs = Predictions.list_runs(30)
+
+        {:noreply,
+         socket
+         |> assign(active_run: nil, active_run_events: [], prediction_runs: runs)
+         |> put_flash(:info, "Run #{run_id} marked failed.")}
+
+      {:error, reason} ->
+        {:noreply, put_flash(socket, :error, "Could not mark failed: #{inspect(reason)}")}
+    end
   end
 
   def handle_event("run_feed_research", _params, socket) do
@@ -805,6 +839,19 @@ defmodule SportsFanaticWeb.AdminLive do
        pipeline_player_statuses: %{},
        pipeline_runs: runs
      )}
+  end
+
+  def handle_info(:predictions_tick, socket) do
+    # Re-snapshot the active run every 5s while the Predictions tab is open.
+    # This is defense-in-depth against missed PubSub broadcasts and makes the
+    # "Last event Xs ago" / stale detection live without page reload.
+    if socket.assigns[:active_tab] == "predictions" do
+      active = snapshot_active_run()
+      schedule_predictions_tick(socket, active)
+      {:noreply, assign(socket, active_run: active)}
+    else
+      {:noreply, socket}
+    end
   end
 
   def handle_info({:job_finished, worker_name, duration_ms, state}, socket) do
@@ -2196,53 +2243,238 @@ defmodule SportsFanaticWeb.AdminLive do
       <%!-- Predictions Tab --%>
       <%= if @active_tab == "predictions" do %>
         <div class="space-y-6">
-          <%!-- Currently Running panel --%>
+          <%!-- Currently Running panel — vertical, status-aware --%>
           <%= if @active_run do %>
-            <div class="bg-white rounded-lg shadow-sm border border-blue-300 p-5">
-              <div class="flex items-center justify-between mb-3">
-                <div>
-                  <h3 class="text-lg font-semibold text-gray-900">
-                    <span class="inline-flex h-2 w-2 rounded-full bg-blue-500 mr-2 animate-pulse" />
-                    Running
-                    <span class="text-gray-500 text-sm">
-                      — <%= @active_run[:run_kind] || "daily" %>
+            <% health = run_health(@active_run) %>
+            <% elapsed_total = run_age_seconds(@active_run[:started_at]) %>
+            <% since_last = run_age_seconds(@active_run[:last_event_at]) %>
+            <div class={[
+              "bg-white rounded-lg shadow-sm border p-5",
+              case health do
+                :active -> "border-blue-300"
+                :idle -> "border-amber-300"
+                :stuck -> "border-red-300 bg-red-50"
+                _ -> "border-gray-300"
+              end
+            ]}>
+              <%!-- Header row with status pill + run_id + Mark-failed button --%>
+              <div class="flex items-start justify-between gap-3 mb-4">
+                <div class="flex items-center gap-2 flex-wrap">
+                  <span class={[
+                    "inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-semibold",
+                    case health do
+                      :active -> "bg-blue-100 text-blue-800"
+                      :idle -> "bg-amber-100 text-amber-800"
+                      :stuck -> "bg-red-100 text-red-800"
+                      _ -> "bg-gray-100 text-gray-800"
+                    end
+                  ]}>
+                    <span class={[
+                      "inline-flex h-2 w-2 rounded-full",
+                      case health do
+                        :active -> "bg-blue-500 animate-pulse"
+                        :idle -> "bg-amber-500"
+                        :stuck -> "bg-red-500"
+                        _ -> "bg-gray-400"
+                      end
+                    ]} />
+                    <%= case health do
+                      :active -> "Running"
+                      :idle -> "Idle — no progress"
+                      :stuck -> "Stuck — worker likely crashed"
+                      _ -> "Unknown"
+                    end %>
+                  </span>
+                  <span class="text-xs text-gray-500">
+                    <%= @active_run[:run_kind] || "daily" %>
+                  </span>
+                </div>
+
+                <button
+                  phx-click="stop_run"
+                  phx-value-run-id={@active_run[:run_id]}
+                  data-confirm={
+                    if health == :stuck,
+                      do: "Mark this run as failed? (Worker is no longer reporting progress.)",
+                      else: "Stop the running pipeline? Any in-flight Oban jobs will be cancelled."
+                  }
+                  class="bg-red-600 text-white px-3 py-1 rounded-md text-xs font-medium hover:bg-red-700 whitespace-nowrap"
+                >
+                  <%= if health == :stuck, do: "Mark failed", else: "Stop" %>
+                </button>
+              </div>
+
+              <%!-- Vertical key/value list --%>
+              <dl class="divide-y divide-gray-100 text-sm">
+                <div class="grid grid-cols-[8rem_1fr] gap-3 py-2">
+                  <dt class="text-gray-500 font-medium">Started</dt>
+                  <dd class="text-gray-800">
+                    <%= @active_run[:started_at] &&
+                      Calendar.strftime(@active_run[:started_at], "%Y-%m-%d %H:%M:%S UTC") %>
+                    <span class="text-gray-500 text-xs ml-2">
+                      (<%= humanize_age(elapsed_total) %>)
                     </span>
-                  </h3>
-                  <p class="text-xs text-gray-500 mt-1">
-                    Started <%= @active_run[:started_at] &&
-                      Calendar.strftime(@active_run[:started_at], "%Y-%m-%d %H:%M UTC") %> · run_id
-                    <code class="bg-gray-100 px-1 rounded text-[10px]">
+                  </dd>
+                </div>
+
+                <div class="grid grid-cols-[8rem_1fr] gap-3 py-2">
+                  <dt class="text-gray-500 font-medium">Run ID</dt>
+                  <dd>
+                    <code class="bg-gray-100 px-1.5 py-0.5 rounded text-xs font-mono">
                       <%= @active_run[:run_id] %>
                     </code>
-                  </p>
+                  </dd>
                 </div>
-              </div>
-              <div class="text-sm text-gray-700 mb-2">
-                Step: <span class="font-medium"><%= @active_run[:current_step] || "—" %></span>
-                <%= if @active_run[:total] do %>
-                  <span class="text-gray-500">
-                    (<%= @active_run[:processed] || 0 %> / <%= @active_run[:total] %>)
-                  </span>
+
+                <div class="grid grid-cols-[8rem_1fr] gap-3 py-2">
+                  <dt class="text-gray-500 font-medium">Step</dt>
+                  <dd class="text-gray-800 font-medium">
+                    <%= if @active_run[:current_step] do %>
+                      <%= @active_run[:current_step] %>
+                      <%= if @active_run[:total] do %>
+                        <span class="text-gray-500 font-normal ml-1">
+                          (<%= @active_run[:processed] || 0 %> / <%= @active_run[:total] %>)
+                        </span>
+                      <% end %>
+                    <% else %>
+                      <span class="text-gray-400 italic">no step reported yet</span>
+                    <% end %>
+                  </dd>
+                </div>
+
+                <%= if @active_run[:current_date] do %>
+                  <div class="grid grid-cols-[8rem_1fr] gap-3 py-2">
+                    <dt class="text-gray-500 font-medium">For date</dt>
+                    <dd class="text-gray-800 font-mono text-sm">
+                      <%= @active_run[:current_date] %>
+                      <%= if @active_run[:run_kind] == "initial_seed" && @active_run[:total_dates] do %>
+                        <span class="text-gray-500 text-xs ml-2">
+                          (date <%= @active_run[:completed_dates_count] + 1 %> of <%= @active_run[
+                            :total_dates
+                          ] %>)
+                        </span>
+                      <% end %>
+                    </dd>
+                  </div>
                 <% end %>
-              </div>
-              <%= if @active_run[:current_item] do %>
-                <div class="text-sm text-gray-600 mb-3">
-                  Current: <span class="font-mono text-xs"><%= @active_run[:current_item] %></span>
+
+                <%= if @active_run[:current_item] do %>
+                  <div class="grid grid-cols-[8rem_1fr] gap-3 py-2">
+                    <dt class="text-gray-500 font-medium">Current item</dt>
+                    <dd>
+                      <code class="font-mono text-xs text-gray-800">
+                        <%= @active_run[:current_item] %>
+                      </code>
+                    </dd>
+                  </div>
+                <% end %>
+
+                <div class="grid grid-cols-[8rem_1fr] gap-3 py-2">
+                  <dt class="text-gray-500 font-medium">Last event</dt>
+                  <dd class={[
+                    case health do
+                      :stuck -> "text-red-700 font-medium"
+                      :idle -> "text-amber-700"
+                      _ -> "text-gray-700"
+                    end
+                  ]}>
+                    <%= cond do %>
+                      <% since_last -> %>
+                        <%= humanize_age(since_last) %>
+                        <%= if @active_run[:last_event_kind] do %>
+                          <span class="text-gray-500 text-xs ml-1">
+                            (<%= @active_run[:last_event_kind] %>)
+                          </span>
+                        <% end %>
+                      <% elapsed_total && elapsed_total > 60 -> %>
+                        <span class="italic">
+                          no events ever recorded — pipeline started <%= humanize_age(elapsed_total) %> but never reported progress
+                        </span>
+                      <% true -> %>
+                        <span class="italic text-gray-500">waiting for first event…</span>
+                    <% end %>
+                  </dd>
                 </div>
-              <% end %>
+
+                <%= if @active_run[:seed_from_date] && @active_run[:seed_through_date] do %>
+                  <div class="grid grid-cols-[8rem_1fr] gap-3 py-2">
+                    <dt class="text-gray-500 font-medium">Seed range</dt>
+                    <dd class="text-gray-800 font-mono text-xs">
+                      <%= @active_run[:seed_from_date] %> → <%= @active_run[:seed_through_date] %>
+                    </dd>
+                  </div>
+                <% end %>
+              </dl>
+
+              <%!-- Progress bar (only when we know the total) --%>
               <%= if @active_run[:total] && @active_run[:total] > 0 do %>
-                <div class="w-full bg-gray-200 rounded h-2 overflow-hidden">
-                  <div
-                    class="bg-blue-500 h-2 transition-all"
-                    style={"width: #{progress_pct(@active_run[:processed] || 0, @active_run[:total])}%"}
-                  />
+                <div class="mt-4">
+                  <div class="flex justify-between text-xs text-gray-600 mb-1">
+                    <span>Progress</span>
+                    <span>
+                      <%= progress_pct(@active_run[:processed] || 0, @active_run[:total]) %>%
+                    </span>
+                  </div>
+                  <div class="w-full bg-gray-200 rounded h-2 overflow-hidden">
+                    <div
+                      class={[
+                        "h-2 transition-all",
+                        case health do
+                          :stuck -> "bg-red-500"
+                          :idle -> "bg-amber-500"
+                          _ -> "bg-blue-500"
+                        end
+                      ]}
+                      style={"width: #{progress_pct(@active_run[:processed] || 0, @active_run[:total])}%"}
+                    />
+                  </div>
                 </div>
               <% end %>
 
+              <%!-- Legacy steps list (from pipeline_runs.metadata.steps[]) --%>
+              <%= if @active_run[:legacy_steps] && @active_run[:legacy_steps] != [] do %>
+                <div class="mt-4 pt-4 border-t border-gray-100">
+                  <p class="text-xs text-gray-500 font-medium mb-2">
+                    Step history (from metadata):
+                  </p>
+                  <ul class="space-y-1 text-xs font-mono">
+                    <%= for step <- @active_run[:legacy_steps] do %>
+                      <li class="flex gap-2 items-baseline">
+                        <span class={[
+                          "inline-block w-2 h-2 rounded-full mt-1.5",
+                          case Map.get(step, "status") do
+                            "completed" -> "bg-green-500"
+                            "failed" -> "bg-red-500"
+                            "running" -> "bg-blue-500 animate-pulse"
+                            _ -> "bg-gray-400"
+                          end
+                        ]} />
+                        <span class="font-medium text-gray-800">
+                          <%= Map.get(step, "step") || Map.get(step, "name") || "?" %>
+                        </span>
+                        <span class="text-gray-500">
+                          <%= Map.get(step, "status") || "" %>
+                        </span>
+                        <%= if c = Map.get(step, "records_processed") || Map.get(step, "count") do %>
+                          <span class="text-gray-500">· <%= c %> records</span>
+                        <% end %>
+                        <%= if d = Map.get(step, "duration_ms") do %>
+                          <span class="text-gray-500">· <%= d %>ms</span>
+                        <% end %>
+                        <%= if e = Map.get(step, "error") do %>
+                          <span class="text-red-700 truncate"><%= e %></span>
+                        <% end %>
+                      </li>
+                    <% end %>
+                  </ul>
+                </div>
+              <% end %>
+
+              <%!-- Recent events tail (from pipeline_run_events) --%>
               <%= if @active_run_events != [] do %>
-                <details class="mt-4">
-                  <summary class="text-xs text-gray-600 cursor-pointer hover:text-gray-900">
-                    Recent events (tail)
+                <details class="mt-4 pt-4 border-t border-gray-100" open>
+                  <summary class="text-xs text-gray-600 cursor-pointer hover:text-gray-900 font-medium">
+                    Recent events (<%= @active_run_total_events %> total)
                   </summary>
                   <ul class="mt-2 max-h-64 overflow-y-auto divide-y divide-gray-100 text-xs font-mono">
                     <%= for ev <- Enum.take(@active_run_events, 25) do %>
@@ -2338,8 +2570,8 @@ defmodule SportsFanaticWeb.AdminLive do
               <div>
                 <h3 class="text-lg font-semibold text-gray-900">Hit Predictions Pipeline</h3>
                 <p class="text-xs text-gray-500 mt-1">
-                  Default schedule: <code class="bg-gray-100 px-1 py-0.5 rounded">0 12 * * *</code>
-                  UTC (8 AM ET during EDT).
+                  Default schedule: <code class="bg-gray-100 px-1 py-0.5 rounded">0 10 * * *</code>
+                  UTC (6 AM ET during EDT; 5 AM ET during EST).
                 </p>
               </div>
               <div class="flex items-center gap-3">
@@ -2502,9 +2734,26 @@ defmodule SportsFanaticWeb.AdminLive do
   defp duration_ms_for(%{completed_at: nil}), do: "running"
 
   defp duration_ms_for(%{started_at: s, completed_at: c}) do
-    ms = DateTime.diff(c, s, :millisecond)
+    ms = diff_ms(c, s)
     "#{div(ms, 1000)}s"
   end
+
+  # NaiveDateTime and DateTime can't be mixed with DateTime.diff/3 — raw
+  # Repo.query! returns NaiveDateTime, Ecto.Schema timestamps return DateTime.
+  # Handle both shapes (and pairs of either) so the Recent Runs table doesn't
+  # crash regardless of which path produced the timestamps.
+  defp diff_ms(%DateTime{} = c, %DateTime{} = s), do: DateTime.diff(c, s, :millisecond)
+
+  defp diff_ms(%NaiveDateTime{} = c, %NaiveDateTime{} = s),
+    do: NaiveDateTime.diff(c, s, :millisecond)
+
+  defp diff_ms(%DateTime{} = c, %NaiveDateTime{} = s),
+    do: NaiveDateTime.diff(DateTime.to_naive(c), s, :millisecond)
+
+  defp diff_ms(%NaiveDateTime{} = c, %DateTime{} = s),
+    do: NaiveDateTime.diff(c, DateTime.to_naive(s), :millisecond)
+
+  defp diff_ms(_, _), do: 0
 
   defp progress_pct(processed, total)
        when is_integer(processed) and is_integer(total) and total > 0 do
@@ -2736,21 +2985,96 @@ defmodule SportsFanaticWeb.AdminLive do
     _ -> %{earliest_date: nil, seed_from: nil, seed_through: nil}
   end
 
+  defp schedule_predictions_tick(socket, active_run) do
+    if connected?(socket) and active_run do
+      Process.send_after(self(), :predictions_tick, 5_000)
+    end
+
+    :ok
+  end
+
   defp snapshot_active_run do
     case Predictions.current_running_run() do
       nil ->
         nil
 
       %{} = row ->
+        ev = row[:last_event]
+        payload = (ev && ev[:payload]) || %{}
+
         %{
           run_id: row.id,
           run_kind: row.run_kind,
           started_at: row.started_at,
-          current_step: row.current_step,
-          processed: 0,
-          total: nil,
-          current_item: nil
+          current_step:
+            row.current_step || fetch_payload(payload, [:step, "step"]) ||
+              latest_legacy_step(row[:legacy_steps]),
+          processed: fetch_payload(payload, [:processed, "processed"]) || 0,
+          total: fetch_payload(payload, [:total, "total"]),
+          current_item: fetch_payload(payload, [:current_item, "current_item"]),
+          last_event_at: ev && ev[:inserted_at],
+          last_event_kind: ev && ev[:kind],
+          legacy_steps: row[:legacy_steps] || [],
+          seed_from_date: row[:seed_from_date],
+          seed_through_date: row[:seed_through_date],
+          current_date: row[:current_date],
+          completed_dates_count: row[:completed_dates_count] || 0,
+          total_dates: row[:total_dates]
         }
+    end
+  end
+
+  defp fetch_payload(map, keys) when is_map(map) do
+    Enum.find_value(keys, fn k -> Map.get(map, k) end)
+  end
+
+  defp fetch_payload(_, _), do: nil
+
+  defp latest_legacy_step(steps) when is_list(steps) and steps != [] do
+    case List.last(steps) do
+      %{"step" => s} -> s
+      %{"name" => s} -> s
+      _ -> nil
+    end
+  end
+
+  defp latest_legacy_step(_), do: nil
+
+  @doc false
+  def run_age_seconds(nil), do: nil
+
+  def run_age_seconds(%DateTime{} = ts) do
+    DateTime.diff(DateTime.utc_now(), ts, :second)
+  end
+
+  def run_age_seconds(%NaiveDateTime{} = ts) do
+    NaiveDateTime.diff(NaiveDateTime.utc_now(), ts, :second)
+  end
+
+  @doc false
+  # :active under 30s, :idle 30s..5min, :stuck > 5min (or no events at all
+  # AND start > 5min old). Used by the Currently-Running panel for colour.
+  def run_health(active_run) when is_map(active_run) do
+    last_at = active_run[:last_event_at]
+    started_at = active_run[:started_at]
+
+    case run_age_seconds(last_at || started_at) do
+      nil -> :unknown
+      age when age <= 30 -> :active
+      age when age <= 300 -> :idle
+      _ -> :stuck
+    end
+  end
+
+  def run_health(_), do: :unknown
+
+  defp humanize_age(nil), do: "—"
+
+  defp humanize_age(seconds) when is_integer(seconds) do
+    cond do
+      seconds < 60 -> "#{seconds}s ago"
+      seconds < 3600 -> "#{div(seconds, 60)}m #{rem(seconds, 60)}s ago"
+      true -> "#{div(seconds, 3600)}h #{div(rem(seconds, 3600), 60)}m ago"
     end
   end
 end

@@ -239,6 +239,20 @@ defmodule SportsFanatic.Workers.DailyHitPredictionsWorker do
     _ -> []
   end
 
+  # Postgrex expects a 16-byte binary for `uuid` parameters. `open_pipeline_run`
+  # returns the binary form, but callers may pass the 36-char string form
+  # (e.g. when the run_id was round-tripped through Oban job args or LiveView
+  # assigns). Accept both transparently.
+  defp normalize_run_id(nil), do: nil
+  defp normalize_run_id(<<_::128>> = bin), do: bin
+
+  defp normalize_run_id(str) when is_binary(str) do
+    case Ecto.UUID.dump(str) do
+      {:ok, bin} -> bin
+      :error -> str
+    end
+  end
+
   defp close_pipeline_run(nil, _, _, _), do: :ok
 
   defp close_pipeline_run(id, status, count, error) do
@@ -252,10 +266,16 @@ defmodule SportsFanatic.Workers.DailyHitPredictionsWorker do
              updated_at = NOW()
        WHERE id = $1
       """,
-      [id, status, error, count]
+      [normalize_run_id(id), status, error, count]
     )
   rescue
-    _ -> :ok
+    e ->
+      Logger.error(
+        "DailyHitPredictionsWorker: close_pipeline_run FAILED (run stays 'running'): " <>
+          Exception.message(e)
+      )
+
+      :ok
   end
 
   defp insert_pipeline_step(nil, _, _, _, _, _), do: :ok
@@ -284,7 +304,7 @@ defmodule SportsFanatic.Workers.DailyHitPredictionsWorker do
              updated_at = NOW()
        WHERE id = $1
       """,
-      [run_id, step]
+      [normalize_run_id(run_id), step]
     )
   rescue
     _ -> :ok

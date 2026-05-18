@@ -81,7 +81,7 @@ config :sports_fanatic, Oban,
        {"0 14 * * *", SportsFanatic.Workers.ScheduledExaSearchWorker},
        {"0 13 * * *", SportsFanatic.Workers.FeedResearchWorker},
        # Hit predictions
-       {"0 12 * * *", SportsFanatic.Workers.DailyHitPredictionsWorker},
+       {"0 10 * * *", SportsFanatic.Workers.DailyHitPredictionsWorker},
        # X (Twitter) marketing agent
        {"30 15 * * *", SportsFanatic.Workers.XPostSchedulerWorker},
        {"0 * * * *", SportsFanatic.Workers.RefreshXTokenWorker},

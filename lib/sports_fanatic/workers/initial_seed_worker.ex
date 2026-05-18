@@ -35,6 +35,7 @@ defmodule SportsFanatic.Workers.InitialSeedWorker do
       states: [:available, :scheduled, :executing, :retryable]
     ]
 
+  alias SportsFanatic.Predictions
   alias SportsFanatic.Predictions.Progress
   alias SportsFanatic.Repo
 
@@ -126,6 +127,7 @@ defmodule SportsFanatic.Workers.InitialSeedWorker do
   end
 
   defp run_one_date(date, run_id) do
+    Predictions.mark_current_date(run_id, date)
     Progress.mark_current_step(run_id, "seed_date_#{Date.to_iso8601(date)}")
 
     steps = [

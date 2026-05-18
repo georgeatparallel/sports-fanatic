@@ -78,7 +78,7 @@ config :sports_fanatic, :predictions,
   weather_concurrency: String.to_integer(System.get_env("PREDICTIONS_WEATHER_CONCURRENCY", "8")),
   feature_compute_concurrency:
     String.to_integer(System.get_env("PREDICTIONS_FEATURE_COMPUTE_CONCURRENCY", "16")),
-  cron: System.get_env("PREDICTIONS_CRON_OVERRIDE", "0 12 * * *"),
+  cron: System.get_env("PREDICTIONS_CRON_OVERRIDE", "0 10 * * *"),
   open_meteo_api_key: open_meteo_api_key,
   open_meteo_timeout_ms:
     String.to_integer(System.get_env("PREDICTIONS_OPEN_METEO_TIMEOUT_MS", "15000")),
