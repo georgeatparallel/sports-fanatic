@@ -26,15 +26,13 @@ defmodule SportsFanatic.Workers.SeedPitcherHistoryWorker do
   def perform(%Oban.Job{args: args}) do
     run_id = parse_run_id(args["pipeline_run_id"])
 
-    cond do
-      is_binary(args["date"]) ->
-        case parse_date(args["date"]) do
-          %Date{} = d -> run_for_date(d, run_id)
-          _ -> run(args["days"] || 30, run_id)
-        end
-
-      true ->
-        run(args["days"] || 30, run_id)
+    if is_binary(args["date"]) do
+      case parse_date(args["date"]) do
+        %Date{} = d -> run_for_date(d, run_id)
+        _ -> run(args["days"] || 30, run_id)
+      end
+    else
+      run(args["days"] || 30, run_id)
     end
   end
 

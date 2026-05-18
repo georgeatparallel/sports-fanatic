@@ -206,30 +206,28 @@ defmodule SportsFanatic.Predictions do
         %Date{} = earliest -> latest(Date.add(earliest, -1), seed_from_floor)
       end
 
-    cond do
-      Date.compare(seed_from, seed_through) == :gt ->
-        {:ok, :nothing_to_do}
+    if Date.compare(seed_from, seed_through) == :gt do
+      {:ok, :nothing_to_do}
+    else
+      # Eagerly open a pipeline_runs row so the admin UI sees the run_kind
+      # before the worker boots. The worker itself will re-use this id if
+      # we pass it via args.
+      run_id =
+        open_seed_pipeline_run(seed_from, seed_through)
 
-      true ->
-        # Eagerly open a pipeline_runs row so the admin UI sees the run_kind
-        # before the worker boots. The worker itself will re-use this id if
-        # we pass it via args.
-        run_id =
-          open_seed_pipeline_run(seed_from, seed_through)
+      args = %{
+        "seed_from" => Date.to_iso8601(seed_from),
+        "seed_through" => Date.to_iso8601(seed_through),
+        "pipeline_run_id" => run_id
+      }
 
-        args = %{
-          "seed_from" => Date.to_iso8601(seed_from),
-          "seed_through" => Date.to_iso8601(seed_through),
-          "pipeline_run_id" => run_id
-        }
+      case args |> InitialSeedWorker.new() |> Oban.insert() do
+        {:ok, %Oban.Job{id: id}} ->
+          {:ok, %{job_id: id, seed_from: seed_from, seed_through: seed_through}}
 
-        case args |> InitialSeedWorker.new() |> Oban.insert() do
-          {:ok, %Oban.Job{id: id}} ->
-            {:ok, %{job_id: id, seed_from: seed_from, seed_through: seed_through}}
-
-          {:error, reason} ->
-            {:error, reason}
-        end
+        {:error, reason} ->
+          {:error, reason}
+      end
     end
   end
 

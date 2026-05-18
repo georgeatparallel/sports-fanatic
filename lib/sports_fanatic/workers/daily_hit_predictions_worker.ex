@@ -124,29 +124,27 @@ defmodule SportsFanatic.Workers.DailyHitPredictionsWorker do
     # Backwards-compat: keep appending to pipeline_runs.metadata.steps[]
     insert_pipeline_step(run_id, name, status, count, duration_ms, error)
 
-    cond do
-      status == "failed" ->
-        # Halt-on-any-failure (was: only :predict_hits halted before).
-        {:halt, {:error, %{step: name, error: error}}}
+    if status == "failed" do
+      # Halt-on-any-failure (was: only :predict_hits halted before).
+      {:halt, {:error, %{step: name, error: error}}}
+    else
+      new_completed = completed ++ [Atom.to_string(name)]
 
-      true ->
-        new_completed = completed ++ [Atom.to_string(name)]
+      # Persist the checkpoint so an Oban retry can resume from here.
+      Progress.checkpoint(run_id, %{
+        "v" => 1,
+        "completed_steps" => new_completed,
+        "current_step" => nil,
+        "failed_at" => nil
+      })
 
-        # Persist the checkpoint so an Oban retry can resume from here.
-        Progress.checkpoint(run_id, %{
-          "v" => 1,
-          "completed_steps" => new_completed,
-          "current_step" => nil,
-          "failed_at" => nil
-        })
+      carry =
+        case name do
+          :predict_hits -> count
+          _ -> 0
+        end
 
-        carry =
-          case name do
-            :predict_hits -> count
-            _ -> 0
-          end
-
-        {:cont, {:ok, carry, new_completed}}
+      {:cont, {:ok, carry, new_completed}}
     end
   end
 
