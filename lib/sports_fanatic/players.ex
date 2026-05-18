@@ -203,23 +203,30 @@ defmodule SportsFanatic.Players do
   # ── private queries ─────────────────────────────────────────
 
   defp lineup_group(date) do
-    Repo.all(
-      from(l in Lineup,
-        where: l.game_date == ^date and not is_nil(l.player_id),
-        join: p in Player,
-        on: p.id == l.player_id,
-        left_join: t in assoc(p, :team),
-        where: not is_nil(p.slug),
-        distinct: p.id,
-        order_by: [asc: p.last_name, asc: p.full_name, asc: p.id],
-        select: %{
-          player: p,
-          team: t,
-          position: l.position,
-          batting_order: l.batting_order
-        }
-      )
+    # Postgres `DISTINCT ON (p.id)` requires ORDER BY to start with the
+    # DISTINCT ON expressions, so we sort by p.id at the DB level to make the
+    # row pick deterministic (handles double-header / two-lineup edge cases)
+    # and re-sort by last_name in Elixir for the user-facing alphabetical
+    # ordering.
+    from(l in Lineup,
+      where: l.game_date == ^date and not is_nil(l.player_id),
+      join: p in Player,
+      on: p.id == l.player_id,
+      left_join: t in assoc(p, :team),
+      where: not is_nil(p.slug),
+      distinct: p.id,
+      order_by: [asc: p.id],
+      select: %{
+        player: p,
+        team: t,
+        position: l.position,
+        batting_order: l.batting_order
+      }
     )
+    |> Repo.all()
+    |> Enum.sort_by(fn row ->
+      {row.player.last_name || "", row.player.full_name || "", row.player.id}
+    end)
   end
 
   defp active_group([]), do: do_active_group([])

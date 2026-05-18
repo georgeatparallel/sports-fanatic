@@ -132,9 +132,9 @@ defmodule SportsFanaticWeb.LineupControllerTest do
         # Pre-populate the players page cache with a known stub
         :ok = Cache.set(Cache.players_page_key(@date_str), @cache_stub, 60)
         on_exit(fn -> Cache.del(Cache.players_page_key(@date_str)) end)
-        {:ok, :valkey_available}
+        [valkey_available: true]
       else
-        {:ok, :valkey_unavailable}
+        [valkey_available: false]
       end
     end
 
@@ -184,9 +184,9 @@ defmodule SportsFanaticWeb.LineupControllerTest do
         auth_stub = "<html><body>ANONYMOUS_STUB_NOT_FOR_AUTH</body></html>"
         :ok = Cache.set(Cache.players_page_key(@date_str), auth_stub, 60)
         on_exit(fn -> Cache.del(Cache.players_page_key(@date_str)) end)
-        {:ok, :valkey_available}
+        [valkey_available: true]
       else
-        {:ok, :valkey_unavailable}
+        [valkey_available: false]
       end
     end
 
