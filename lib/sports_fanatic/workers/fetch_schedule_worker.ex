@@ -41,6 +41,8 @@ defmodule SportsFanatic.Workers.FetchScheduleWorker do
         Enum.each(games, &upsert_game/1)
         Logger.info("FetchScheduleWorker: fetched #{length(games)} games for #{date}")
 
+        invalidate_game_card_cache(date)
+
         Progress.step_completed(run_id, :fetch_schedule,
           processed: length(games),
           total: length(games)
@@ -134,4 +136,11 @@ defmodule SportsFanatic.Workers.FetchScheduleWorker do
 
   defp parse_run_id(nil), do: nil
   defp parse_run_id(s) when is_binary(s), do: s
+
+  defp invalidate_game_card_cache(%Date{} = date) do
+    pattern = "sf:data:game_card:player:*:#{Date.to_iso8601(date)}"
+    SportsFanatic.Cache.del_pattern(pattern)
+  rescue
+    _ -> :ok
+  end
 end

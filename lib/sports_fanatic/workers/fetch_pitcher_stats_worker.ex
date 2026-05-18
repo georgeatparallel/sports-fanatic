@@ -61,6 +61,8 @@ defmodule SportsFanatic.Workers.FetchPitcherStatsWorker do
 
     case errors do
       [] ->
+        invalidate_game_card_cache(date)
+
         Progress.step_completed(run_id, :fetch_pitcher_stats,
           processed: count,
           total: total,
@@ -73,6 +75,13 @@ defmodule SportsFanatic.Workers.FetchPitcherStatsWorker do
         # Loud failure: surface the first error.
         {:error, first}
     end
+  end
+
+  defp invalidate_game_card_cache(%Date{} = date) do
+    pattern = "sf:data:game_card:player:*:#{Date.to_iso8601(date)}"
+    SportsFanatic.Cache.del_pattern(pattern)
+  rescue
+    _ -> :ok
   end
 
   defp candidate_pitchers(date) do

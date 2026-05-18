@@ -3,6 +3,7 @@ defmodule SportsFanaticWeb.ScoutingController do
 
   import Ecto.Query
   alias SportsFanatic.Content.ScoutingReport
+  alias SportsFanatic.Mlb
   alias SportsFanatic.Mlb.{Player, Team}
   alias SportsFanatic.Predictions
   alias SportsFanatic.Repo
@@ -23,6 +24,8 @@ defmodule SportsFanaticWeb.ScoutingController do
       |> Repo.one()
 
     today = SportsFanatic.DateHelper.today()
+    game_card = Mlb.todays_game_for_player(player, today)
+
     mlb_id = get_in(player.external_ids, ["mlb_id"])
 
     today_hit_prediction =
@@ -45,6 +48,7 @@ defmodule SportsFanaticWeb.ScoutingController do
       player: player,
       team: team,
       report: report,
+      game_card: game_card,
       today_hit_prediction: today_hit_prediction
     )
   end

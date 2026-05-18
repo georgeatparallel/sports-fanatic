@@ -2,7 +2,7 @@ defmodule SportsFanaticWeb.ScoutingControllerTest do
   use SportsFanaticWeb.ConnCase, async: true
 
   alias SportsFanatic.Content.ScoutingReport
-  alias SportsFanatic.Mlb.{Player, Team}
+  alias SportsFanatic.Mlb.{Player, ScheduledGame, Team}
   alias SportsFanatic.Repo
 
   defp create_team(attrs \\ %{}) do
@@ -28,6 +28,24 @@ defmodule SportsFanaticWeb.ScoutingControllerTest do
     }
 
     Repo.insert!(Player.changeset(%Player{}, Map.merge(defaults, attrs)))
+  end
+
+  defp create_scheduled_game(home_team_name, away_team_name, game_date, attrs \\ %{}) do
+    n = System.unique_integer([:positive])
+
+    defaults = %{
+      game_id: n,
+      game_date: game_date,
+      game_datetime: DateTime.new!(game_date, ~T[23:05:00], "Etc/UTC"),
+      home_name: home_team_name,
+      away_name: away_team_name,
+      home_probable_pitcher: "Home Pitcher #{n}",
+      away_probable_pitcher: "Away Pitcher #{n}",
+      venue_name: "Test Stadium #{n}",
+      status: "scheduled"
+    }
+
+    Repo.insert!(ScheduledGame.changeset(%ScheduledGame{}, Map.merge(defaults, attrs)))
   end
 
   defp create_report(player, attrs \\ %{}) do
@@ -200,6 +218,97 @@ defmodule SportsFanaticWeb.ScoutingControllerTest do
       refute body =~ "Strengths"
       refute body =~ "Weaknesses"
       refute body =~ "Unlock Full Report"
+    end
+  end
+
+  # --------------------------------------------------------------------------
+  # Game card integration — regression for the "No game today" bug
+  # --------------------------------------------------------------------------
+
+  describe "GET /mlb/scouting/:team_slug/:player_slug — game card" do
+    setup do
+      team = create_team()
+      player = create_player(team)
+      {:ok, team: team, player: player}
+    end
+
+    # REGRESSION: before the fix the controller looked up mlb.hit_predictions
+    # (always nil in prod because no player has an mlb_id) and rendered
+    # "No game today for this player." when the lookup returned nil. The new
+    # template never contains that literal string — both game_card_panel/1 and
+    # today_hit_banner/1 render nothing when their assigns are nil.
+    test "does NOT render 'No game today' copy when no scheduled game exists (off-day)", %{
+      conn: conn,
+      team: team,
+      player: player
+    } do
+      # No scheduled game inserted for the player's team today.
+      conn = get(conn, "/mlb/scouting/#{team.slug}/#{player.slug}")
+      body = html_response(conn, 200)
+
+      assert body =~ player.full_name
+      refute body =~ "No game today"
+    end
+
+    test "does NOT render 'No game today' copy when no scheduled game exists and no report", %{
+      conn: conn,
+      team: team,
+      player: player
+    } do
+      conn = get(conn, "/mlb/scouting/#{team.slug}/#{player.slug}")
+      body = html_response(conn, 200)
+
+      refute body =~ "No game today"
+      # The empty-state scouting report message IS shown
+      assert body =~ "No scouting report available yet"
+    end
+
+    test "renders game card when a home scheduled game exists for today", %{
+      conn: conn,
+      team: team,
+      player: player
+    } do
+      today = SportsFanatic.DateHelper.today()
+      away_team = create_team(%{name: "Visiting Team"})
+
+      create_scheduled_game(team.name, away_team.name, today, %{
+        home_probable_pitcher: "Home Starter",
+        away_probable_pitcher: "Away Starter",
+        venue_name: "Home Park"
+      })
+
+      conn = get(conn, "/mlb/scouting/#{team.slug}/#{player.slug}")
+      body = html_response(conn, 200)
+
+      assert body =~ "Today&#39;s Game" or body =~ "Today's Game"
+      assert body =~ "vs"
+      assert body =~ "Away Starter"
+      assert body =~ "Home Park"
+      refute body =~ "No game today"
+    end
+
+    test "renders game card with '@' prefix for an away scheduled game", %{
+      conn: conn,
+      team: team,
+      player: player
+    } do
+      today = SportsFanatic.DateHelper.today()
+      home_team = create_team(%{name: "Home Side Team"})
+
+      create_scheduled_game(home_team.name, team.name, today, %{
+        home_probable_pitcher: "Home Starter",
+        away_probable_pitcher: "Away Starter",
+        venue_name: "Away Stadium"
+      })
+
+      conn = get(conn, "/mlb/scouting/#{team.slug}/#{player.slug}")
+      body = html_response(conn, 200)
+
+      assert body =~ "Today&#39;s Game" or body =~ "Today's Game"
+      assert body =~ "@"
+      assert body =~ "Home Starter"
+      assert body =~ "Away Stadium"
+      refute body =~ "No game today"
     end
   end
 end

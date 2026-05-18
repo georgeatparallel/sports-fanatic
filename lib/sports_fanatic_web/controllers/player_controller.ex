@@ -3,6 +3,7 @@ defmodule SportsFanaticWeb.PlayerController do
 
   import Ecto.Query
   alias SportsFanatic.Content.{NewsItem, ScoutingReport}
+  alias SportsFanatic.Mlb
   alias SportsFanatic.Mlb.{HrPick, Lineup, Pick, Player, Team}
   alias SportsFanatic.Predictions
   alias SportsFanatic.Repo
@@ -96,6 +97,9 @@ defmodule SportsFanaticWeb.PlayerController do
         false
       end
 
+    # Today's game card (sourced from mlb.scheduled_games, cached daily)
+    game_card = Mlb.todays_game_for_player(player, today)
+
     # Today's predictions
     mlb_id = get_in(player.external_ids, ["mlb_id"])
 
@@ -171,6 +175,7 @@ defmodule SportsFanaticWeb.PlayerController do
       scouting_pending: scouting_pending,
       hit_pick: hit_pick,
       hr_pick: hr_pick,
+      game_card: game_card,
       today_hit_prediction: today_hit_prediction,
       news: news,
       scouting_categories: scouting_categories
