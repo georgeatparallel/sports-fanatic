@@ -129,9 +129,13 @@ defmodule SportsFanatic.MixProject do
       test/sports_fanatic/predictions/park_factors_test.exs
       test/sports_fanatic/predictions/stadiums_test.exs
       test/sports_fanatic/predictions/features_test.exs
+      test/sports_fanatic/predictions/progress_test.exs
+      test/sports_fanatic/predictions/env_fallback_test.exs
       test/sports_fanatic/external_apis/open_meteo_test.exs
       test/sports_fanatic/external_apis/mlb_stats_test.exs
       test/sports_fanatic/workers/daily_hit_predictions_worker_test.exs
+      test/sports_fanatic/workers/initial_seed_worker_test.exs
+      test/sports_fanatic_web/live/admin_live_predictions_test.exs
     )
 
     [

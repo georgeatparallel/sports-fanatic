@@ -11,8 +11,9 @@ defmodule SportsFanatic.Predictions do
 
   alias SportsFanatic.Cache
   alias SportsFanatic.Predictions.HitPrediction
+  alias SportsFanatic.Predictions.PipelineRunEvent
   alias SportsFanatic.Repo
-  alias SportsFanatic.Workers.DailyHitPredictionsWorker
+  alias SportsFanatic.Workers.{DailyHitPredictionsWorker, InitialSeedWorker}
 
   @doc "Today (Eastern) hit predictions sorted by probability desc."
   def list_today(opts \\ []), do: list_for_date(SportsFanatic.DateHelper.today(), opts)
@@ -119,7 +120,186 @@ defmodule SportsFanatic.Predictions do
     |> order_by([h], desc: h.prediction_date)
   end
 
+  @doc """
+  Returns the latest of the earliest dates across the three source tables
+  (`mlb.scheduled_games`, `mlb.pitcher_game_logs`, `mlb.player_statcast`).
+
+  Used by `start_initial_seed/0` to compute the seed lower bound — we seed
+  back to the day before this date (or `PREDICTIONS_INITIAL_SEED_FROM`,
+  whichever is later). When any of the three source tables is empty, this
+  returns `nil` so the seeder runs from the configured `initial_seed_from`.
+  """
+  @spec earliest_data_date() :: Date.t() | nil
+  def earliest_data_date do
+    sql = """
+    SELECT
+      (SELECT MIN(game_date)   FROM mlb.scheduled_games)  AS sched_min,
+      (SELECT MIN(game_date)   FROM mlb.pitcher_game_logs) AS pgl_min,
+      (SELECT MIN(make_date(season, 1, 1)) FROM mlb.player_statcast) AS sc_min
+    """
+
+    case Repo.query!(sql, []).rows do
+      [[sched, pgl, sc] | _] ->
+        candidates = [sched, pgl, sc]
+
+        if Enum.any?(candidates, &is_nil/1) do
+          nil
+        else
+          Enum.max_by(candidates, &Date.to_erl/1, fn -> nil end)
+        end
+
+      _ ->
+        nil
+    end
+  rescue
+    _ -> nil
+  end
+
+  @doc """
+  Computes the seed window and enqueues `InitialSeedWorker`.
+
+  Returns:
+    * `{:ok, :nothing_to_do}` if `seed_from > seed_through`
+    * `{:ok, %{job_id, seed_from, seed_through}}` on success
+    * `{:error, reason}` otherwise
+  """
+  @spec start_initial_seed() ::
+          {:ok, :nothing_to_do}
+          | {:ok, %{job_id: term(), seed_from: Date.t(), seed_through: Date.t()}}
+          | {:error, term()}
+  def start_initial_seed do
+    cfg = Application.get_env(:sports_fanatic, :predictions, [])
+
+    seed_from_floor =
+      case cfg[:initial_seed_from] do
+        s when is_binary(s) ->
+          case Date.from_iso8601(s) do
+            {:ok, d} -> d
+            _ -> ~D[2021-03-01]
+          end
+
+        _ ->
+          ~D[2021-03-01]
+      end
+
+    seed_through = Date.add(SportsFanatic.DateHelper.today(), -1)
+
+    seed_from =
+      case earliest_data_date() do
+        nil -> seed_from_floor
+        %Date{} = earliest -> latest(Date.add(earliest, -1), seed_from_floor)
+      end
+
+    cond do
+      Date.compare(seed_from, seed_through) == :gt ->
+        {:ok, :nothing_to_do}
+
+      true ->
+        # Eagerly open a pipeline_runs row so the admin UI sees the run_kind
+        # before the worker boots. The worker itself will re-use this id if
+        # we pass it via args.
+        run_id =
+          open_seed_pipeline_run(seed_from, seed_through)
+
+        args = %{
+          "seed_from" => Date.to_iso8601(seed_from),
+          "seed_through" => Date.to_iso8601(seed_through),
+          "pipeline_run_id" => run_id
+        }
+
+        case args |> InitialSeedWorker.new() |> Oban.insert() do
+          {:ok, %Oban.Job{id: id}} ->
+            {:ok, %{job_id: id, seed_from: seed_from, seed_through: seed_through}}
+
+          {:error, reason} ->
+            {:error, reason}
+        end
+    end
+  end
+
+  @doc """
+  Returns up to `limit` recent events for `run_id`, newest first.
+  """
+  @spec list_run_events(binary(), pos_integer()) :: [PipelineRunEvent.t()]
+  def list_run_events(run_id, limit \\ 500) when is_binary(run_id) and is_integer(limit) do
+    PipelineRunEvent
+    |> where([e], e.pipeline_run_id == ^run_id)
+    |> order_by([e], desc: e.seq)
+    |> limit(^limit)
+    |> Repo.all()
+  rescue
+    _ -> []
+  end
+
+  @doc """
+  Returns the most-recent `running` pipeline_runs row, or nil. Used by
+  AdminLive to seed the Currently-Running panel when the user switches to
+  the Predictions tab mid-flight (spec §16 risk 6).
+  """
+  @spec current_running_run() :: map() | nil
+  def current_running_run do
+    sql = """
+    SELECT id, run_kind, started_at, current_step, metadata, checkpoint,
+           seed_from_date, seed_through_date
+      FROM system.pipeline_runs
+     WHERE status = 'running'
+     ORDER BY started_at DESC
+     LIMIT 1
+    """
+
+    case Repo.query!(sql, []).rows do
+      [[id, kind, started, current_step, metadata, checkpoint, sf, st] | _] ->
+        %{
+          id: id,
+          run_kind: kind,
+          started_at: started,
+          current_step: current_step,
+          metadata: metadata || %{},
+          checkpoint: checkpoint || %{},
+          seed_from_date: sf,
+          seed_through_date: st
+        }
+
+      _ ->
+        nil
+    end
+  rescue
+    _ -> nil
+  end
+
   ## --- Helpers --------------------------------------------------------------
+
+  defp latest(%Date{} = a, %Date{} = b) do
+    if Date.compare(a, b) == :gt, do: a, else: b
+  end
+
+  defp open_seed_pipeline_run(seed_from, seed_through) do
+    metadata = %{
+      "run_kind" => "initial_seed",
+      "seed_from" => Date.to_iso8601(seed_from),
+      "seed_through" => Date.to_iso8601(seed_through),
+      "steps" => []
+    }
+
+    sql = """
+    INSERT INTO system.pipeline_runs (
+      id, pipeline_name, status, started_at, metadata, run_kind,
+      seed_from_date, seed_through_date, checkpoint, inserted_at, updated_at
+    )
+    VALUES (
+      gen_random_uuid(), 'hit_predict_initial_seed', 'running', NOW(),
+      $1, 'initial_seed', $2, $3, '{}'::jsonb, NOW(), NOW()
+    )
+    RETURNING id
+    """
+
+    case Repo.query!(sql, [metadata, seed_from, seed_through]).rows do
+      [[id] | _] -> id
+      _ -> nil
+    end
+  rescue
+    _ -> nil
+  end
 
   defp load_from_db(player_mlb_id, date) do
     HitPrediction

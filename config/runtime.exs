@@ -58,7 +58,14 @@ config :sports_fanatic, :x_agent,
   daily_cap_mills: System.get_env("X_DAILY_CAP_MILLS", "5000") |> String.to_integer(),
   account_handle: System.get_env("X_ACCOUNT_HANDLE", "")
 
-# Predictions pipeline (concurrency + cron override + Open-Meteo key)
+# Open-Meteo API key with deprecated-spelling fallback. Reads OPENMETEO_API_KEY
+# first; if unset and the legacy OPENMATAO_API_KEY is set, uses that and
+# emits a single deprecation warning at boot.
+# Logic extracted to SportsFanatic.Predictions.EnvFallback for testability.
+{open_meteo_api_key, _warned} =
+  SportsFanatic.Predictions.EnvFallback.resolve_open_meteo_api_key()
+
+# Predictions pipeline (concurrency + cron override + Open-Meteo key + seed)
 config :sports_fanatic, :predictions,
   concurrency: String.to_integer(System.get_env("PREDICTIONS_CONCURRENCY", "8")),
   pitcher_stats_concurrency:
@@ -72,7 +79,14 @@ config :sports_fanatic, :predictions,
   feature_compute_concurrency:
     String.to_integer(System.get_env("PREDICTIONS_FEATURE_COMPUTE_CONCURRENCY", "16")),
   cron: System.get_env("PREDICTIONS_CRON_OVERRIDE", "0 12 * * *"),
-  open_meteo_api_key: System.get_env("OPENMETEO_API_KEY")
+  open_meteo_api_key: open_meteo_api_key,
+  open_meteo_timeout_ms:
+    String.to_integer(System.get_env("PREDICTIONS_OPEN_METEO_TIMEOUT_MS", "15000")),
+  initial_seed_from: System.get_env("PREDICTIONS_INITIAL_SEED_FROM", "2021-03-01"),
+  initial_seed_concurrency:
+    String.to_integer(System.get_env("PREDICTIONS_INITIAL_SEED_CONCURRENCY", "1")),
+  historical_batch_days:
+    String.to_integer(System.get_env("PREDICTIONS_HISTORICAL_BATCH_DAYS", "1"))
 
 # Stripe configuration (runtime)
 if stripe_key = System.get_env("STRIPE_SECRET_KEY") do

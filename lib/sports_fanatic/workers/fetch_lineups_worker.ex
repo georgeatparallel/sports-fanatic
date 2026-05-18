@@ -10,6 +10,7 @@ defmodule SportsFanatic.Workers.FetchLineupsWorker do
 
   alias SportsFanatic.ExternalApis.FantasyNerds
   alias SportsFanatic.Mlb.{Lineup, Player}
+  alias SportsFanatic.Predictions.Progress
   alias SportsFanatic.Repo
 
   require Logger
@@ -17,11 +18,16 @@ defmodule SportsFanatic.Workers.FetchLineupsWorker do
   @impl Oban.Worker
   def perform(%Oban.Job{args: args}) do
     date = parse_date(args["date"]) || SportsFanatic.DateHelper.today()
-    fetch_for_date(date)
+    run_id = parse_run_id(args["pipeline_run_id"])
+    fetch_for_date(date, run_id)
   end
 
-  @spec fetch_for_date(Date.t()) :: {:ok, integer} | {:error, term}
-  def fetch_for_date(%Date{} = date) do
+  @spec fetch_for_date(Date.t(), binary() | nil) :: {:ok, integer} | {:error, term}
+  def fetch_for_date(date, run_id \\ nil)
+
+  def fetch_for_date(%Date{} = date, run_id) do
+    Progress.step_started(run_id, :fetch_lineups, total: 1)
+
     case FantasyNerds.fetch_lineups(Date.to_iso8601(date)) do
       {:ok, players} ->
         players_by_name = resolve_players_by_name(players)
@@ -58,14 +64,39 @@ defmodule SportsFanatic.Workers.FetchLineupsWorker do
         end)
 
         Logger.info("Fetched #{length(players)} lineup entries for #{date}")
+
+        Progress.step_completed(run_id, :fetch_lineups,
+          processed: length(players),
+          total: length(players)
+        )
+
         # NOTE: hit-prediction chaining lives in DailyHitPredictionsWorker.
         {:ok, length(players)}
 
-      {:error, reason} ->
+      {:error, reason} = err ->
         Logger.error("Failed to fetch lineups: #{inspect(reason)}")
-        {:error, reason}
+
+        Progress.step_failed(run_id, :fetch_lineups, reason,
+          current_item: "FantasyNerds lineups #{Date.to_iso8601(date)}",
+          endpoint: "FantasyNerds /lineups",
+          http_status: extract_http_status(reason)
+        )
+
+        err
     end
+  rescue
+    e ->
+      Progress.step_failed(run_id, :fetch_lineups, e,
+        current_item: "FantasyNerds lineups #{Date.to_iso8601(date)}",
+        endpoint: "FantasyNerds /lineups"
+      )
+
+      reraise e, __STACKTRACE__
   end
+
+  defp extract_http_status({:http_error, s}) when is_integer(s), do: s
+  defp extract_http_status({_, %{status: s}}) when is_integer(s), do: s
+  defp extract_http_status(_), do: nil
 
   defp parse_date(nil), do: nil
   defp parse_date(%Date{} = d), do: d
@@ -76,6 +107,9 @@ defmodule SportsFanatic.Workers.FetchLineupsWorker do
       _ -> nil
     end
   end
+
+  defp parse_run_id(nil), do: nil
+  defp parse_run_id(s) when is_binary(s), do: s
 
   # FantasyNerds uses different abbreviations than our DB for some teams
   @team_code_map %{"LA" => "LAD", "ANA" => "LAA", "ARI" => "AZ"}

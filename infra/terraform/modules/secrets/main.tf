@@ -25,6 +25,7 @@ resource "aws_secretsmanager_secret_version" "app_secrets" {
     STRIPE_WEBHOOK_SECRET = "CHANGE_ME"
     STRIPE_PRICE_MONTHLY  = "CHANGE_ME"
     STRIPE_PRICE_YEARLY   = "CHANGE_ME"
+    OPENMETEO_API_KEY     = "CHANGE_ME"
   })
 
   lifecycle {

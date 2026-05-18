@@ -6,3 +6,6 @@ metadata:
 data:
   PHX_HOST: "dev.sports-fan-agent.com"
   NEWS_S3_BUCKET: "sports-fanatic-news-dev"
+  # Dev-tuned seed: smaller window, slightly more concurrency
+  PREDICTIONS_INITIAL_SEED_FROM: "2024-01-01"
+  PREDICTIONS_INITIAL_SEED_CONCURRENCY: "2"

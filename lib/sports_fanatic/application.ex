@@ -7,6 +7,11 @@ defmodule SportsFanatic.Application do
   def start(_type, _args) do
     valkey_url = Application.get_env(:sports_fanatic, :valkey_url, "redis://localhost:6379")
 
+    # ETS counter table for SportsFanatic.Predictions.Progress per-run seq.
+    # `:public` because progress events may be written from `Task.async_stream`
+    # workers across many processes.
+    ensure_progress_counter_table()
+
     children = [
       SportsFanaticWeb.Telemetry,
       SportsFanatic.Repo,
@@ -40,5 +45,20 @@ defmodule SportsFanatic.Application do
   def config_change(changed, _new, removed) do
     SportsFanaticWeb.Endpoint.config_change(changed, removed)
     :ok
+  end
+
+  defp ensure_progress_counter_table do
+    if :ets.whereis(:predictions_progress_seq) == :undefined do
+      :ets.new(:predictions_progress_seq, [
+        :set,
+        :public,
+        :named_table,
+        write_concurrency: true
+      ])
+    end
+
+    :ok
+  rescue
+    ArgumentError -> :ok
   end
 end

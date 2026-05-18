@@ -88,6 +88,7 @@ defmodule SportsFanaticWeb.AdminLive do
       Pipeline.subscribe()
       :ok = ensure_x_rate_limit_table()
       Phoenix.PubSub.subscribe(SportsFanatic.PubSub, @x_admin_topic)
+      Phoenix.PubSub.subscribe(SportsFanatic.PubSub, "predictions:pipeline:all")
     end
 
     statuses = load_initial_statuses()
@@ -139,7 +140,13 @@ defmodule SportsFanaticWeb.AdminLive do
        predictions_enabled: FeatureFlags.enabled?("hit_predictions_enabled"),
        prediction_runs: [],
        selected_prediction_run_id: nil,
-       prediction_run_picks: []
+       prediction_run_picks: [],
+       active_run: nil,
+       active_run_events: [],
+       active_run_total_events: 0,
+       active_run_failed_event: nil,
+       seed_eligibility: %{earliest_date: nil, seed_from: nil, seed_through: nil},
+       expanded_run_events: %{}
      )}
   end
 
@@ -222,10 +229,14 @@ defmodule SportsFanaticWeb.AdminLive do
 
         "predictions" ->
           runs = Predictions.list_runs(30)
+          seed_eligibility = compute_seed_eligibility()
+          active = snapshot_active_run()
 
           assign(socket,
             prediction_runs: runs,
-            predictions_enabled: FeatureFlags.enabled?("hit_predictions_enabled")
+            predictions_enabled: FeatureFlags.enabled?("hit_predictions_enabled"),
+            seed_eligibility: seed_eligibility,
+            active_run: active
           )
 
         _ ->
@@ -300,6 +311,35 @@ defmodule SportsFanaticWeb.AdminLive do
       end
 
     {:noreply, assign(socket, selected_prediction_run_id: run_id, prediction_run_picks: picks)}
+  end
+
+  def handle_event("start_initial_seed", _params, socket) do
+    case Predictions.start_initial_seed() do
+      {:ok, :nothing_to_do} ->
+        {:noreply, put_flash(socket, :info, "Database already has data through yesterday.")}
+
+      {:ok, %{job_id: id, seed_from: f, seed_through: t}} ->
+        {:noreply,
+         put_flash(
+           socket,
+           :info,
+           "Initial seed enqueued (#{Date.to_iso8601(f)} → #{Date.to_iso8601(t)}). Job: #{id}"
+         )}
+
+      {:error, reason} ->
+        {:noreply,
+         put_flash(socket, :error, "Failed to enqueue initial seed: #{inspect(reason)}")}
+    end
+  end
+
+  def handle_event("view_run_events", %{"run-id" => run_id}, socket) do
+    events = Predictions.list_run_events(run_id, 500)
+    expanded = Map.put(socket.assigns.expanded_run_events, run_id, events)
+    {:noreply, assign(socket, expanded_run_events: expanded)}
+  end
+
+  def handle_event("dismiss_failed_event", _params, socket) do
+    {:noreply, assign(socket, active_run_failed_event: nil)}
   end
 
   def handle_event("run_feed_research", _params, socket) do
@@ -687,6 +727,10 @@ defmodule SportsFanaticWeb.AdminLive do
   end
 
   @impl true
+  def handle_info({:predictions_pipeline_event, event}, socket) do
+    {:noreply, apply_predictions_event(socket, event)}
+  end
+
   def handle_info({:pipeline_started, payload}, socket) do
     {:noreply,
      assign(socket,
@@ -2152,6 +2196,143 @@ defmodule SportsFanaticWeb.AdminLive do
       <%!-- Predictions Tab --%>
       <%= if @active_tab == "predictions" do %>
         <div class="space-y-6">
+          <%!-- Currently Running panel --%>
+          <%= if @active_run do %>
+            <div class="bg-white rounded-lg shadow-sm border border-blue-300 p-5">
+              <div class="flex items-center justify-between mb-3">
+                <div>
+                  <h3 class="text-lg font-semibold text-gray-900">
+                    <span class="inline-flex h-2 w-2 rounded-full bg-blue-500 mr-2 animate-pulse" />
+                    Running
+                    <span class="text-gray-500 text-sm">
+                      — <%= @active_run[:run_kind] || "daily" %>
+                    </span>
+                  </h3>
+                  <p class="text-xs text-gray-500 mt-1">
+                    Started <%= @active_run[:started_at] &&
+                      Calendar.strftime(@active_run[:started_at], "%Y-%m-%d %H:%M UTC") %> · run_id
+                    <code class="bg-gray-100 px-1 rounded text-[10px]">
+                      <%= @active_run[:run_id] %>
+                    </code>
+                  </p>
+                </div>
+              </div>
+              <div class="text-sm text-gray-700 mb-2">
+                Step: <span class="font-medium"><%= @active_run[:current_step] || "—" %></span>
+                <%= if @active_run[:total] do %>
+                  <span class="text-gray-500">
+                    (<%= @active_run[:processed] || 0 %> / <%= @active_run[:total] %>)
+                  </span>
+                <% end %>
+              </div>
+              <%= if @active_run[:current_item] do %>
+                <div class="text-sm text-gray-600 mb-3">
+                  Current: <span class="font-mono text-xs"><%= @active_run[:current_item] %></span>
+                </div>
+              <% end %>
+              <%= if @active_run[:total] && @active_run[:total] > 0 do %>
+                <div class="w-full bg-gray-200 rounded h-2 overflow-hidden">
+                  <div
+                    class="bg-blue-500 h-2 transition-all"
+                    style={"width: #{progress_pct(@active_run[:processed] || 0, @active_run[:total])}%"}
+                  />
+                </div>
+              <% end %>
+
+              <%= if @active_run_events != [] do %>
+                <details class="mt-4">
+                  <summary class="text-xs text-gray-600 cursor-pointer hover:text-gray-900">
+                    Recent events (tail)
+                  </summary>
+                  <ul class="mt-2 max-h-64 overflow-y-auto divide-y divide-gray-100 text-xs font-mono">
+                    <%= for ev <- Enum.take(@active_run_events, 25) do %>
+                      <li class="py-1 flex gap-2 text-gray-700">
+                        <span class="text-gray-400 whitespace-nowrap">
+                          <%= Calendar.strftime(ev.inserted_at, "%H:%M:%S") %>
+                        </span>
+                        <span class="text-gray-500 whitespace-nowrap">[<%= ev.kind %>]</span>
+                        <span class="font-medium text-gray-800 whitespace-nowrap">
+                          <%= ev.step %>
+                        </span>
+                        <span class="text-gray-600 truncate">
+                          <%= Map.get(ev.payload, :current_item) ||
+                            Map.get(ev.payload, "current_item") || "" %>
+                        </span>
+                      </li>
+                    <% end %>
+                  </ul>
+                </details>
+              <% end %>
+            </div>
+          <% end %>
+
+          <%!-- Failure banner --%>
+          <%= if @active_run_failed_event do %>
+            <div class="bg-red-50 border border-red-300 rounded-lg p-5 text-sm">
+              <div class="flex items-start justify-between">
+                <div class="flex-1">
+                  <h3 class="text-red-800 font-semibold">
+                    Pipeline FAILED at step
+                    <code class="bg-red-100 px-1 rounded"><%= @active_run_failed_event.step %></code>
+                  </h3>
+                  <%= if item = (Map.get(@active_run_failed_event.payload, :current_item) || Map.get(@active_run_failed_event.payload, "current_item")) do %>
+                    <p class="text-red-700 mt-1">item: <code class="font-mono"><%= item %></code></p>
+                  <% end %>
+                  <%= if ep = (Map.get(@active_run_failed_event.payload, :endpoint) || Map.get(@active_run_failed_event.payload, "endpoint")) do %>
+                    <p class="text-red-700 mt-1 font-mono text-xs break-all">endpoint: <%= ep %></p>
+                  <% end %>
+                  <%= if status = (Map.get(@active_run_failed_event.payload, :http_status) || Map.get(@active_run_failed_event.payload, "http_status")) do %>
+                    <p class="text-red-700 mt-1">HTTP <%= status %></p>
+                  <% end %>
+                  <%= if err = (Map.get(@active_run_failed_event.payload, :error) || Map.get(@active_run_failed_event.payload, "error")) do %>
+                    <pre class="mt-2 bg-red-100 text-red-900 text-xs p-2 rounded overflow-x-auto whitespace-pre-wrap"><%= err %></pre>
+                  <% end %>
+                </div>
+                <button
+                  phx-click="dismiss_failed_event"
+                  class="text-red-600 hover:text-red-800 text-xs font-medium ml-4"
+                >
+                  Dismiss
+                </button>
+              </div>
+            </div>
+          <% end %>
+
+          <%!-- Initial Seed card --%>
+          <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-5">
+            <div class="flex items-center justify-between">
+              <div>
+                <h3 class="text-lg font-semibold text-gray-900">Initial Backfill</h3>
+                <p class="text-xs text-gray-500 mt-1">
+                  Earliest data in DB:
+                  <span class="font-mono">
+                    <%= (@seed_eligibility[:earliest_date] &&
+                           Date.to_iso8601(@seed_eligibility[:earliest_date])) || "(none)" %>
+                  </span>
+                </p>
+                <p class="text-xs text-gray-500 mt-1">
+                  Will seed:
+                  <span class="font-mono">
+                    <%= @seed_eligibility[:seed_from] &&
+                      Date.to_iso8601(@seed_eligibility[:seed_from]) %>
+                  </span>
+                  →
+                  <span class="font-mono">
+                    <%= @seed_eligibility[:seed_through] &&
+                      Date.to_iso8601(@seed_eligibility[:seed_through]) %>
+                  </span>
+                </p>
+              </div>
+              <button
+                phx-click="start_initial_seed"
+                data-confirm="Backfill from 2021 → yesterday. This takes 4-8 hours and makes ~100k API calls. Continue?"
+                class="bg-amber-600 text-white px-3 py-1.5 rounded-md text-sm font-medium hover:bg-amber-700"
+              >
+                Start Initial Seed
+              </button>
+            </div>
+          </div>
+
           <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-5">
             <div class="flex items-center justify-between mb-4">
               <div>
@@ -2221,7 +2402,16 @@ defmodule SportsFanaticWeb.AdminLive do
                       <td class="px-3 py-2 text-sm text-gray-500">
                         <%= duration_ms_for(run) %>
                       </td>
-                      <td class="px-3 py-2 text-right text-sm">
+                      <td class="px-3 py-2 text-right text-sm space-x-2">
+                        <button
+                          phx-click="view_run_events"
+                          phx-value-run-id={run.id}
+                          class="text-gray-600 hover:text-gray-900 font-medium text-xs"
+                        >
+                          <%= if Map.has_key?(@expanded_run_events, run.id),
+                            do: "▼ Events",
+                            else: "▶ Events" %>
+                        </button>
                         <button
                           phx-click="view_prediction_run"
                           phx-value-run-id={run.id}
@@ -2231,6 +2421,38 @@ defmodule SportsFanaticWeb.AdminLive do
                         </button>
                       </td>
                     </tr>
+                    <%= if events = Map.get(@expanded_run_events, run.id) do %>
+                      <tr>
+                        <td colspan="5" class="px-3 py-2 bg-gray-50">
+                          <%= if events == [] do %>
+                            <p class="text-xs text-gray-500">No events recorded for this run.</p>
+                          <% else %>
+                            <ul class="max-h-80 overflow-y-auto divide-y divide-gray-100 text-xs font-mono">
+                              <%= for ev <- events do %>
+                                <li class={[
+                                  "py-1 flex gap-2",
+                                  ev.kind == "failed" && "bg-red-50 text-red-800"
+                                ]}>
+                                  <span class="text-gray-400 whitespace-nowrap">
+                                    <%= Calendar.strftime(ev.inserted_at, "%H:%M:%S") %>
+                                  </span>
+                                  <span class="text-gray-500 whitespace-nowrap">
+                                    [<%= ev.kind %>]
+                                  </span>
+                                  <span class="font-medium text-gray-800 whitespace-nowrap">
+                                    <%= ev.step %>
+                                  </span>
+                                  <span class="text-gray-600 truncate">
+                                    <%= Map.get(ev.payload || %{}, "current_item") ||
+                                      Map.get(ev.payload || %{}, "error") || "" %>
+                                  </span>
+                                </li>
+                              <% end %>
+                            </ul>
+                          <% end %>
+                        </td>
+                      </tr>
+                    <% end %>
                   <% end %>
                 </tbody>
               </table>
@@ -2283,6 +2505,14 @@ defmodule SportsFanaticWeb.AdminLive do
     ms = DateTime.diff(c, s, :millisecond)
     "#{div(ms, 1000)}s"
   end
+
+  defp progress_pct(processed, total)
+       when is_integer(processed) and is_integer(total) and total > 0 do
+    pct = processed / total * 100.0
+    pct |> min(100.0) |> max(0.0) |> Float.round(1)
+  end
+
+  defp progress_pct(_, _), do: 0.0
 
   defp agent_setting_status_class("pending"), do: "bg-yellow-100 text-yellow-800"
   defp agent_setting_status_class("active"), do: "bg-green-100 text-green-800"
@@ -2368,4 +2598,159 @@ defmodule SportsFanaticWeb.AdminLive do
   defp status_label(:running), do: "Running"
   defp status_label(:completed), do: "Completed"
   defp status_label(:failed), do: "Failed"
+
+  # ── Predictions-tab live-stream helpers ──────────────────────────────────
+
+  defp apply_predictions_event(socket, %{kind: :run_started} = ev) do
+    active = %{
+      run_id: ev[:run_id],
+      run_kind: ev[:run_kind],
+      started_at: ev[:inserted_at],
+      current_step: nil,
+      processed: 0,
+      total: nil,
+      current_item: nil
+    }
+
+    assign(socket,
+      active_run: active,
+      active_run_events: trim_events([format_event(ev) | socket.assigns.active_run_events]),
+      active_run_total_events: socket.assigns.active_run_total_events + 1,
+      active_run_failed_event: nil
+    )
+  end
+
+  defp apply_predictions_event(socket, %{kind: :run_completed} = ev) do
+    runs = Predictions.list_runs(30)
+
+    assign(socket,
+      active_run: nil,
+      active_run_events: trim_events([format_event(ev) | socket.assigns.active_run_events]),
+      active_run_total_events: socket.assigns.active_run_total_events + 1,
+      prediction_runs: runs
+    )
+  end
+
+  defp apply_predictions_event(socket, %{kind: :run_failed} = ev) do
+    runs = Predictions.list_runs(30)
+
+    assign(socket,
+      active_run: nil,
+      active_run_failed_event: format_event(ev),
+      active_run_events: trim_events([format_event(ev) | socket.assigns.active_run_events]),
+      active_run_total_events: socket.assigns.active_run_total_events + 1,
+      prediction_runs: runs
+    )
+  end
+
+  defp apply_predictions_event(socket, %{kind: :failed} = ev) do
+    assign(socket,
+      active_run_failed_event: format_event(ev),
+      active_run_events: trim_events([format_event(ev) | socket.assigns.active_run_events]),
+      active_run_total_events: socket.assigns.active_run_total_events + 1
+    )
+  end
+
+  defp apply_predictions_event(socket, %{kind: kind} = ev)
+       when kind in [:started, :item, :completed] do
+    active = update_active_run(socket.assigns.active_run, ev)
+
+    assign(socket,
+      active_run: active,
+      active_run_events: trim_events([format_event(ev) | socket.assigns.active_run_events]),
+      active_run_total_events: socket.assigns.active_run_total_events + 1
+    )
+  end
+
+  defp apply_predictions_event(socket, _other), do: socket
+
+  defp update_active_run(nil, ev) do
+    %{
+      run_id: ev[:run_id],
+      run_kind: ev[:run_kind],
+      started_at: ev[:inserted_at],
+      current_step: ev[:step],
+      processed: get_in(ev, [:payload, :processed]) || 0,
+      total: get_in(ev, [:payload, :total]),
+      current_item: get_in(ev, [:payload, :current_item])
+    }
+  end
+
+  defp update_active_run(active, ev) do
+    payload = ev[:payload] || %{}
+
+    Map.merge(active, %{
+      current_step: ev[:step] || active[:current_step],
+      processed: payload[:processed] || active[:processed],
+      total: payload[:total] || active[:total],
+      current_item: payload[:current_item] || active[:current_item]
+    })
+  end
+
+  defp format_event(ev) do
+    %{
+      run_id: ev[:run_id],
+      step: ev[:step],
+      kind: ev[:kind],
+      inserted_at: ev[:inserted_at] || DateTime.utc_now(),
+      payload: ev[:payload] || %{}
+    }
+  end
+
+  defp trim_events(events), do: Enum.take(events, 50)
+
+  defp compute_seed_eligibility do
+    cfg = Application.get_env(:sports_fanatic, :predictions, [])
+
+    seed_from_floor =
+      case cfg[:initial_seed_from] do
+        s when is_binary(s) ->
+          case Date.from_iso8601(s) do
+            {:ok, d} -> d
+            _ -> ~D[2021-03-01]
+          end
+
+        _ ->
+          ~D[2021-03-01]
+      end
+
+    seed_through = Date.add(SportsFanatic.DateHelper.today(), -1)
+    earliest = Predictions.earliest_data_date()
+
+    seed_from =
+      case earliest do
+        nil ->
+          seed_from_floor
+
+        %Date{} = e ->
+          candidate = Date.add(e, -1)
+          if Date.compare(candidate, seed_from_floor) == :gt, do: candidate, else: seed_from_floor
+      end
+
+    %{
+      earliest_date: earliest,
+      seed_from: seed_from,
+      seed_through: seed_through
+    }
+  rescue
+    _ -> %{earliest_date: nil, seed_from: nil, seed_through: nil}
+  end
+
+  defp snapshot_active_run do
+    case Predictions.current_running_run() do
+      nil ->
+        nil
+
+      %{} = row ->
+        %{
+          run_id: row.id,
+          run_kind: row.run_kind,
+          started_at: row.started_at,
+          current_step: row.current_step,
+          processed: 0,
+          total: nil,
+          current_item: nil
+        }
+    end
+  end
 end
