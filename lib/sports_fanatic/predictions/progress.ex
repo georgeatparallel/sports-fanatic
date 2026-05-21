@@ -223,16 +223,22 @@ defmodule SportsFanatic.Predictions.Progress do
   def mark_current_step(run_id, step) when is_binary(run_id) do
     step = step_name(step)
 
-    safe_db(fn ->
-      Repo.query!(
-        """
-        UPDATE system.pipeline_runs
-           SET current_step = $2, updated_at = NOW()
-         WHERE id = $1
-        """,
-        [run_id, step]
-      )
-    end)
+    case dump_uuid(run_id) do
+      {:ok, bin} ->
+        safe_db(fn ->
+          Repo.query!(
+            """
+            UPDATE system.pipeline_runs
+               SET current_step = $2, updated_at = NOW()
+             WHERE id = $1
+            """,
+            [bin, step]
+          )
+        end)
+
+      :error ->
+        :ok
+    end
 
     :ok
   end
@@ -245,16 +251,22 @@ defmodule SportsFanatic.Predictions.Progress do
   def checkpoint(nil, _data), do: :ok
 
   def checkpoint(run_id, data) when is_binary(run_id) and is_map(data) do
-    safe_db(fn ->
-      Repo.query!(
-        """
-        UPDATE system.pipeline_runs
-           SET checkpoint = $2::jsonb, updated_at = NOW()
-         WHERE id = $1
-        """,
-        [run_id, data]
-      )
-    end)
+    case dump_uuid(run_id) do
+      {:ok, bin} ->
+        safe_db(fn ->
+          Repo.query!(
+            """
+            UPDATE system.pipeline_runs
+               SET checkpoint = $2::jsonb, updated_at = NOW()
+             WHERE id = $1
+            """,
+            [bin, data]
+          )
+        end)
+
+      :error ->
+        :ok
+    end
 
     :ok
   end
@@ -310,6 +322,15 @@ defmodule SportsFanatic.Predictions.Progress do
 
     seq
   end
+
+  # Postgrex binds raw `uuid` parameters as 16-byte binaries. The 36-char
+  # dashed-hex string is what flows through Oban args + LiveView assigns,
+  # so dump it before raw SQL binds. Accepts either form. (Ecto's schema
+  # layer handles the string→binary cast on its own for struct inserts, so
+  # only the raw SQL helpers in this module need this.)
+  defp dump_uuid(<<_::128>> = bin), do: {:ok, bin}
+  defp dump_uuid(str) when is_binary(str), do: Ecto.UUID.dump(str)
+  defp dump_uuid(_), do: :error
 
   defp broadcast_step_event(run_id, step, kind, payload, opts) do
     run_kind = opts[:run_kind]

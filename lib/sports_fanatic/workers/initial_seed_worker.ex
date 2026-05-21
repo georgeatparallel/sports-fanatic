@@ -163,12 +163,15 @@ defmodule SportsFanatic.Workers.InitialSeedWorker do
   defp previous_completed_dates(nil), do: []
 
   defp previous_completed_dates(run_id) do
-    sql = """
-    SELECT checkpoint FROM system.pipeline_runs WHERE id = $1
-    """
-
-    case Repo.query!(sql, [run_id]).rows do
-      [[%{"completed_dates" => dates}] | _] when is_list(dates) -> dates
+    with {:ok, bin} <- dump_uuid(run_id),
+         %{rows: [[%{"completed_dates" => dates}] | _]} <-
+           Repo.query!(
+             "SELECT checkpoint FROM system.pipeline_runs WHERE id = $1",
+             [bin]
+           ),
+         true <- is_list(dates) do
+      dates
+    else
       _ -> []
     end
   rescue
@@ -196,31 +199,56 @@ defmodule SportsFanatic.Workers.InitialSeedWorker do
     """
 
     case Repo.query!(sql, [metadata, seed_from, seed_through]).rows do
-      [[id] | _] -> id
+      [[id] | _] -> uuid_to_string(id)
       _ -> nil
     end
   rescue
     _ -> nil
   end
 
+  # `gen_random_uuid()` comes back from Postgrex as a 16-byte binary; the
+  # rest of the worker (logs, Progress, Oban args) treats run_id as the
+  # 36-char dashed-hex string. Normalize here.
+  defp uuid_to_string(<<_::128>> = bin) do
+    case Ecto.UUID.cast(bin) do
+      {:ok, str} -> str
+      :error -> nil
+    end
+  end
+
+  defp uuid_to_string(str) when is_binary(str), do: str
+  defp uuid_to_string(_), do: nil
+
   defp close_pipeline_run(nil, _status, _count, _err), do: :ok
 
   defp close_pipeline_run(id, status, count, error) do
-    Repo.query!(
-      """
-      UPDATE system.pipeline_runs
-         SET status = $2,
-             completed_at = NOW(),
-             error = $3,
-             metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object('records_processed', $4),
-             updated_at = NOW()
-       WHERE id = $1
-      """,
-      [id, status, error, count]
-    )
+    case dump_uuid(id) do
+      {:ok, bin} ->
+        Repo.query!(
+          """
+          UPDATE system.pipeline_runs
+             SET status = $2,
+                 completed_at = NOW(),
+                 error = $3,
+                 metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object('records_processed', $4),
+                 updated_at = NOW()
+           WHERE id = $1
+          """,
+          [bin, status, error, count]
+        )
+
+      :error ->
+        :ok
+    end
   rescue
     _ -> :ok
   end
+
+  # Postgrex `uuid` binds expect 16-byte binary; Oban job args carry the
+  # 36-char string form. Accept either.
+  defp dump_uuid(<<_::128>> = bin), do: {:ok, bin}
+  defp dump_uuid(str) when is_binary(str), do: Ecto.UUID.dump(str)
+  defp dump_uuid(_), do: :error
 
   defp parse_date(%Date{} = d), do: {:ok, d}
 
