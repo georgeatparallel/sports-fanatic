@@ -94,7 +94,7 @@ defmodule SportsFanatic.Cache do
     do: "sf:page:lineup:#{date_str}"
 
   @doc """
-  Page-cache key for the rewritten /mlb/lineups/:date Players page.
+  Page-cache key for the /mlb/players/:date Players page.
   Accepts an ISO 8601 string or a `%Date{}`.
   """
   @spec players_page_key(Date.t() | String.t()) :: String.t()

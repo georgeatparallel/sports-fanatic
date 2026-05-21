@@ -96,11 +96,11 @@ defmodule SportsFanaticWeb.SEOComponentsTest do
         render_component(&SportsFanaticWeb.SEOComponents.date_nav/1,
           prev_date: ~D[2026-05-09],
           next_date: ~D[2026-05-11],
-          base_path: "/mlb/lineups"
+          base_path: "/mlb/players"
         )
 
-      assert html =~ ~s(href="/mlb/lineups/2026-05-09")
-      assert html =~ ~s(href="/mlb/lineups/2026-05-11")
+      assert html =~ ~s(href="/mlb/players/2026-05-09")
+      assert html =~ ~s(href="/mlb/players/2026-05-11")
     end
 
     test "has the date navigation aria-label" do
@@ -657,15 +657,15 @@ defmodule SportsFanaticWeb.SEOComponentsTest do
   # ---------------------------------------------------------------------------
 
   describe "date_nav/1 base_path is used correctly" do
-    test "lineups base path produces correct prev URL" do
+    test "players base path produces correct prev URL" do
       html =
         render_component(&SportsFanaticWeb.SEOComponents.date_nav/1,
           prev_date: ~D[2026-04-30],
           next_date: nil,
-          base_path: "/mlb/lineups"
+          base_path: "/mlb/players"
         )
 
-      assert html =~ ~s(href="/mlb/lineups/2026-04-30")
+      assert html =~ ~s(href="/mlb/players/2026-04-30")
     end
 
     test "news base path produces correct next URL" do

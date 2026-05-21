@@ -68,7 +68,7 @@ defmodule SportsFanaticWeb.LineupControllerTest do
   # Basic happy path
   # --------------------------------------------------------------------------
 
-  describe "GET /mlb/lineups/:date — basic rendering" do
+  describe "GET /mlb/players/:date — basic rendering" do
     setup do
       # Always clear the cache key for this date so tests read from DB
       Cache.del(Cache.players_page_key(@date_str))
@@ -76,19 +76,19 @@ defmodule SportsFanaticWeb.LineupControllerTest do
     end
 
     test "renders 200 for a valid date", %{conn: conn} do
-      conn = get(conn, "/mlb/lineups/#{@date_str}")
+      conn = get(conn, "/mlb/players/#{@date_str}")
       body = html_response(conn, 200)
       assert body =~ "MLB Players"
     end
 
     test "renders the search box with player search input", %{conn: conn} do
-      conn = get(conn, "/mlb/lineups/#{@date_str}")
+      conn = get(conn, "/mlb/players/#{@date_str}")
       body = html_response(conn, 200)
       assert body =~ "player-search-input"
     end
 
     test "renders all three group headings", %{conn: conn} do
-      conn = get(conn, "/mlb/lineups/#{@date_str}")
+      conn = get(conn, "/mlb/players/#{@date_str}")
       body = html_response(conn, 200)
       assert body =~ "In the lineup today"
       assert body =~ "Active players not in the lineup"
@@ -96,18 +96,18 @@ defmodule SportsFanaticWeb.LineupControllerTest do
     end
 
     test "response has text/html content-type", %{conn: conn} do
-      conn = get(conn, "/mlb/lineups/#{@date_str}")
+      conn = get(conn, "/mlb/players/#{@date_str}")
       assert conn |> get_resp_header("content-type") |> hd() =~ "text/html"
     end
 
     test "renders the page title with 'MLB Players'", %{conn: conn} do
-      conn = get(conn, "/mlb/lineups/#{@date_str}")
+      conn = get(conn, "/mlb/players/#{@date_str}")
       body = html_response(conn, 200)
       assert body =~ "MLB Players"
     end
 
     test "includes JSON-LD breadcrumb with 'Players' label", %{conn: conn} do
-      conn = get(conn, "/mlb/lineups/#{@date_str}")
+      conn = get(conn, "/mlb/players/#{@date_str}")
       body = html_response(conn, 200)
       # JSON-LD BreadcrumbList should contain "Players" as a name
       assert body =~ "BreadcrumbList"
@@ -115,14 +115,14 @@ defmodule SportsFanaticWeb.LineupControllerTest do
     end
 
     test "includes a script tag with application/json for roster data", %{conn: conn} do
-      conn = get(conn, "/mlb/lineups/#{@date_str}")
+      conn = get(conn, "/mlb/players/#{@date_str}")
       body = html_response(conn, 200)
       assert body =~ ~s(type="application/json")
       assert body =~ "players-roster-data"
     end
 
     test "search input has the autofocus attribute", %{conn: conn} do
-      conn = get(conn, "/mlb/lineups/#{@date_str}")
+      conn = get(conn, "/mlb/players/#{@date_str}")
       body = html_response(conn, 200)
       # HEEx renders the bare attribute as `autofocus` (no value).
       # We assert both id and autofocus appear inside the same opening tag.
@@ -134,7 +134,7 @@ defmodule SportsFanaticWeb.LineupControllerTest do
   # Cache hit fast-path (anonymous user, Valkey pre-populated)
   # --------------------------------------------------------------------------
 
-  describe "GET /mlb/lineups/:date — cache hit fast path (anonymous)" do
+  describe "GET /mlb/players/:date — cache hit fast path (anonymous)" do
     setup do
       if valkey_available?() do
         # Pre-populate the players page cache with a known stub
@@ -148,7 +148,7 @@ defmodule SportsFanaticWeb.LineupControllerTest do
 
     test "returns cached stub HTML directly when cache is warm", %{conn: conn} do
       if valkey_available?() do
-        conn = get(conn, "/mlb/lineups/#{@date_str}")
+        conn = get(conn, "/mlb/players/#{@date_str}")
         body = response(conn, 200)
 
         assert body == @cache_stub,
@@ -161,7 +161,7 @@ defmodule SportsFanaticWeb.LineupControllerTest do
 
     test "cache hit sets cache-control: public header for anonymous visitor", %{conn: conn} do
       if valkey_available?() do
-        conn = get(conn, "/mlb/lineups/#{@date_str}")
+        conn = get(conn, "/mlb/players/#{@date_str}")
         cache_control = conn |> get_resp_header("cache-control") |> hd()
         assert cache_control =~ "public"
       else
@@ -172,7 +172,7 @@ defmodule SportsFanaticWeb.LineupControllerTest do
 
     test "cache hit response has content-type text/html", %{conn: conn} do
       if valkey_available?() do
-        conn = get(conn, "/mlb/lineups/#{@date_str}")
+        conn = get(conn, "/mlb/players/#{@date_str}")
         assert conn |> get_resp_header("content-type") |> hd() =~ "text/html"
       else
         :ok
@@ -184,7 +184,7 @@ defmodule SportsFanaticWeb.LineupControllerTest do
   # Authenticated user bypasses page cache
   # --------------------------------------------------------------------------
 
-  describe "GET /mlb/lineups/:date — authenticated user bypasses page cache" do
+  describe "GET /mlb/players/:date — authenticated user bypasses page cache" do
     setup do
       if valkey_available?() do
         # Pre-populate the page cache with a stub that an authenticated user
@@ -204,7 +204,7 @@ defmodule SportsFanaticWeb.LineupControllerTest do
         user_struct = %{id: Ecto.UUID.generate(), email: "test@example.com", is_admin: false}
         authed_conn = Plug.Conn.assign(conn, :current_user, user_struct)
 
-        authed_conn = get(authed_conn, "/mlb/lineups/#{@date_str}")
+        authed_conn = get(authed_conn, "/mlb/players/#{@date_str}")
         body = response(authed_conn, 200)
 
         refute body == "ANONYMOUS_STUB_NOT_FOR_AUTH",
@@ -220,7 +220,7 @@ defmodule SportsFanaticWeb.LineupControllerTest do
   # Empty lineup — page still renders
   # --------------------------------------------------------------------------
 
-  describe "GET /mlb/lineups/:date — empty lineup (no lineup rows)" do
+  describe "GET /mlb/players/:date — empty lineup (no lineup rows)" do
     setup do
       Cache.del(Cache.players_page_key(@date_str))
       team = insert_team!()
@@ -233,30 +233,30 @@ defmodule SportsFanaticWeb.LineupControllerTest do
     end
 
     test "renders 200 even with no lineup entries for the date", %{conn: conn} do
-      conn = get(conn, "/mlb/lineups/#{@date_str}")
+      conn = get(conn, "/mlb/players/#{@date_str}")
       assert html_response(conn, 200)
     end
 
     test "shows 'In the lineup today' section header", %{conn: conn} do
-      conn = get(conn, "/mlb/lineups/#{@date_str}")
+      conn = get(conn, "/mlb/players/#{@date_str}")
       body = html_response(conn, 200)
       assert body =~ "In the lineup today"
     end
 
     test "shows 'Active players not in the lineup' section header", %{conn: conn} do
-      conn = get(conn, "/mlb/lineups/#{@date_str}")
+      conn = get(conn, "/mlb/players/#{@date_str}")
       body = html_response(conn, 200)
       assert body =~ "Active players not in the lineup"
     end
 
     test "shows empty-state copy for the lineup section when no lineup rows exist", %{conn: conn} do
-      conn = get(conn, "/mlb/lineups/#{@date_str}")
+      conn = get(conn, "/mlb/players/#{@date_str}")
       body = html_response(conn, 200)
       assert body =~ "No players in the lineup today"
     end
 
     test "does not crash — no 404 or 500", %{conn: conn} do
-      conn = get(conn, "/mlb/lineups/#{@date_str}")
+      conn = get(conn, "/mlb/players/#{@date_str}")
       assert conn.status == 200
     end
   end
@@ -265,12 +265,12 @@ defmodule SportsFanaticWeb.LineupControllerTest do
   # Invalid date → 404 (Ecto.NoResultsError raised)
   # --------------------------------------------------------------------------
 
-  describe "GET /mlb/lineups/:date — invalid date" do
+  describe "GET /mlb/players/:date — invalid date" do
     test "raises Ecto.NoResultsError for a non-date string" do
       conn = Phoenix.ConnTest.build_conn()
 
       assert_raise Ecto.NoResultsError, fn ->
-        get(conn, "/mlb/lineups/not-a-date")
+        get(conn, "/mlb/players/not-a-date")
       end
     end
 
@@ -278,8 +278,75 @@ defmodule SportsFanaticWeb.LineupControllerTest do
       conn = Phoenix.ConnTest.build_conn()
 
       assert_raise Ecto.NoResultsError, fn ->
-        get(conn, "/mlb/lineups/2026-99")
+        get(conn, "/mlb/players/2026-99")
       end
+    end
+  end
+
+  # --------------------------------------------------------------------------
+  # Legacy /mlb/lineups/:date 301 → /mlb/players/:date
+  # --------------------------------------------------------------------------
+
+  describe "GET /mlb/lineups/:date — 301 redirect to /mlb/players/:date" do
+    test "valid date redirects with 301", %{conn: conn} do
+      conn = get(conn, "/mlb/lineups/2026-05-18")
+      assert redirected_to(conn, 301) == "/mlb/players/2026-05-18"
+    end
+
+    test "invalid date string still redirects (404 handled downstream)", %{conn: conn} do
+      conn = get(conn, "/mlb/lineups/not-a-date")
+      assert redirected_to(conn, 301) == "/mlb/players/not-a-date"
+    end
+
+    test "/mlb/lineups (no date segment) returns 404 — not 500", %{conn: conn} do
+      # No route registered for 0-segment /mlb/lineups, so Phoenix returns 404.
+      # This verifies the edge case does not blow up with a 500.
+      conn = get(conn, "/mlb/lineups")
+      assert conn.status == 404
+    end
+
+    test "/mlb/lineups/:date routes to RedirectController" do
+      # Routing safety: the legacy path must dispatch to RedirectController,
+      # never to LineupController directly.
+      route_info =
+        Phoenix.Router.route_info(
+          SportsFanaticWeb.Router,
+          "GET",
+          "/mlb/lineups/2026-05-18",
+          "localhost"
+        )
+
+      assert route_info.plug == SportsFanaticWeb.RedirectController
+      assert route_info.plug_opts == :lineups_to_players
+    end
+
+    test "2-segment /mlb/players/:team_slug/:player_slug is NOT caught by the date route" do
+      # Routing safety: the 1-segment date route must not shadow the
+      # 2-segment player-profile route. We assert by inspecting the routes
+      # table — no DB required.
+      route_info =
+        Phoenix.Router.route_info(
+          SportsFanaticWeb.Router,
+          "GET",
+          "/mlb/players/new-york-yankees/aaron-judge",
+          "localhost"
+        )
+
+      assert route_info.plug == SportsFanaticWeb.PlayerController
+      assert route_info.plug_opts == :show
+    end
+
+    test "1-segment /mlb/players/:date routes to LineupController" do
+      route_info =
+        Phoenix.Router.route_info(
+          SportsFanaticWeb.Router,
+          "GET",
+          "/mlb/players/2026-05-18",
+          "localhost"
+        )
+
+      assert route_info.plug == SportsFanaticWeb.LineupController
+      assert route_info.plug_opts == :show
     end
   end
 end

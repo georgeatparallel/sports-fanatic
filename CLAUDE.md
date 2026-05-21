@@ -115,7 +115,7 @@ One line per logical group. Details live in the owning sub-folder CLAUDE.md.
 | Home / chat | `/`, `/chat` | `lib/sports_fanatic_web/live/CLAUDE.md` |
 | Players | `/mlb/players`, `/mlb/players/:team_slug/:player_slug` | `lib/sports_fanatic_web/controllers/CLAUDE.md` |
 | Teams | `/mlb/teams`, `/mlb/teams/:team_slug` | `lib/sports_fanatic_web/controllers/CLAUDE.md` |
-| Players (daily) | `/mlb/lineups/:date` | `lib/sports_fanatic_web/controllers/CLAUDE.md` |
+| Players (daily) | `/mlb/players/:date` (legacy `/mlb/lineups/:date` 301-redirects) | `lib/sports_fanatic_web/controllers/CLAUDE.md` |
 | News | `/mlb/news`, `/mlb/news/:date`, `/mlb/news/:date/:slug` | `lib/sports_fanatic_web/live/CLAUDE.md` |
 | Scouting | `/mlb/scouting/:team_slug/:player_slug` | `lib/sports_fanatic_web/controllers/CLAUDE.md` |
 | Game Day | `/mlb/game-day/:date/:slug` | `lib/sports_fanatic_web/controllers/CLAUDE.md` |

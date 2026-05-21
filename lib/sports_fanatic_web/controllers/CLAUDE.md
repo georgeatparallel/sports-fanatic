@@ -16,7 +16,7 @@ Phoenix controllers and their HTML modules. One controller per route group.
 | `PageController` | `/`, `/health` |
 | `PlayerController` | `/mlb/players`, `/mlb/players/:team_slug/:player_slug`, sources. `show/2` assigns `@game_card` via `SportsFanatic.Mlb.todays_game_for_player/2`. |
 | `TeamController` | `/mlb/teams`, `/mlb/teams/:team_slug` (also renders team magazine section) |
-| `LineupController` | `/mlb/lineups/:date` — **Players page** (in lineup / active / inactive groups, search dropdown, anonymous page cache) |
+| `LineupController` | `/mlb/players/:date` — **Players page** (in lineup / active / inactive groups, search dropdown, anonymous page cache). Legacy `/mlb/lineups/:date` 301-redirects here via `RedirectController.lineups_to_players/2`. |
 | `NewsController` | `/mlb/news/today` (redirect), `/mlb/news/:date/:slug` |
 | `ScoutingController` | `/mlb/scouting/:team_slug/:player_slug` (public, full SEO content — renders complete report; premium adds prediction overlays at `/premium/scouting/...`). Also assigns `@game_card` via `SportsFanatic.Mlb.todays_game_for_player/2` (sourced from `mlb.scheduled_games`, not from `mlb.hit_predictions`). Game card and `today_hit_banner` stack additively; neither renders "No game today" copy when absent. |
 | `GameDayController` | `/mlb/game-day/:date/:slug` (public preview) |

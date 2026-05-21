@@ -63,7 +63,7 @@ sf:page:scouting:{team}:{slug}      TTL 15 min — invalidated on success by Gen
 sf:page:gameday:{date}:{slug}       TTL 10 min
 sf:page:injury:{slug}:{date}        TTL 60 min
 sf:page:team-magazine:{slug}:{date} TTL 30 min
-sf:page:players:{YYYY-MM-DD}        TTL until next Eastern midnight (floor 600 s, cap 86_400 s) — full anonymous HTML for /mlb/lineups/:date
+sf:page:players:{YYYY-MM-DD}        TTL until next Eastern midnight (floor 600 s, cap 86_400 s) — full anonymous HTML for /mlb/players/:date
 sf:data:players:roster              TTL 24 h — slim roster blob for search dropdown (all players)
 sf:data:player:card:{mlb_id}        TTL 6 h  — per-card render data (badge, link target); mlb_id is integer or player UUID fallback
 sf:data:game_card:player:{uuid}:{YYYY-MM-DD}

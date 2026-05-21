@@ -73,8 +73,10 @@ defmodule SportsFanaticWeb.Router do
     get "/mlb/teams", TeamController, :index
     get "/mlb/teams/:team_slug", TeamController, :show
 
-    # Lineup pages
-    get "/mlb/lineups/:date", LineupController, :show
+    # Players (daily) page — canonical URL is /mlb/players/:date.
+    # The legacy /mlb/lineups/:date path 301-redirects to the new URL.
+    get "/mlb/players/:date", LineupController, :show
+    get "/mlb/lineups/:date", RedirectController, :lineups_to_players
 
     # News pages
     live "/mlb/news", NewsLive, :today

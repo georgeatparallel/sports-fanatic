@@ -3,7 +3,7 @@
   %{label: "Baseball", href: "/mlb/teams"},
   %{
     label: "Players",
-    href: "/mlb/lineups/#{SportsFanatic.DateHelper.today() |> Date.to_iso8601()}"
+    href: "/mlb/players/#{SportsFanatic.DateHelper.today() |> Date.to_iso8601()}"
   },
   %{label: Calendar.strftime(@date, "%B %d, %Y")}
 ]} />
@@ -12,7 +12,7 @@
   <SportsFanaticWeb.SEOComponents.date_nav
     prev_date={@prev_date}
     next_date={@next_date}
-    base_path="/mlb/lineups"
+    base_path="/mlb/players"
   />
 
   <h1 class="text-3xl font-bold text-gray-900 mb-2">
@@ -139,7 +139,7 @@
   <SportsFanaticWeb.SEOComponents.date_nav
     prev_date={@prev_date}
     next_date={@next_date}
-    base_path="/mlb/lineups"
+    base_path="/mlb/players"
   />
 </section>
 

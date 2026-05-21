@@ -1,6 +1,6 @@
 defmodule SportsFanatic.Players do
   @moduledoc """
-  Context for the `/mlb/lineups/:date` Players page.
+  Context for the `/mlb/players/:date` Players page.
 
   Builds three grouped rosters, the slim search-roster JSON, and per-card
   render data (status badge, link target, headshot fallback flag).

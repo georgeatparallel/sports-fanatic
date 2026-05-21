@@ -18,12 +18,12 @@ defmodule SportsFanaticWeb.NavRenameTest do
   end
 
   describe "root.html.heex — nav label rename" do
-    test "desktop nav contains 'Players' label linking to /mlb/lineups", %{content: content} do
+    test "desktop nav contains 'Players' label linking to /mlb/players", %{content: content} do
       assert content =~ "Players"
     end
 
-    test "desktop nav 'Players' anchor links to /mlb/lineups", %{content: content} do
-      assert content =~ "/mlb/lineups/"
+    test "desktop nav 'Players' anchor links to /mlb/players", %{content: content} do
+      assert content =~ "/mlb/players/"
     end
 
     test "nav section does not contain the text 'Game Day' as a nav label", %{content: content} do
@@ -44,16 +44,16 @@ defmodule SportsFanaticWeb.NavRenameTest do
       assert footer_region =~ "Players"
     end
 
-    test "footer 'Content' column links to /mlb/lineups", %{content: content} do
-      # Both nav and footer link to /mlb/lineups/{today}
-      lineups_count =
+    test "footer 'Content' column links to /mlb/players", %{content: content} do
+      # Both nav and footer link to /mlb/players/{today}
+      players_count =
         content
-        |> String.split("/mlb/lineups/")
+        |> String.split("/mlb/players/")
         |> length()
 
       # Expect at least 3 occurrences (desktop nav, mobile nav, footer)
-      assert lineups_count >= 4,
-             "Expected at least 3 /mlb/lineups/ anchors in root.html.heex, found #{lineups_count - 1}"
+      assert players_count >= 4,
+             "Expected at least 3 /mlb/players/ anchors in root.html.heex, found #{players_count - 1}"
     end
   end
 end

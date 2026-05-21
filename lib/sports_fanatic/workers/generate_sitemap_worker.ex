@@ -108,7 +108,7 @@ defmodule SportsFanatic.Workers.GenerateSitemapWorker do
 
     Enum.map(date_range, fn date ->
       %{
-        loc: "#{base_url()}/mlb/lineups/#{date}",
+        loc: "#{base_url()}/mlb/players/#{date}",
         lastmod: date,
         changefreq: if(date == today, do: "daily", else: "weekly")
       }

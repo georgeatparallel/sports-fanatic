@@ -1,6 +1,6 @@
 defmodule SportsFanaticWeb.LineupHTML do
   @moduledoc """
-  HTML module for `/mlb/lineups/:date` (the rewritten Players page).
+  HTML module for `/mlb/players/:date` (the Players page).
 
   The page is composed entirely with the canonical
   `SportsFanaticWeb.CoreComponents.player_card/1` component plus the global
