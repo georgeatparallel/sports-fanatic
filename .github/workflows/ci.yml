@@ -156,7 +156,10 @@ jobs:
         run: mix deps.get
 
       - name: Audit dependencies for known CVEs
-        run: mix deps.audit
+        # Ignored advisories (see docs/KNOWN_ISSUES.md → SEC-DEPS-1 for rationale):
+        #   GHSA-g2wm-735q-3f56  cowlib cookie header injection (LOW, no patched
+        #                         version available upstream; transitive via cowboy).
+        run: mix deps.audit --ignore-advisory-ids GHSA-g2wm-735q-3f56
 
   # ── Python bridge: lint + test ────────────────────────────────────────────
   python-bridge:

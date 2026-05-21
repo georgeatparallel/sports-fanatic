@@ -7,6 +7,7 @@ defmodule SportsFanatic.Workers.GenerateScoutingWorker do
     unique: [period: 3600]
 
   import Ecto.Query
+  alias SportsFanatic.Cache
   alias SportsFanatic.Content.ScoutingReport
   alias SportsFanatic.Mlb.{Lineup, Player}
   alias SportsFanatic.PythonBridge
@@ -93,6 +94,7 @@ defmodule SportsFanatic.Workers.GenerateScoutingWorker do
     case result do
       {:ok, _report} ->
         invalidate_player_card(player)
+        invalidate_scouting_page(player)
         result
 
       _ ->
@@ -115,13 +117,27 @@ defmodule SportsFanatic.Workers.GenerateScoutingWorker do
 
   defp invalidate_player_card(player) do
     id = card_cache_id(player)
-    SportsFanatic.Cache.del(SportsFanatic.Cache.player_card_key(id))
+    Cache.del(Cache.player_card_key(id))
   rescue
     _ -> :ok
   end
 
   defp invalidate_all_players_pages do
-    SportsFanatic.Cache.del_pattern("sf:page:players:*")
+    Cache.del_pattern("sf:page:players:*")
+  rescue
+    _ -> :ok
+  end
+
+  defp invalidate_scouting_page(player) do
+    player = Repo.preload(player, :team)
+
+    case player.team do
+      %{slug: team_slug} when is_binary(team_slug) and team_slug != "" ->
+        Cache.del(Cache.scouting_page_key(team_slug, player.slug))
+
+      _ ->
+        :ok
+    end
   rescue
     _ -> :ok
   end

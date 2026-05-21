@@ -93,7 +93,6 @@ defmodule SportsFanaticWeb.SitemapController do
       "  <url><loc>#{@domain}/</loc><changefreq>hourly</changefreq><priority>1.0</priority></url>",
       "  <url><loc>#{@domain}/mlb/teams</loc><changefreq>daily</changefreq><priority>0.9</priority></url>",
       "  <url><loc>#{@domain}/mlb/players</loc><changefreq>daily</changefreq><priority>0.9</priority></url>",
-      "  <url><loc>#{@domain}/mlb/lineups</loc><changefreq>daily</changefreq><priority>0.9</priority></url>",
       "  <url><loc>#{@domain}/mlb/news</loc><changefreq>hourly</changefreq><priority>0.9</priority></url>"
     ]
 

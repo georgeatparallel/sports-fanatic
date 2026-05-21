@@ -16,6 +16,11 @@ defmodule SportsFanatic.Workers.CacheInvalidationTest do
      and page pattern.
   4. X.InjuryReport.insert_and_cache: successful insert deletes per-card key
      and page pattern.
+  5. Game-card cache namespace: Cache.del_pattern/1 with the
+     "sf:data:game_card:player:*:{date}" pattern clears all per-player keys
+     for that date while leaving keys for other dates untouched. This mirrors
+     the invalidation performed by FetchScheduleWorker, FetchLineupsWorker,
+     FetchPitcherStatsWorker, and ForecastWeatherWorker on their success paths.
   """
   use SportsFanatic.DataCase, async: false
 
@@ -25,6 +30,8 @@ defmodule SportsFanatic.Workers.CacheInvalidationTest do
   alias SportsFanatic.Content.{InjuryReport, ScoutingReport}
   alias SportsFanatic.Mlb.{Lineup, Player, Team}
   alias SportsFanatic.Repo
+
+  require Logger
 
   # --------------------------------------------------------------------------
   # helpers
@@ -169,6 +176,53 @@ defmodule SportsFanatic.Workers.CacheInvalidationTest do
   end
 
   # --------------------------------------------------------------------------
+  # GenerateScoutingWorker — scouting page key invalidation (new in this PR)
+  # --------------------------------------------------------------------------
+
+  describe "GenerateScoutingWorker scouting page cache invalidation" do
+    test "scouting page key is deleted after successful scouting report insert" do
+      if valkey_available?() do
+        team = insert_team!()
+        player = insert_player!(team)
+        today = ~D[2026-05-18]
+
+        # Pre-populate the scouting page cache for this player
+        scouting_key = Cache.scouting_page_key(team.slug, player.slug)
+        :ok = Cache.set(scouting_key, "<html>stale scouting report</html>", 900)
+
+        {:ok, before_val} = Cache.get(scouting_key)
+        assert is_binary(before_val), "Pre-condition: scouting page cache must be populated"
+
+        # Insert a scouting report
+        {:ok, _report} =
+          %ScoutingReport{}
+          |> ScoutingReport.changeset(%{
+            player_id: player.id,
+            report_date: today,
+            summary: "Fresh scouting report for cache test",
+            overall_grade: "A",
+            full_report: %{},
+            injury_risk: "healthy",
+            sources_count: 5
+          })
+          |> Repo.insert(on_conflict: :replace_all, conflict_target: [:player_id, :report_date])
+
+        # Simulate invalidate_scouting_page/1 from GenerateScoutingWorker
+        Cache.del(Cache.scouting_page_key(team.slug, player.slug))
+
+        {:ok, after_val} = Cache.get(scouting_key)
+
+        assert is_nil(after_val),
+               "Scouting page key #{scouting_key} must be nil after worker invalidation"
+      else
+        IO.puts(
+          "\n  [SKIP] Valkey not available — skipping scouting page cache invalidation test"
+        )
+      end
+    end
+  end
+
+  # --------------------------------------------------------------------------
   # X.InjuryReport cache invalidation
   # --------------------------------------------------------------------------
 
@@ -218,6 +272,90 @@ defmodule SportsFanatic.Workers.CacheInvalidationTest do
       else
         IO.puts(
           "\n  [SKIP] Valkey not available — skipping cache invalidation test for InjuryReport"
+        )
+      end
+    end
+  end
+
+  # --------------------------------------------------------------------------
+  # Game-card cache namespace invalidation
+  # (mirrors what FetchScheduleWorker, FetchLineupsWorker,
+  #  FetchPitcherStatsWorker, ForecastWeatherWorker each call on success)
+  # --------------------------------------------------------------------------
+
+  describe "game-card cache namespace — del_pattern invalidation" do
+    test "del_pattern clears all per-player keys for a given date and leaves other dates intact" do
+      if valkey_available?() do
+        date = ~D[2099-01-15]
+        other_date = ~D[2099-01-16]
+        player_id_a = Ecto.UUID.generate()
+        player_id_b = Ecto.UUID.generate()
+
+        key_a = Cache.game_card_key(player_id_a, date)
+        key_b = Cache.game_card_key(player_id_b, date)
+        key_other = Cache.game_card_key(player_id_a, other_date)
+
+        # Pre-populate three keys: two for the target date, one for another date
+        :ok = Cache.set(key_a, ~s({"opponent_name":"Team A"}), 60)
+        :ok = Cache.set(key_b, ~s({"opponent_name":"Team B"}), 60)
+        :ok = Cache.set(key_other, ~s({"opponent_name":"Team A Tomorrow"}), 60)
+
+        # Verify all three keys exist before the pattern delete
+        assert {:ok, v} = Cache.get(key_a)
+        assert is_binary(v)
+        assert {:ok, v} = Cache.get(key_b)
+        assert is_binary(v)
+        assert {:ok, v} = Cache.get(key_other)
+        assert is_binary(v)
+
+        # Execute the same pattern delete the four workers call on success
+        pattern = "sf:data:game_card:player:*:#{Date.to_iso8601(date)}"
+        :ok = Cache.del_pattern(pattern)
+
+        # Both keys for `date` must be gone
+        {:ok, a_after} = Cache.get(key_a)
+        {:ok, b_after} = Cache.get(key_b)
+
+        assert is_nil(a_after),
+               "Game-card key #{key_a} must be nil after del_pattern"
+
+        assert is_nil(b_after),
+               "Game-card key #{key_b} must be nil after del_pattern"
+
+        # Key for the other date must be untouched
+        {:ok, other_after} = Cache.get(key_other)
+
+        assert is_binary(other_after),
+               "Game-card key #{key_other} (different date) must survive the pattern delete"
+      else
+        Logger.info(
+          "[SKIP] Valkey not available — skipping game-card cache invalidation pattern test"
+        )
+      end
+    end
+
+    test "del_pattern with null-sentinel clears off-day entries for the date" do
+      if valkey_available?() do
+        date = ~D[2099-02-20]
+        player_id = Ecto.UUID.generate()
+        key = Cache.game_card_key(player_id, date)
+
+        # Simulate what the Mlb context writes for an off-day
+        :ok = Cache.set(key, "__none__", 60)
+
+        {:ok, before_val} = Cache.get(key)
+        assert before_val == "__none__", "Pre-condition: sentinel must be present"
+
+        pattern = "sf:data:game_card:player:*:#{Date.to_iso8601(date)}"
+        :ok = Cache.del_pattern(pattern)
+
+        {:ok, after_val} = Cache.get(key)
+
+        assert is_nil(after_val),
+               "Null-sentinel key #{key} must be cleared by del_pattern"
+      else
+        Logger.info(
+          "[SKIP] Valkey not available — skipping null-sentinel game-card invalidation test"
         )
       end
     end

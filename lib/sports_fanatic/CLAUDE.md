@@ -35,6 +35,8 @@ lib/sports_fanatic/
   joshua_auth.ex      Passphrase admin gate helper
   mlb/                Sport, Team, Player, Venue, Game, ScheduledGame, Lineup,
                        Pick, HrPick schemas
+  mlb.ex              MLB context — todays_game_for_player/2 (game card sourced
+                       from mlb.scheduled_games, joined to teams by name)
   news.ex             News context — cached feed reads, entity resolved list
   news/               entity_matcher.ex — fuzzy player/team matching
   python_bridge.ex    HTTP client for Python bridge with circuit breaker
@@ -57,13 +59,20 @@ sf:page:team:{slug}                 TTL 10 min
 sf:page:lineup:today                TTL 2 min
 sf:page:lineup:{past-date}          TTL 24 hours
 sf:page:news:{date}:{slug}          TTL 5 min
-sf:page:scouting:{team}:{slug}      TTL 15 min
+sf:page:scouting:{team}:{slug}      TTL 15 min — invalidated on success by GenerateScoutingWorker AND GenerateScoutingOnDemandWorker (via invalidate_scouting_page/1) in addition to Pipeline.process_single_player/3
 sf:page:gameday:{date}:{slug}       TTL 10 min
 sf:page:injury:{slug}:{date}        TTL 60 min
 sf:page:team-magazine:{slug}:{date} TTL 30 min
-sf:page:players:{YYYY-MM-DD}        TTL until next Eastern midnight (floor 600 s, cap 86_400 s) — full anonymous HTML for /mlb/lineups/:date
+sf:page:players:{YYYY-MM-DD}        TTL until next Eastern midnight (floor 600 s, cap 86_400 s) — full anonymous HTML for /mlb/players/:date
 sf:data:players:roster              TTL 24 h — slim roster blob for search dropdown (all players)
 sf:data:player:card:{mlb_id}        TTL 6 h  — per-card render data (badge, link target); mlb_id is integer or player UUID fallback
+sf:data:game_card:player:{uuid}:{YYYY-MM-DD}
+                                    TTL until next Eastern midnight — per-player "today's scheduled game" card
+                                    (opponent, time, venue, probable pitcher, weather). `"__none__"` literal cached
+                                    on off-days so we don't query Postgres every request for a non-playing player.
+                                    Invalidated on success by FetchScheduleWorker, FetchLineupsWorker,
+                                    FetchPitcherStatsWorker, ForecastWeatherWorker via
+                                    `Cache.del_pattern("sf:data:game_card:player:*:{YYYY-MM-DD}")`.
 sf:data:predictions:*               TTL 5 min
 sf:data:news:feed:{date}            TTL 60 s
 sf:sitemap:*                        TTL 6 hours
@@ -72,7 +81,8 @@ sf:sitemap:*                        TTL 6 hours
 Use `SportsFanatic.Cache.get/1`, `set/3`, `del/1`, `del_pattern/1`.
 Key builders: `Cache.news_feed_key/1` accepts `%Date{}` or ISO-8601 string;
 `Cache.players_page_key/1`, `Cache.players_roster_key/0`,
-`Cache.player_card_key/1` for the Players page.
+`Cache.player_card_key/1` for the Players page. `Cache.game_card_key/2` for
+the per-player today's-game card (accepts a player UUID + `%Date{}` or ISO string).
 
 ## Storage (S3)
 

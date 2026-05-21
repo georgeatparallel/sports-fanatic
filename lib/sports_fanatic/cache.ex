@@ -23,6 +23,7 @@ defmodule SportsFanatic.Cache do
     "sf:page:gameday:" => 600,
     "sf:data:players:roster" => 86_400,
     "sf:data:player:card:" => 21_600,
+    "sf:data:game_card:" => 86_400,
     "sf:data:predictions:" => 300,
     "sf:data:news:feed:" => 60,
     "sf:sitemap:" => 21_600
@@ -93,7 +94,7 @@ defmodule SportsFanatic.Cache do
     do: "sf:page:lineup:#{date_str}"
 
   @doc """
-  Page-cache key for the rewritten /mlb/lineups/:date Players page.
+  Page-cache key for the /mlb/players/:date Players page.
   Accepts an ISO 8601 string or a `%Date{}`.
   """
   @spec players_page_key(Date.t() | String.t()) :: String.t()
@@ -118,6 +119,22 @@ defmodule SportsFanatic.Cache do
   @spec player_card_key(integer() | String.t()) :: String.t()
   def player_card_key(id_or_mlb_id),
     do: "sf:data:player:card:#{id_or_mlb_id}"
+
+  @doc """
+  Data-cache key for the per-player "today's scheduled game" card rendered on
+  the public scouting and player pages. `player_id` is the player's binary
+  UUID primary key (NOT a slug — slugs can change, UUIDs cannot). `date` is a
+  `%Date{}` or ISO-8601 string.
+
+  TTL is set at write time via `DateHelper.seconds_until_eastern_midnight/0`
+  so entries expire when the ET day rolls over.
+  """
+  @spec game_card_key(String.t(), Date.t() | String.t()) :: String.t()
+  def game_card_key(player_id, %Date{} = date),
+    do: game_card_key(player_id, Date.to_iso8601(date))
+
+  def game_card_key(player_id, date_iso) when is_binary(player_id) and is_binary(date_iso),
+    do: "sf:data:game_card:player:#{player_id}:#{date_iso}"
 
   def news_page_key(date_str, slug \\ nil) do
     if slug, do: "sf:page:news:#{date_str}:#{slug}", else: "sf:page:news:#{date_str}"

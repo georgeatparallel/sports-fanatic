@@ -66,6 +66,7 @@ defmodule SportsFanatic.Workers.FetchLineupsWorker do
         Logger.info("Fetched #{length(players)} lineup entries for #{date}")
 
         invalidate_players_page_cache(date)
+        invalidate_game_card_cache(date)
 
         Progress.step_completed(run_id, :fetch_lineups,
           processed: length(players),
@@ -148,6 +149,13 @@ defmodule SportsFanatic.Workers.FetchLineupsWorker do
 
   defp invalidate_players_page_cache(date) do
     SportsFanatic.Cache.del(SportsFanatic.Cache.players_page_key(date))
+  rescue
+    _ -> :ok
+  end
+
+  defp invalidate_game_card_cache(%Date{} = date) do
+    pattern = "sf:data:game_card:player:*:#{Date.to_iso8601(date)}"
+    SportsFanatic.Cache.del_pattern(pattern)
   rescue
     _ -> :ok
   end

@@ -9,11 +9,12 @@ defmodule SportsFanaticWeb.LineupController do
   require Logger
 
   @doc """
-  Renders the Players page at `/mlb/lineups/:date`.
+  Renders the Players page at `/mlb/players/:date`.
 
-  The route URL is preserved (sitemaps + inbound links still resolve), but
-  the response body is the new three-group player roster + global search
-  dropdown.
+  Response body is the three-group player roster (in lineup / active /
+  inactive) plus a global search dropdown. The legacy URL
+  `/mlb/lineups/:date` 301-redirects here via `RedirectController`, so
+  external backlinks and bookmarks continue to resolve.
 
   Caching strategy (ADR-002):
 
@@ -102,7 +103,7 @@ defmodule SportsFanaticWeb.LineupController do
   end
 
   defp assign_seo(conn, date, date_str) do
-    canonical = SportsFanaticWeb.SEO.absolute_url("/mlb/lineups/#{date_str}")
+    canonical = SportsFanaticWeb.SEO.absolute_url("/mlb/players/#{date_str}")
     site_url = SportsFanaticWeb.SEO.site_url()
     today_iso = DateHelper.today() |> Date.to_iso8601()
 
@@ -127,7 +128,7 @@ defmodule SportsFanaticWeb.LineupController do
             "@type" => "ListItem",
             "position" => 3,
             "name" => "Players",
-            "item" => site_url <> "/mlb/lineups/#{today_iso}"
+            "item" => site_url <> "/mlb/players/#{today_iso}"
           },
           %{
             "@type" => "ListItem",

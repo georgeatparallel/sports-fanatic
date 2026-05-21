@@ -123,7 +123,9 @@ See `../workers/CLAUDE.md` for the full worker catalogue. Predictions-specific e
 
 ## Scouting + Player Detail Banner
 
-`PlayerController.show/2` and `ScoutingController.show/2` both assign `@today_hit_prediction` via `Predictions.get_for_player(player_mlb_id, today)`. The `<.today_hit_banner prediction={@today_hit_prediction} />` component (in `../../sports_fanatic_web/components/prediction_components.ex`) renders hit %, matchup (Team vs OppTeam), local game time, probable opposing pitcher, and a weather one-liner. When the player has no game today the banner shows "No game today."
+`PlayerController.show/2` and `ScoutingController.show/2` both assign `@today_hit_prediction` via `Predictions.get_for_player(player_mlb_id, today)`. The `<.today_hit_banner prediction={@today_hit_prediction} />` component (in `../../sports_fanatic_web/components/prediction_components.ex`) renders hit %, matchup (Team vs OppTeam), local game time, probable opposing pitcher, and a weather one-liner. When `@today_hit_prediction` is `nil`, the banner renders nothing (empty markup) — the "No game today" copy has been removed.
+
+The canonical "today's game" UI is `<SportsFanaticWeb.PredictionComponents.game_card_panel card={@game_card} />`, sourced from `mlb.scheduled_games` by `SportsFanatic.Mlb.todays_game_for_player/2`. Both controllers also assign `@game_card`; the game card renders first and the hit banner stacks below it when both are present. Neither component renders "No game today" copy — pages simply show no game section when the player's team has no scheduled game.
 
 ## Admin Predictions tab
 

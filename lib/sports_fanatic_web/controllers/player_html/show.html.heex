@@ -10,6 +10,7 @@
 <% end %>
 
 <article class="max-w-6xl mx-auto px-4 py-8">
+  <SportsFanaticWeb.PredictionComponents.game_card_panel card={assigns[:game_card]} />
   <SportsFanaticWeb.PredictionComponents.today_hit_banner prediction={
     assigns[:today_hit_prediction]
   } />
@@ -345,7 +346,7 @@
           </li>
           <li>
             <a
-              href={"/mlb/lineups/#{Date.to_iso8601(SportsFanatic.DateHelper.today())}"}
+              href={"/mlb/players/#{Date.to_iso8601(SportsFanatic.DateHelper.today())}"}
               class="text-blue-600 hover:text-blue-800"
             >
               Today's Lineups

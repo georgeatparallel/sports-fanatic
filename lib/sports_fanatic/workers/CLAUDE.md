@@ -26,10 +26,10 @@ max_attempts: <n>` and implement `perform/1`. Cron schedules are defined in
 
 | Worker | Cron | Notes |
 |--------|------|-------|
-| `FetchScheduleWorker` | `0 6 * * *` | Daily MLB schedule |
-| `FetchLineupsWorker` | `*/30 8-20 * * *` | Every 30 min during gameday window |
+| `FetchScheduleWorker` | `0 6 * * *` | Daily MLB schedule. On success: `Cache.del_pattern("sf:data:game_card:player:*:{date}")` to invalidate per-player game cards. |
+| `FetchLineupsWorker` | `*/30 8-20 * * *` | Every 30 min during gameday window. On success: invalidates `sf:page:players:{date}` AND `sf:data:game_card:player:*:{date}`. |
 | `FetchNewsWorker` | `*/15 * * * *` | Every 15 minutes (S3 + Python Bridge classify) |
-| `GenerateScoutingWorker` | `0 7 * * *` | Daily AI scouting |
+| `GenerateScoutingWorker` | `0 7 * * *` | Daily AI scouting — invalidates `sf:page:scouting:{team}:{slug}` per player on success |
 | `GenerateGameDayWorker` | `0 9 * * *` | Daily Game Day Magazines |
 | `GenerateSitemapWorker` | `0 */6 * * *` | Sitemap regeneration |
 | `CleanupWorker` | `0 3 * * *` | Daily housekeeping |
@@ -45,8 +45,22 @@ max_attempts: <n>` and implement `perform/1`. Cron schedules are defined in
 | `OutboundReplyWorker` | `*/30 16-2 * * *` | Every 30 min during ~12:00–22:00 ET (EDT) |
 | `WeeklyScorecardWorker` | `0 14 * * 0` | Sunday 10:00 ET (EDT) — weekly thread |
 
+## Game-card cache invalidation
+
+Four workers — `FetchScheduleWorker`, `FetchLineupsWorker`,
+`FetchPitcherStatsWorker`, `ForecastWeatherWorker` — each end their
+success path with
+`Cache.del_pattern("sf:data:game_card:player:*:#{YYYY-MM-DD}")` to
+invalidate the per-player "today's scheduled game" card surfaced on the
+scouting and player pages by `SportsFanatic.Mlb.todays_game_for_player/2`.
+
+The wildcard is the player UUID — one DEL per worker run, not per player.
+All four hooks are wrapped in `try/rescue` so a Valkey outage cannot fail
+the underlying job.
+
 ## Non-cron (on-demand)
 
+- `GenerateScoutingOnDemandWorker` — on-demand scouting report generation (Claude path); invalidates `sf:page:scouting:{team}:{slug}` on success.
 - `ParseSettingWorker` — enqueued by `Agents.create_setting/2`.
 - `MainPostWorker` — enqueued by `XPostSchedulerWorker` at jittered times.
 - `EngagementWatcherWorker` — enqueued recursively by `MainPostWorker` and

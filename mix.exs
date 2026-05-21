@@ -141,6 +141,9 @@ defmodule SportsFanatic.MixProject do
       test/sports_fanatic/date_helper_eastern_midnight_test.exs
       test/sports_fanatic_web/components/player_card_test.exs
       test/sports_fanatic_web/nav_rename_test.exs
+      test/sports_fanatic_web/controllers/lineup_html_autofocus_test.exs
+      test/sports_fanatic/mlb/game_card_unit_test.exs
+      test/sports_fanatic_web/components/game_card_panel_test.exs
     )
 
     [
