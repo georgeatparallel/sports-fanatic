@@ -60,7 +60,15 @@ resource "aws_iam_role" "external_secrets" {
       Condition = {
         StringEquals = {
           "${var.eks_oidc_provider_url}:aud" = "sts.amazonaws.com"
-          "${var.eks_oidc_provider_url}:sub" = "system:serviceaccount:external-secrets:external-secrets"
+          # ESO controller runs as external-secrets/external-secrets and requests
+          # tokens via TokenRequest for whichever SA each SecretStore references.
+          # Namespaced SecretStore CRs (e.g. in sports-fanatic) reference a local
+          # SA (sports-fanatic/external-secrets), so the resulting JWT's sub claim
+          # carries that SA's path. Both subs must be allowed.
+          "${var.eks_oidc_provider_url}:sub" = [
+            "system:serviceaccount:external-secrets:external-secrets",
+            "system:serviceaccount:sports-fanatic:external-secrets"
+          ]
         }
       }
     }]
