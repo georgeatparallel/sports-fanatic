@@ -45,7 +45,10 @@ defmodule SportsFanatic.Workers.FetchPitcherStatsWorker do
       pitchers
       |> Enum.with_index(1)
       |> Task.async_stream(
-        fn {pitcher, idx} -> fetch_and_upsert(pitcher, date, force, run_id, idx, total) end,
+        fn {pitcher, idx} ->
+          Progress.put_for_date(date)
+          fetch_and_upsert(pitcher, date, force, run_id, idx, total)
+        end,
         max_concurrency: concurrency,
         timeout: 15_000,
         on_timeout: :kill_task

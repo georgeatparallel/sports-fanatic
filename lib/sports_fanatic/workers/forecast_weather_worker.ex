@@ -16,7 +16,7 @@ defmodule SportsFanatic.Workers.ForecastWeatherWorker do
     max_attempts: 3,
     unique: [period: 3600, fields: [:worker, :args]]
 
-  alias SportsFanatic.ExternalApis.OpenMeteo
+  alias SportsFanatic.ExternalApis.{MlbStats, OpenMeteo}
   alias SportsFanatic.Predictions.{Progress, Stadiums}
   alias SportsFanatic.Repo
 
@@ -42,11 +42,14 @@ defmodule SportsFanatic.Workers.ForecastWeatherWorker do
     total = length(venues)
     Logger.info("ForecastWeatherWorker: #{total} venues for #{date} mode=#{mode}")
 
-    Progress.step_started(run_id, :forecast_weather, total: total)
+    Progress.step_started(run_id, :forecast_weather, total: total, for_date: date)
 
     started = System.monotonic_time(:millisecond)
 
-    {count, errors} =
+    # Per-venue failures are recorded as item events but DO NOT halt the step.
+    # An archive backfill of 1909 dates can't be killed by a single transient
+    # Open-Meteo error; matches the original Python step which logged + continued.
+    {count, skipped} =
       venues
       |> Enum.with_index(1)
       |> Task.async_stream(
@@ -55,29 +58,25 @@ defmodule SportsFanatic.Workers.ForecastWeatherWorker do
         timeout: 15_000,
         on_timeout: :kill_task
       )
-      |> Enum.reduce({0, []}, fn
-        {:ok, :ok}, {n, errs} -> {n + 1, errs}
-        {:ok, {:error, e}}, {n, errs} -> {n, [e | errs]}
-        _, {n, errs} -> {n, [:task_failed | errs]}
+      |> Enum.reduce({0, 0}, fn
+        {:ok, :ok}, {n, s} -> {n + 1, s}
+        {:ok, :skipped}, {n, s} -> {n, s + 1}
+        _, {n, s} -> {n, s + 1}
       end)
 
     elapsed = System.monotonic_time(:millisecond) - started
 
-    case errors do
-      [] ->
-        invalidate_game_card_cache(date)
+    invalidate_game_card_cache(date)
 
-        Progress.step_completed(run_id, :forecast_weather,
-          processed: count,
-          total: total,
-          elapsed_ms: elapsed
-        )
+    Progress.step_completed(run_id, :forecast_weather,
+      processed: count,
+      total: total,
+      elapsed_ms: elapsed,
+      for_date: date,
+      note: skipped > 0 && "skipped=#{skipped}"
+    )
 
-        {:ok, count}
-
-      [first | _] ->
-        {:error, first}
-    end
+    {:ok, count}
   end
 
   defp invalidate_game_card_cache(%Date{} = date) do
@@ -106,34 +105,36 @@ defmodule SportsFanatic.Workers.ForecastWeatherWorker do
         Progress.item_progress(run_id, :forecast_weather, idx,
           total: total,
           current_item: "venue=#{venue_id} — no coords",
-          item_id: venue_id
+          item_id: venue_id,
+          for_date: date
         )
 
-        :ok
+        :skipped
 
       is_nil(game_dt) ->
         Progress.item_progress(run_id, :forecast_weather, idx,
           total: total,
           current_item: "venue=#{venue_id} — no datetime",
-          item_id: venue_id
+          item_id: venue_id,
+          for_date: date
         )
 
-        :ok
+        :skipped
 
       true ->
         do_forecast(coords, venue_id, game_dt, date, mode, run_id, idx, total)
     end
   rescue
     e ->
-      Progress.step_failed(run_id, :forecast_weather, e,
-        current_item: "venue=#{venue_id}",
+      # Record but DON'T halt — the next venue can still try.
+      Progress.item_progress(run_id, :forecast_weather, idx,
+        total: total,
+        current_item: "venue=#{venue_id} — exception: #{Exception.message(e)}",
         item_id: venue_id,
-        endpoint: open_meteo_endpoint(mode),
-        processed: idx,
-        total: total
+        for_date: date
       )
 
-      {:error, e}
+      :skipped
   end
 
   defp do_forecast(coords, venue_id, game_dt, date, mode, run_id, idx, total) do
@@ -152,10 +153,11 @@ defmodule SportsFanatic.Workers.ForecastWeatherWorker do
             Progress.item_progress(run_id, :forecast_weather, idx,
               total: total,
               current_item: "venue=#{venue_id} — no hour match",
-              item_id: venue_id
+              item_id: venue_id,
+              for_date: date
             )
 
-            :ok
+            :skipped
 
           w ->
             upsert(venue_id, game_dt_proper, w)
@@ -163,30 +165,125 @@ defmodule SportsFanatic.Workers.ForecastWeatherWorker do
             Progress.item_progress(run_id, :forecast_weather, idx,
               total: total,
               current_item: "venue=#{venue_id}",
-              item_id: venue_id
+              item_id: venue_id,
+              for_date: date
             )
 
             :ok
         end
 
       {:error, reason} ->
-        Progress.step_failed(run_id, :forecast_weather, reason,
-          current_item: "venue=#{venue_id}",
+        # Per-venue Open-Meteo failures are skipped, not fatal. Original
+        # Python (steps/forecast_weather.py:46-50) logged + continued.
+        Progress.item_progress(run_id, :forecast_weather, idx,
+          total: total,
+          current_item: "venue=#{venue_id} — fetch error: #{inspect(reason)}",
           item_id: venue_id,
-          endpoint: open_meteo_endpoint(mode),
-          http_status: extract_http_status(reason),
-          processed: idx,
-          total: total
+          for_date: date
         )
 
-        {:error, reason}
+        :skipped
     end
   end
 
-  defp open_meteo_endpoint(:archive), do: "https://archive-api.open-meteo.com/v1/archive"
-  defp open_meteo_endpoint(_), do: "https://api.open-meteo.com/v1/forecast"
+  # Fallback when a venue isn't in `Stadiums.coordinates/1`. Tries the
+  # `public.venues` cache first; on a miss, hits MLB Stats
+  # `/v1/venues/{id}?hydrate=location`, upserts the result, and returns it.
+  # Net effect: every MLB venue resolves to coords after at most one lookup
+  # per process, and the answer is permanently cached in `public.venues`.
+  defp coords_from_db(nil), do: nil
 
-  defp coords_from_db(_venue_id), do: nil
+  defp coords_from_db(external_id) when is_integer(external_id) do
+    case query_cached_coords(external_id) do
+      %{} = coords -> coords
+      nil -> fetch_and_cache_coords(external_id)
+    end
+  end
+
+  defp query_cached_coords(external_id) do
+    case Repo.query!(
+           """
+           SELECT latitude, longitude FROM venues
+            WHERE external_id = $1 AND latitude IS NOT NULL AND longitude IS NOT NULL
+            LIMIT 1
+           """,
+           [external_id]
+         ) do
+      %{rows: [[lat, lon] | _]} when is_number(lat) and is_number(lon) ->
+        %{lat: lat, lon: lon}
+
+      _ ->
+        nil
+    end
+  rescue
+    _ -> nil
+  end
+
+  defp fetch_and_cache_coords(external_id) do
+    case MlbStats.fetch_venue(external_id) do
+      {:ok,
+       %{
+         "venue_id" => ^external_id,
+         "venue_name" => name,
+         "venue_latitude" => lat,
+         "venue_longitude" => lon
+       } = venue}
+      when is_binary(name) and is_number(lat) and is_number(lon) ->
+        upsert_venue(venue)
+        %{lat: lat, lon: lon}
+
+      {:ok, %{"venue_name" => name}} when is_binary(name) ->
+        # MLB Stats returned the venue but with no coordinates — extremely rare
+        # for sportId=1 venues. Log so we can investigate which one.
+        Logger.warning(
+          "ForecastWeatherWorker: MLB Stats returned no coords for venue_id=#{external_id} name=#{name}"
+        )
+
+        nil
+
+      {:error, reason} ->
+        Logger.warning(
+          "ForecastWeatherWorker: MLB Stats venue lookup failed for venue_id=#{external_id}: #{inspect(reason)}"
+        )
+
+        nil
+
+      _ ->
+        nil
+    end
+  rescue
+    e ->
+      Logger.warning(
+        "ForecastWeatherWorker.fetch_and_cache_coords/1 crashed for venue_id=#{external_id}: #{inspect(e)}"
+      )
+
+      nil
+  end
+
+  defp upsert_venue(%{"venue_id" => ext_id, "venue_name" => name} = v) do
+    Repo.query!(
+      """
+      INSERT INTO venues (
+        id, name, city, state, latitude, longitude, external_id,
+        inserted_at, updated_at
+      ) VALUES (
+        gen_random_uuid(), $1, $2, $3, $4, $5, $6, NOW(), NOW()
+      )
+      ON CONFLICT (external_id) DO UPDATE SET
+        name = EXCLUDED.name,
+        city = COALESCE(EXCLUDED.city, venues.city),
+        state = COALESCE(EXCLUDED.state, venues.state),
+        latitude = COALESCE(EXCLUDED.latitude, venues.latitude),
+        longitude = COALESCE(EXCLUDED.longitude, venues.longitude),
+        updated_at = NOW()
+      """,
+      [name, v["venue_city"], v["venue_state"], v["venue_latitude"], v["venue_longitude"], ext_id]
+    )
+  rescue
+    e ->
+      Logger.warning("ForecastWeatherWorker.upsert_venue failed: #{inspect(e)}")
+      :ok
+  end
 
   defp ensure_datetime(%DateTime{} = dt), do: dt
 
@@ -230,10 +327,6 @@ defmodule SportsFanatic.Workers.ForecastWeatherWorker do
       ]
     )
   end
-
-  defp extract_http_status({:http_error, s}) when is_integer(s), do: s
-  defp extract_http_status({_, %{status: s}}) when is_integer(s), do: s
-  defp extract_http_status(_), do: nil
 
   defp parse_date(nil), do: nil
   defp parse_date(%Date{} = d), do: d

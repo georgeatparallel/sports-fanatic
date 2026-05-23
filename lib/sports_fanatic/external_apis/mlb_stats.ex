@@ -105,6 +105,32 @@ defmodule SportsFanatic.ExternalApis.MlbStats do
     end
   end
 
+  @doc """
+  Authoritative venue lookup. Hits `/v1/venues/{id}?hydrate=location` and
+  flattens the response into the same shape `parse_game/1` emits for the
+  `venue_*` keys — so callers can pass the result straight into
+  `FetchScheduleWorker.upsert_venue/1` or the `public.venues` upsert SQL.
+
+  Returns `{:ok, %{"venue_id" => ..., "venue_name" => ..., "venue_city" => ...,
+  "venue_state" => ..., "venue_latitude" => float|nil, "venue_longitude" =>
+  float|nil}}` on success, or `{:error, reason}` on HTTP/parse failure.
+
+  Used by `ForecastWeatherWorker` to backfill venues missing from the static
+  stadiums map (spring training, neutral-site games, foreign tours) so the
+  weather step never says "no coords" for a real MLB venue.
+  """
+  @spec fetch_venue(integer()) :: {:ok, map()} | {:error, term()}
+  def fetch_venue(venue_id) when is_integer(venue_id) do
+    url = "#{@base}/venues/#{venue_id}?hydrate=location"
+
+    case do_get(url) do
+      {:ok, %{"venues" => [venue | _]}} -> {:ok, parse_venue(venue)}
+      {:ok, %{"venues" => []}} -> {:error, :not_found}
+      {:ok, _} -> {:error, :invalid_response}
+      err -> err
+    end
+  end
+
   ## --- Parsers --------------------------------------------------------------
 
   defp parse_schedule(%{"dates" => dates}) when is_list(dates) do
@@ -120,6 +146,8 @@ defmodule SportsFanatic.ExternalApis.MlbStats do
     away = Map.get(teams, "away", %{})
     home = Map.get(teams, "home", %{})
     venue = Map.get(g, "venue", %{})
+    location = Map.get(venue, "location", %{})
+    coords = Map.get(location, "defaultCoordinates", %{})
 
     %{
       "game_id" => Map.get(g, "gamePk"),
@@ -135,7 +163,25 @@ defmodule SportsFanatic.ExternalApis.MlbStats do
       "away_starter_mlb_id" => get_in(away, ["probablePitcher", "id"]),
       "home_starter_mlb_id" => get_in(home, ["probablePitcher", "id"]),
       "venue_id" => Map.get(venue, "id"),
-      "venue_name" => Map.get(venue, "name")
+      "venue_name" => Map.get(venue, "name"),
+      "venue_city" => Map.get(location, "city"),
+      "venue_state" => Map.get(location, "state"),
+      "venue_latitude" => to_float(Map.get(coords, "latitude")),
+      "venue_longitude" => to_float(Map.get(coords, "longitude"))
+    }
+  end
+
+  defp parse_venue(venue) when is_map(venue) do
+    location = Map.get(venue, "location", %{})
+    coords = Map.get(location, "defaultCoordinates", %{})
+
+    %{
+      "venue_id" => Map.get(venue, "id"),
+      "venue_name" => Map.get(venue, "name"),
+      "venue_city" => Map.get(location, "city"),
+      "venue_state" => Map.get(location, "state"),
+      "venue_latitude" => to_float(Map.get(coords, "latitude")),
+      "venue_longitude" => to_float(Map.get(coords, "longitude"))
     }
   end
 

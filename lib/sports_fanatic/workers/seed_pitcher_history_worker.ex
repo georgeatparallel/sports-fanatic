@@ -63,12 +63,16 @@ defmodule SportsFanatic.Workers.SeedPitcherHistoryWorker do
     Progress.step_started(run_id, :seed_pitcher_history, total: total)
 
     started = System.monotonic_time(:millisecond)
+    for_date = Process.get(:predictions_for_date)
 
     {count, errors} =
       games
       |> Enum.with_index(1)
       |> Task.async_stream(
-        fn {game_id, idx} -> seed_game(game_id, run_id, idx, total) end,
+        fn {game_id, idx} ->
+          Progress.put_for_date(for_date)
+          seed_game(game_id, run_id, idx, total)
+        end,
         max_concurrency: concurrency,
         timeout: 30_000,
         on_timeout: :kill_task

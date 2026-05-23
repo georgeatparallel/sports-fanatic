@@ -68,12 +68,16 @@ defmodule SportsFanatic.Workers.SeedStatcastWorker do
     Progress.step_started(run_id, :seed_statcast, total: total, note: label)
 
     started = System.monotonic_time(:millisecond)
+    for_date = Process.get(:predictions_for_date)
 
     {count, errors} =
       players
       |> Enum.with_index(1)
       |> Task.async_stream(
-        fn {pid, idx} -> fetch_one(pid, season, run_id, idx, total) end,
+        fn {pid, idx} ->
+          Progress.put_for_date(for_date)
+          fetch_one(pid, season, run_id, idx, total)
+        end,
         max_concurrency: concurrency,
         timeout: 30_000,
         on_timeout: :kill_task

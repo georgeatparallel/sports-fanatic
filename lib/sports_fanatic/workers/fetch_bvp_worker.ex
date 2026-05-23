@@ -41,7 +41,10 @@ defmodule SportsFanatic.Workers.FetchBvpWorker do
       pairs
       |> Enum.with_index(1)
       |> Task.async_stream(
-        fn {pair, idx} -> upsert_pair(pair, date.year, run_id, idx, total) end,
+        fn {pair, idx} ->
+          Progress.put_for_date(date)
+          upsert_pair(pair, date.year, run_id, idx, total)
+        end,
         max_concurrency: concurrency,
         timeout: 15_000,
         on_timeout: :kill_task

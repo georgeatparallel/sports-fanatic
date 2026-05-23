@@ -80,7 +80,7 @@ defmodule SportsFanatic.Predictions.Progress do
     step = step_name(step)
 
     payload =
-      %{total: opts[:total], note: opts[:note]}
+      %{total: opts[:total], note: opts[:note], for_date: format_date(opts[:for_date])}
       |> sanitize_payload()
 
     write_event(run_id, step, :started, payload)
@@ -109,7 +109,8 @@ defmodule SportsFanatic.Predictions.Progress do
           total: opts[:total],
           current_item: opts[:current_item],
           item_id: opts[:item_id],
-          elapsed_ms: opts[:elapsed_ms]
+          elapsed_ms: opts[:elapsed_ms],
+          for_date: format_date(opts[:for_date])
         }
         |> sanitize_payload()
 
@@ -132,7 +133,8 @@ defmodule SportsFanatic.Predictions.Progress do
         processed: opts[:processed],
         total: opts[:total],
         elapsed_ms: opts[:elapsed_ms],
-        note: opts[:note]
+        note: opts[:note],
+        for_date: format_date(opts[:for_date])
       }
       |> sanitize_payload()
 
@@ -156,7 +158,8 @@ defmodule SportsFanatic.Predictions.Progress do
         item_id: opts[:item_id],
         endpoint: scrub_endpoint(opts[:endpoint]),
         http_status: opts[:http_status],
-        error: truncate_error(inspect(error))
+        error: truncate_error(inspect(error)),
+        for_date: format_date(opts[:for_date])
       }
       |> sanitize_payload()
 
@@ -420,6 +423,41 @@ defmodule SportsFanatic.Predictions.Progress do
   end
 
   defp truncate_error(other), do: inspect(other)
+
+  # Coerce a Date / ISO string into a stable ISO-8601 string for the event
+  # payload. When opts[:for_date] is nil, falls back to the per-process
+  # `:predictions_for_date` set by InitialSeedWorker so workers downstream
+  # don't have to thread the date through every Progress call. The fallback
+  # makes the admin event stream show which seed day each line belongs to
+  # without touching every fetch/seed worker.
+  defp format_date(nil) do
+    case Process.get(:predictions_for_date) do
+      %Date{} = d -> Date.to_iso8601(d)
+      s when is_binary(s) -> s
+      _ -> nil
+    end
+  end
+
+  defp format_date(%Date{} = d), do: Date.to_iso8601(d)
+  defp format_date(s) when is_binary(s), do: s
+  defp format_date(_), do: nil
+
+  @doc """
+  Stores the date currently being processed in the calling process's
+  dictionary. Subsequent `step_started/3`, `item_progress/4`, `step_completed/3`,
+  and `step_failed/4` calls auto-include this date in their payload when the
+  caller does not pass `for_date:` explicitly. Safe to call with `nil` to clear.
+  """
+  @spec put_for_date(Date.t() | nil) :: :ok
+  def put_for_date(nil) do
+    Process.delete(:predictions_for_date)
+    :ok
+  end
+
+  def put_for_date(%Date{} = d) do
+    Process.put(:predictions_for_date, d)
+    :ok
+  end
 
   # Strip query-param secrets (apikey, key, token) from URLs so we never
   # persist them to jsonb. Preserves the path + other params.

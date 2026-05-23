@@ -128,6 +128,7 @@ defmodule SportsFanatic.Workers.InitialSeedWorker do
 
   defp run_one_date(date, run_id) do
     Predictions.mark_current_date(run_id, date)
+    Progress.put_for_date(date)
     Progress.mark_current_step(run_id, "seed_date_#{Date.to_iso8601(date)}")
 
     steps = [
@@ -203,7 +204,13 @@ defmodule SportsFanatic.Workers.InitialSeedWorker do
       _ -> nil
     end
   rescue
-    _ -> nil
+    e ->
+      Logger.warning(
+        "InitialSeedWorker.open_pipeline_run failed: " <>
+          "#{inspect(e.__struct__)}: #{Exception.message(e)}"
+      )
+
+      nil
   end
 
   # `gen_random_uuid()` comes back from Postgrex as a 16-byte binary; the
@@ -238,10 +245,22 @@ defmodule SportsFanatic.Workers.InitialSeedWorker do
         )
 
       :error ->
+        Logger.warning(
+          "InitialSeedWorker.close_pipeline_run: could not dump run_id #{inspect(id)} to UUID binary; row left in 'running' state"
+        )
+
         :ok
     end
   rescue
-    _ -> :ok
+    e ->
+      # Don't swallow silently — a Postgrex error here is exactly what leaves
+      # a run stuck at status='running' with no events for 20 minutes.
+      Logger.warning(
+        "InitialSeedWorker.close_pipeline_run failed for run_id=#{inspect(id)} status=#{status}: " <>
+          "#{inspect(e.__struct__)}: #{Exception.message(e)}"
+      )
+
+      :ok
   end
 
   # Postgrex `uuid` binds expect 16-byte binary; Oban job args carry the

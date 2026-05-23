@@ -2482,6 +2482,11 @@ defmodule SportsFanaticWeb.AdminLive do
                         <span class="text-gray-400 whitespace-nowrap">
                           <%= Calendar.strftime(ev.inserted_at, "%H:%M:%S") %>
                         </span>
+                        <%= if for_date = (Map.get(ev.payload, :for_date) || Map.get(ev.payload, "for_date")) do %>
+                          <span class="text-indigo-700 font-mono whitespace-nowrap">
+                            <%= for_date %>
+                          </span>
+                        <% end %>
                         <span class="text-gray-500 whitespace-nowrap">[<%= ev.kind %>]</span>
                         <span class="font-medium text-gray-800 whitespace-nowrap">
                           <%= ev.step %>
@@ -2668,6 +2673,11 @@ defmodule SportsFanaticWeb.AdminLive do
                                   <span class="text-gray-400 whitespace-nowrap">
                                     <%= Calendar.strftime(ev.inserted_at, "%H:%M:%S") %>
                                   </span>
+                                  <%= if for_date = Map.get(ev.payload || %{}, "for_date") do %>
+                                    <span class="text-indigo-700 whitespace-nowrap">
+                                      <%= for_date %>
+                                    </span>
+                                  <% end %>
                                   <span class="text-gray-500 whitespace-nowrap">
                                     [<%= ev.kind %>]
                                   </span>

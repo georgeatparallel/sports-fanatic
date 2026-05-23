@@ -34,7 +34,7 @@ defmodule SportsFanatic.Workers.FetchScheduleWorker do
   def fetch_for_date(date, run_id \\ nil)
 
   def fetch_for_date(%Date{} = date, run_id) do
-    Progress.step_started(run_id, :fetch_schedule, total: 1)
+    Progress.step_started(run_id, :fetch_schedule, total: 1, for_date: date)
 
     case MlbStats.fetch_schedule(date) do
       {:ok, games} when is_list(games) ->
@@ -45,7 +45,8 @@ defmodule SportsFanatic.Workers.FetchScheduleWorker do
 
         Progress.step_completed(run_id, :fetch_schedule,
           processed: length(games),
-          total: length(games)
+          total: length(games),
+          for_date: date
         )
 
         {:ok, length(games)}
@@ -56,7 +57,8 @@ defmodule SportsFanatic.Workers.FetchScheduleWorker do
         Progress.step_failed(run_id, :fetch_schedule, reason,
           current_item: "MLB schedule #{Date.to_iso8601(date)}",
           endpoint: "https://statsapi.mlb.com/api/v1/schedule",
-          http_status: extract_http_status(reason)
+          http_status: extract_http_status(reason),
+          for_date: date
         )
 
         err
@@ -65,7 +67,8 @@ defmodule SportsFanatic.Workers.FetchScheduleWorker do
     e ->
       Progress.step_failed(run_id, :fetch_schedule, e,
         current_item: "MLB schedule #{Date.to_iso8601(date)}",
-        endpoint: "https://statsapi.mlb.com/api/v1/schedule"
+        endpoint: "https://statsapi.mlb.com/api/v1/schedule",
+        for_date: date
       )
 
       reraise e, __STACKTRACE__
@@ -108,7 +111,38 @@ defmodule SportsFanatic.Workers.FetchScheduleWorker do
       venue_name: g["venue_name"]
     })
     |> Repo.insert(on_conflict: :replace_all, conflict_target: :game_id)
+
+    upsert_venue(g)
   end
+
+  # Upserts public.venues using MLB external_id so ForecastWeatherWorker's
+  # coords_from_db/1 fallback can resolve venues outside the 32-stadium static
+  # map (spring training facilities, neutral-site games, etc.).
+  defp upsert_venue(%{"venue_id" => ext_id, "venue_name" => name} = g)
+       when is_integer(ext_id) and is_binary(name) do
+    Repo.query!(
+      """
+      INSERT INTO venues (
+        id, name, city, state, latitude, longitude, external_id,
+        inserted_at, updated_at
+      ) VALUES (
+        gen_random_uuid(), $1, $2, $3, $4, $5, $6, NOW(), NOW()
+      )
+      ON CONFLICT (external_id) DO UPDATE SET
+        name = EXCLUDED.name,
+        city = COALESCE(EXCLUDED.city, venues.city),
+        state = COALESCE(EXCLUDED.state, venues.state),
+        latitude = COALESCE(EXCLUDED.latitude, venues.latitude),
+        longitude = COALESCE(EXCLUDED.longitude, venues.longitude),
+        updated_at = NOW()
+      """,
+      [name, g["venue_city"], g["venue_state"], g["venue_latitude"], g["venue_longitude"], ext_id]
+    )
+  rescue
+    e -> Logger.warning("FetchScheduleWorker.upsert_venue failed: #{inspect(e)}")
+  end
+
+  defp upsert_venue(_), do: :ok
 
   defp extract_http_status({:http_error, s}) when is_integer(s), do: s
   defp extract_http_status({_, %{status: s}}) when is_integer(s), do: s

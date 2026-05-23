@@ -58,6 +58,7 @@ defmodule SportsFanatic.Workers.DailyHitPredictionsWorker do
     {run_id, completed_steps} = open_pipeline_run(date, run_kind)
 
     Progress.start_run(run_id, run_kind: run_kind, date: date)
+    Progress.put_for_date(date)
 
     Logger.info(
       "DailyHitPredictionsWorker: starting pipeline run=#{run_id} date=#{date} kind=#{run_kind}"
