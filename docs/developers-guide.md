@@ -91,6 +91,13 @@ docs/                        # Documentation
 
 ## Common Development Tasks
 
+### Research MLB News Without the Application Stack
+
+The [Parallel Search MCP example](../examples/parallel-news-research/README.md)
+collects current MLB source URLs and excerpts with a standalone Python client.
+It supports anonymous search and optional page fetching, without an API key or
+changes to the application's Exa configuration.
+
 ### Add a New SEO Page
 
 1. Add route in `router.ex` under the `:browser` scope
