@@ -19,8 +19,8 @@ python3 -m venv /tmp/sports-fanatic-research-venv
 
 Phoenix, PostgreSQL, the Python bridge and `.env` are not needed. The client sends
 requests directly to `https://search.parallel.ai/mcp`, identifies itself as the
-Sports Fanatic example, and does not load API keys, saved credentials or proxy
-settings from the environment.
+Sports Fanatic example, and does not load API keys or saved credentials. Standard
+HTTP proxy and TLS certificate environment settings are honored.
 
 ## Search for current coverage
 

@@ -84,7 +84,6 @@ async def research(args, *, transport=None):
         httpx.AsyncClient(
             headers={"User-Agent": USER_AGENT},
             timeout=args.timeout,
-            trust_env=False,
             transport=transport,
         ) as client,
         streamable_http_client(ENDPOINT, http_client=client) as streams,
